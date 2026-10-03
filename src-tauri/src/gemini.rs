@@ -1,9 +1,85 @@
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::config::AppConfig;
+
+/// Space out all Gemini calls so lock-in + chat don't stampede the free-tier quota.
+static LAST_CALL: Mutex<Option<Instant>> = Mutex::new(None);
+
+#[derive(Clone, Copy)]
+enum CallKind {
+    Chat,
+    Vision,
+}
+
+fn friendly_gemini_error(raw: &str) -> String {
+    let lower = raw.to_lowercase();
+    if lower.contains("503") || lower.contains("unavailable") || lower.contains("high demand") {
+        "Gemini is busy right now — still watching your screen, retrying shortly.".into()
+    } else if lower.contains("429") || lower.contains("resource_exhausted") {
+        "Gemini rate limit hit — pausing to stay under quota, then continuing.".into()
+    } else if lower.contains("timed out") || lower.contains("timeout") {
+        "Gemini timed out — trying again on the next tick.".into()
+    } else {
+        let short: String = raw.chars().take(160).collect();
+        format!("Screen coach hiccup: {short}")
+    }
+}
+
+fn is_rate_limited(raw: &str) -> bool {
+    let lower = raw.to_lowercase();
+    lower.contains("429")
+        || lower.contains("resource_exhausted")
+        || lower.contains("rate limit")
+}
+
+async fn wait_for_quota_slot(min_gap: Duration) {
+    let wait_for = {
+        let guard = LAST_CALL.lock().unwrap_or_else(|e| e.into_inner());
+        guard.and_then(|last| {
+            let elapsed = last.elapsed();
+            if elapsed < min_gap {
+                Some(min_gap - elapsed)
+            } else {
+                None
+            }
+        })
+    };
+    if let Some(delay) = wait_for {
+        tokio::time::sleep(delay).await;
+    }
+}
+
+fn mark_call_finished() {
+    if let Ok(mut guard) = LAST_CALL.lock() {
+        *guard = Some(Instant::now());
+    }
+}
+
+fn retry_delay_from_error(raw: &str, fallback_ms: u64) -> u64 {
+    if let Some(cap) = regex_retry_delay_ms(raw) {
+        return cap.clamp(5_000, 120_000);
+    }
+    fallback_ms
+}
+
+fn regex_retry_delay_ms(raw: &str) -> Option<u64> {
+    // Gemini often returns: "retryDelay": "24s"
+    let key = "\"retryDelay\"";
+    let idx = raw.find(key)?;
+    let after = &raw[idx + key.len()..];
+    let start = after.find('"')? + 1;
+    let rest = &after[start..];
+    let end = rest.find('"')?;
+    let token = &rest[..end];
+    let secs = token.trim_end_matches('s').parse::<f64>().ok()?;
+    Some((secs * 1000.0) as u64)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
@@ -43,31 +119,81 @@ impl GeminiClient {
         })
     }
 
-    async fn generate(&self, body: Value) -> Result<String, String> {
+    async fn generate(&self, body: Value, kind: CallKind) -> Result<String, String> {
         let url = format!(
             "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
             self.model
         );
-        let res = self
-            .http
-            .post(url)
-            .header("Content-Type", "application/json")
-            .header("X-goog-api-key", &self.api_key)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| e.to_string())?;
-        let status = res.status();
-        let text = res.text().await.map_err(|e| e.to_string())?;
-        if !status.is_success() {
-            return Err(format!("Gemini error {status}: {text}"));
+        // Vision is frequent during lock-in — keep a wider gap and fewer retries.
+        let min_gap = match kind {
+            CallKind::Chat => Duration::from_secs(2),
+            CallKind::Vision => Duration::from_secs(20),
+        };
+        let max_attempts = match kind {
+            CallKind::Chat => 4usize,
+            CallKind::Vision => 2usize,
+        };
+
+        let mut last_err = String::new();
+        for attempt in 0..max_attempts {
+            wait_for_quota_slot(min_gap).await;
+            let res = self
+                .http
+                .post(&url)
+                .header("Content-Type", "application/json")
+                .header("X-goog-api-key", &self.api_key)
+                .json(&body)
+                .send()
+                .await;
+            mark_call_finished();
+
+            let res = match res {
+                Ok(r) => r,
+                Err(e) => {
+                    last_err = e.to_string();
+                    if attempt + 1 == max_attempts {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_secs(3)).await;
+                    continue;
+                }
+            };
+            let status = res.status();
+            let text = res.text().await.unwrap_or_default();
+            if status.is_success() {
+                let parsed: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+                let content = parsed["candidates"][0]["content"]["parts"][0]["text"]
+                    .as_str()
+                    .ok_or_else(|| "Gemini returned no text".to_string())?
+                    .to_string();
+                return Ok(content);
+            }
+            last_err = format!("Gemini error {status}: {text}");
+            let rate_limited = status.as_u16() == 429 || is_rate_limited(&text);
+            let temporary = rate_limited
+                || status.is_server_error()
+                || text.contains("UNAVAILABLE")
+                || text.contains("high demand");
+            if !temporary || attempt + 1 == max_attempts {
+                break;
+            }
+            // Respect server-suggested delay; default longer on 429 so we don't dig deeper.
+            let fallback = if rate_limited { 45_000 } else { 8_000 };
+            let wait_ms = retry_delay_from_error(&text, fallback);
+            tracing::warn!(
+                "gemini {} retry in {}ms (attempt {}/{}): {}",
+                match kind {
+                    CallKind::Chat => "chat",
+                    CallKind::Vision => "vision",
+                },
+                wait_ms,
+                attempt + 1,
+                max_attempts,
+                friendly_gemini_error(&last_err)
+            );
+            tokio::time::sleep(Duration::from_millis(wait_ms)).await;
         }
-        let parsed: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
-        let content = parsed["candidates"][0]["content"]["parts"][0]["text"]
-            .as_str()
-            .ok_or_else(|| "Gemini returned no text".to_string())?
-            .to_string();
-        Ok(content)
+        Err(friendly_gemini_error(&last_err))
     }
 
     pub async fn chat(
@@ -102,38 +228,22 @@ impl GeminiClient {
                 "temperature": 0.6
             }
         });
-        self.generate(body).await
+        self.generate(body, CallKind::Chat).await
     }
 
-    pub async fn classify_modality(
-        &self,
-        goals: &str,
-        screen_jpeg: Option<&[u8]>,
-    ) -> Result<String, String> {
-        let mut parts = vec![json!({
-            "text": format!(
-                "Classify how this study session will mostly be done.\nGoals:\n{goals}\n\nReply with ONLY one word: computer, paper, or mixed."
-            )
-        })];
-        if let Some(bytes) = screen_jpeg {
-            parts.push(json!({
-                "inline_data": {
-                    "mime_type": "image/jpeg",
-                    "data": B64.encode(bytes)
-                }
-            }));
-        }
-        let body = json!({
-            "contents": [{ "role": "user", "parts": parts }],
-            "generationConfig": { "temperature": 0.1 }
-        });
-        let raw = self.generate(body).await?.to_lowercase();
-        if raw.contains("paper") {
-            Ok("paper".into())
-        } else if raw.contains("mixed") {
-            Ok("mixed".into())
+    /// Local heuristic — avoids an extra Gemini call at lock-in start.
+    pub fn infer_modality(goals: &str) -> String {
+        let g = goals.to_lowercase();
+        if g.contains("paper")
+            || g.contains("notebook")
+            || g.contains("handwrit")
+            || g.contains("textbook")
+        {
+            "paper".into()
+        } else if g.contains("mixed") || (g.contains("paper") && g.contains("laptop")) {
+            "mixed".into()
         } else {
-            Ok("computer".into())
+            "computer".into()
         }
     }
 
@@ -147,19 +257,22 @@ impl GeminiClient {
     ) -> Result<CoachVisionResult, String> {
         let mut parts = vec![json!({
             "text": format!(
-                r#"You are Waypoint, a calm study lock-in coach.
-Primary job: watch the SCREEN and judge whether it matches the student's goals.
+                r#"You are Waypoint, a strict study lock-in coach.
+Primary job: watch the SCREEN and decide if it advances the student's stated goals.
 Session goals: {goals}
 Expected modality: {modality}
-Live wellness signals from Presage / fallback (informational only, not medical): {vitals_summary}
+Live wellness signals (informational only, not medical): {vitals_summary}
 
-Rules:
-- on_task=true only if the visible screen work clearly advances the goals (docs, IDE, problem set, slides, etc.).
-- Social feeds, shopping, unrelated videos, messaging, or random browsing → on_task=false and set distraction.
-- Phone in a webcam frame is a distraction; a calculator for math is usually OK.
-- needs_help=true if they appear stuck on the same problem/error with no progress.
-- stress_cue=true if Presage reports stress OR they look tense/overwhelmed; do not invent medical claims.
-- coach_line: one short, kind, specific sentence about what you see on screen (or a brief stress reset). No lectures.
+HARD RULES:
+- on_task=true ONLY when the dominant visible app/content clearly advances the goals (code editor, docs, slides, problem set, coursework site, etc.).
+- If goals are vague, still require real productive work — not entertainment or social feeds.
+- Instagram, TikTok, Twitter/X, Facebook, Reddit, Discord, iMessage/Messages, WhatsApp, Snapchat, YouTube Shorts/Home, Netflix, Twitch, shopping, news doomscroll → on_task=false.
+- For those, set distraction to a short label like "instagram" or "youtube" and name it in coach_line.
+- Looking at Waypoint itself / desktop / empty browser is NOT on task unless the goals are literally about that.
+- Phone in view (not a calculator) → distraction.
+- needs_help=true only if stuck on coursework/errors.
+- stress_cue=true only with clear stress signals / Presage stress — don't invent medical claims.
+- coach_line: one short, direct sentence. If distracted, call out the app and tell them to return to the goal. No pep talk.
 
 Reply ONLY valid JSON with keys:
 on_task (bool), objects (string array), distraction (string|null),
@@ -204,7 +317,7 @@ modality (computer|paper|mixed)."#
             }
         });
 
-        let raw = self.generate(body).await?;
+        let raw = self.generate(body, CallKind::Vision).await?;
         let cleaned = raw
             .trim()
             .trim_start_matches("```json")
@@ -215,4 +328,8 @@ modality (computer|paper|mixed)."#
             format!("Failed to parse coach JSON: {e}; raw={raw}")
         })
     }
+}
+
+pub fn error_looks_rate_limited(message: &str) -> bool {
+    is_rate_limited(message)
 }

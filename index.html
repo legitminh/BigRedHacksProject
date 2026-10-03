@@ -62,9 +62,10 @@
           </label>
           <label>
             What are you locking in on?
-            <textarea id="goals" rows="4" placeholder="Calc PSet 3 · Q1–3 on my laptop"></textarea>
+            <textarea id="goals" rows="4" required placeholder="Calc PSet 3 · Q1–3 on my laptop"></textarea>
           </label>
           <p id="lockin-wellness" class="composer-hint" aria-live="polite"></p>
+          <p id="lockin-error" class="lockin-error" role="alert" hidden></p>
           <button id="lockin-start" type="submit" class="primary wide">Start lock-in</button>
         </form>
       </section>
@@ -82,9 +83,8 @@
         <p id="session-watch-note" class="session-watch-note"></p>
         <div id="session-vitals" class="vitals-panel" aria-live="polite">
           <p class="vitals-label">Wellness</p>
-          <p id="vitals-line">Waiting for first Presage reading…</p>
+          <p id="vitals-line">Running quietly in the background (not required to lock in)</p>
         </div>
-        <div id="prompt-feed" class="prompt-feed" aria-live="polite"></div>
       </section>
 
       <section id="view-summary" class="view">
@@ -93,6 +93,40 @@
           <p class="brand-inline">Waypoint</p>
         </header>
         <div id="summary-body" class="summary-body"></div>
+      </section>
+
+      <section id="view-settings" class="view">
+        <header class="panel-head">
+          <button class="back" data-back type="button">←</button>
+          <p class="brand-inline">Settings</p>
+        </header>
+        <div class="settings-tabs" role="tablist" aria-label="Settings sections">
+          <button class="settings-tab active" type="button" role="tab" aria-selected="true" data-settings-tab="lockin">Lock in</button>
+          <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="general">General</button>
+          <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="account">Account</button>
+        </div>
+        <div class="settings-panels">
+          <div class="settings-panel active" id="settings-lockin" role="tabpanel">
+            <h2 class="settings-heading">Lock in</h2>
+            <p class="settings-copy">Controls how coaching feels during a focus session.</p>
+            <label class="settings-toggle">
+              <input id="setting-silent-mode" type="checkbox" />
+              <span>
+                <strong>Silent mode</strong>
+                <small>Turns off spoken coach lines (macOS speech). Overlay popups still appear. Note: this disables speech output — not speech-to-text listening.</small>
+              </span>
+            </label>
+            <p id="settings-save-status" class="composer-hint" aria-live="polite"></p>
+          </div>
+          <div class="settings-panel" id="settings-general" role="tabpanel" hidden>
+            <h2 class="settings-heading">General</h2>
+            <p class="settings-copy">More app preferences will land here.</p>
+          </div>
+          <div class="settings-panel" id="settings-account" role="tabpanel" hidden>
+            <h2 class="settings-heading">Account</h2>
+            <p class="settings-copy">Google connection and profile options will land here.</p>
+          </div>
+        </div>
       </section>
     </div>
   </body>

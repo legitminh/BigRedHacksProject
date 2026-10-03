@@ -175,8 +175,13 @@ pub async fn connect_google(cfg: &AppConfig) -> Result<(), String> {
 
     open::that(auth_url.as_str()).map_err(|e| format!("failed to open browser: {e}"))?;
 
+    // If the user closes the browser without finishing, don't hang the app forever.
+    const OAUTH_TIMEOUT_SECS: u64 = 90;
     tokio::select! {
-        _ = server => return Err("OAuth server stopped unexpectedly".into()),
+        _ = server => Err("OAuth server stopped unexpectedly".into()),
+        _ = tokio::time::sleep(std::time::Duration::from_secs(OAUTH_TIMEOUT_SECS)) => {
+            Err("Google sign-in timed out or was closed. Click Sign in with Google to try again.".into())
+        }
         result = rx => {
             let code = result.map_err(|_| "OAuth cancelled".to_string())??;
             let token = oauth

@@ -9,7 +9,12 @@ type ViewId =
   | "view-chat"
   | "view-lockin"
   | "view-session"
-  | "view-summary";
+  | "view-summary"
+  | "view-settings";
+
+interface UserSettings {
+  silent_mode: boolean;
+}
 
 interface StatusPayload {
   google_connected: boolean;
@@ -61,6 +66,7 @@ interface SessionSummary {
   goals: string;
   modality: string;
   on_task_ratio: number;
+  screen_checks?: number;
   top_distractions: string[];
   stress_spikes: number;
   closing_note: string;
@@ -89,13 +95,28 @@ function renderHome(status: StatusPayload) {
       : "Google sign-in not configured";
     signIn.disabled = !status.google_oauth_ready;
     signIn.addEventListener("click", async () => {
-      signIn.textContent = "Opening Google…";
+      if (signIn.disabled) return;
+      const label = status.google_oauth_ready
+        ? "Sign in with Google"
+        : "Google sign-in not configured";
+      signIn.textContent = "Waiting for Google…";
       signIn.disabled = true;
       try {
-        await invoke("connect_google");
-        await refreshStatus();
+        const connect = invoke("connect_google");
+        // UI escape hatch if the browser tab is closed without finishing OAuth.
+        const cancel = new Promise<never>((_, reject) => {
+          window.setTimeout(() => {
+            reject(new Error("Google sign-in timed out or was closed. Click Sign in with Google to try again."));
+          }, 90_000);
+        });
+        await Promise.race([connect, cancel]);
       } catch (e) {
+        console.error("connect_google failed:", e);
         alert(String(e));
+      } finally {
+        // Always rebuild the CTA so the button never stays stuck disabled.
+        signIn.textContent = label;
+        signIn.disabled = false;
         await refreshStatus();
       }
     });
@@ -115,6 +136,14 @@ function renderHome(status: StatusPayload) {
   lock.textContent = "Lock in";
   lock.addEventListener("click", () => show("view-lockin"));
 
+  const settings = document.createElement("button");
+  settings.className = "ghost";
+  settings.type = "button";
+  settings.textContent = "Settings";
+  settings.addEventListener("click", () => {
+    void openSettings();
+  });
+
   const out = document.createElement("button");
   out.className = "ghost";
   out.type = "button";
@@ -124,7 +153,7 @@ function renderHome(status: StatusPayload) {
     await refreshStatus();
   });
 
-  host.append(chat, lock, out);
+  host.append(chat, lock, settings, out);
 }
 
 function appendChat(role: "user" | "assistant", content: string) {
@@ -189,7 +218,7 @@ function statusLabel(status: string): string {
 
 function formatVitals(vitals?: VitalsSnapshot | null): string {
   if (!vitals || (!vitals.raw_summary && vitals.source !== "presage" && vitals.source !== "fallback")) {
-    return "Waiting for first Presage reading…";
+    return "Running quietly in the background (not required to lock in)";
   }
   const bits: string[] = [];
   if (typeof vitals.heart_rate === "number") bits.push(`HR ${Math.round(vitals.heart_rate)}`);
@@ -224,19 +253,50 @@ function renderSession(session: LockInSession) {
   renderVitals(session.vitals);
 }
 
-function appendPrompt(prompt: CoachPrompt) {
-  const feed = $("#prompt-feed");
-  if (!feed) return;
-  const el = document.createElement("div");
-  el.className = "prompt";
-  el.textContent = prompt.text;
-  feed.prepend(el);
+async function openSettings() {
+  show("view-settings");
+  try {
+    const settings = await invoke<UserSettings>("get_settings");
+    const silent = $("#setting-silent-mode") as HTMLInputElement | null;
+    if (silent) silent.checked = Boolean(settings.silent_mode);
+    const status = $("#settings-save-status");
+    if (status) status.textContent = "";
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function selectSettingsTab(tab: string) {
+  document.querySelectorAll<HTMLButtonElement>("[data-settings-tab]").forEach((button) => {
+    const active = button.dataset.settingsTab === tab;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  document.querySelectorAll<HTMLElement>(".settings-panel").forEach((panel) => {
+    const active = panel.id === `settings-${tab}`;
+    panel.classList.toggle("active", active);
+    panel.hidden = !active;
+  });
+}
+
+async function persistSilentMode() {
+  const silent = $("#setting-silent-mode") as HTMLInputElement | null;
+  const status = $("#settings-save-status");
+  try {
+    await invoke("save_settings", {
+      settings: { silent_mode: Boolean(silent?.checked) },
+    });
+    if (status) status.textContent = "Saved.";
+  } catch (err) {
+    if (status) status.textContent = String(err);
+  }
 }
 
 function renderSummary(summary: SessionSummary) {
   const body = $("#summary-body");
   if (!body) return;
-  const pct = Math.round(summary.on_task_ratio * 100);
+  const checks = summary.screen_checks ?? 0;
+  const pct = checks === 0 ? "Unverified" : `${Math.round(summary.on_task_ratio * 100)}%`;
   const escape = (value: string) =>
     value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   body.innerHTML = `
@@ -244,7 +304,9 @@ function renderSummary(summary: SessionSummary) {
     <h3>Goals</h3>
     <p>${escape(summary.goals)}</p>
     <h3>On task</h3>
-    <p>${pct}%</p>
+    <p>${pct}</p>
+    <h3>Screen checks</h3>
+    <p>${checks}</p>
     <h3>Stress spikes</h3>
     <p>${summary.stress_spikes}</p>
     <h3>Wellness</h3>
@@ -351,9 +413,23 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   $("#lockin-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const goals = ($("#goals") as HTMLTextAreaElement | null)?.value ?? "";
+    const goalsInput = $("#goals") as HTMLTextAreaElement | null;
+    const goals = goalsInput?.value.trim() ?? "";
     const duration = Number(($("#duration") as HTMLInputElement | null)?.value || 45);
     const startBtn = $("#lockin-start") as HTMLButtonElement | null;
+    const errEl = $("#lockin-error");
+    if (errEl) {
+      errEl.hidden = true;
+      errEl.textContent = "";
+    }
+    if (!goals) {
+      if (errEl) {
+        errEl.hidden = false;
+        errEl.textContent = "Add a goal first — what are you locking in on?";
+      }
+      goalsInput?.focus();
+      return;
+    }
     if (startBtn) {
       startBtn.disabled = true;
       startBtn.textContent = "Starting…";
@@ -363,14 +439,19 @@ window.addEventListener("DOMContentLoaded", async () => {
         goals,
         durationMins: duration,
       });
-      const feed = $("#prompt-feed");
-      if (feed) feed.innerHTML = "";
       renderVitals(null);
       renderSession(session);
       startTimer(session.ends_at);
       show("view-session");
     } catch (err) {
-      alert(String(err));
+      const message = String(err);
+      console.error("start_lock_in failed:", err);
+      if (errEl) {
+        errEl.hidden = false;
+        errEl.textContent = message;
+      } else {
+        alert(message);
+      }
     } finally {
       if (startBtn) {
         startBtn.disabled = false;
@@ -389,23 +470,21 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
+  document.querySelectorAll<HTMLButtonElement>("[data-settings-tab]").forEach((button) => {
+    button.addEventListener("click", () => selectSettingsTab(button.dataset.settingsTab || "lockin"));
+  });
+  $("#setting-silent-mode")?.addEventListener("change", () => {
+    void persistSilentMode();
+  });
+
   await listen<LockInSession>("session-update", (event) => {
     renderSession(event.payload);
     startTimer(event.payload.ends_at);
   });
-  await listen<CoachPrompt>("coach-prompt", (event) => appendPrompt(event.payload));
   await listen<VitalsSnapshot>("vitals-update", (event) => renderVitals(event.payload));
   await listen<SessionSummary>("session-ended", (event) => {
     renderSummary(event.payload);
     show("view-summary");
-  });
-  await listen<string>("coach-error", (event) => {
-    appendPrompt({
-      id: crypto.randomUUID(),
-      at: new Date().toISOString(),
-      text: event.payload,
-      kind: "error",
-    });
   });
 
   await refreshStatus();

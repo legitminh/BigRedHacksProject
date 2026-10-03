@@ -50,14 +50,13 @@ pub fn show_prompt(app: &AppHandle, prompt: &CoachPrompt) {
     let _ = window.unminimize();
     let _ = window.set_always_on_top(true);
 
-    // Event for listeners + direct eval so the first popup isn't missed while the page boots.
+    // Overlay only — skip broadcasting to the main window feed so nags don't pile up.
     let _ = app.emit_to(OVERLAY_LABEL, "overlay-prompt", prompt);
     if let Ok(json) = serde_json::to_string(prompt) {
         let _ = window.eval(&format!(
             "window.__waypointShow && window.__waypointShow({json})"
         ));
     }
-    let _ = app.emit("coach-prompt", prompt);
 }
 
 pub fn hide(app: &AppHandle) {

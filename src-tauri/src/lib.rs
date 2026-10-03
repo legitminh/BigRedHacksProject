@@ -6,8 +6,9 @@ mod google;
 mod overlay;
 mod presage;
 mod session;
+mod settings;
 
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use parking_lot::Mutex;
@@ -19,12 +20,14 @@ use gemini::{ChatMessage, GeminiClient};
 use google::GoogleContext;
 use presage::PresageClient;
 use session::{LockInSession, SessionSummary};
+use settings::UserSettings;
 
 pub struct AppState {
     pub config: Mutex<AppConfig>,
     pub session: Mutex<Option<LockInSession>>,
     pub chat_history: Mutex<Vec<ChatMessage>>,
     pub coach_stop: Mutex<Option<Arc<AtomicBool>>>,
+    pub silent_mode: AtomicBool,
 }
 
 #[derive(Serialize)]
@@ -165,35 +168,49 @@ async fn start_lock_in(
     goals: String,
     duration_mins: u64,
 ) -> Result<LockInSession, String> {
-    if goals.trim().is_empty() {
+    let goals = goals.trim().to_string();
+    if goals.is_empty() {
         return Err("Describe what you want to lock in on.".into());
     }
     coach::stop_coach(&app);
-    let _ = overlay::ensure_overlay(&app);
-
-    let cfg = state.config.lock().clone();
-    let gemini = GeminiClient::from_config(&cfg)?;
-    let presage_ready = PresageClient::configured(&cfg);
-
-    // Screen watch is required — fail early with a clear permission message.
-    let screen_jpeg = tokio::task::spawn_blocking(capture::screen::grab_primary_jpeg)
-        .await
-        .map_err(|e| format!("Screen capture task failed: {e}"))?
-        .map_err(|e| e)?;
-
-    // Camera is for Presage stress / HR — optional; never block lock-in.
-    let mut camera_ready = capture::camera::permission_granted();
-    if !camera_ready {
-        match capture::camera::request_permission().await {
-            Ok(()) => camera_ready = true,
-            Err(e) => tracing::warn!("camera permission skipped: {e}"),
-        }
+    // Overlay is best-effort — never block starting the session.
+    if let Err(e) = overlay::ensure_overlay(&app) {
+        tracing::warn!("overlay setup: {e}");
     }
 
-    let modality = gemini
-        .classify_modality(&goals, Some(&screen_jpeg))
-        .await
-        .unwrap_or_else(|_| "computer".into());
+    let cfg = state.config.lock().clone();
+    // Ensure Gemini is configured, but don't spend a quota call classifying modality.
+    GeminiClient::from_config(&cfg)?;
+    let presage_ready = PresageClient::configured(&cfg);
+
+    // Screen watch is required — timeout so a stuck permission prompt can't freeze the UI.
+    let _screen_probe = match tokio::time::timeout(
+        std::time::Duration::from_secs(12),
+        tokio::task::spawn_blocking(capture::screen::grab_primary_jpeg),
+    )
+    .await
+    {
+        Ok(Ok(Ok(bytes))) => bytes,
+        Ok(Ok(Err(e))) => return Err(e),
+        Ok(Err(e)) => return Err(format!("Screen capture task failed: {e}")),
+        Err(_) => {
+            return Err(
+                "Screen capture timed out. Allow Screen Recording for Waypoint in System Settings → Privacy & Security → Screen Recording, then quit and reopen the app."
+                    .into(),
+            );
+        }
+    };
+
+    // Camera is optional. Only a short probe — do not wait on the system dialog.
+    let camera_ready = capture::camera::permission_granted()
+        || capture::camera::request_permission_timeout(std::time::Duration::from_secs(2))
+            .await
+            .is_ok();
+    if !camera_ready {
+        tracing::info!("starting lock-in without camera; Presage wellness will stay offline");
+    }
+
+    let modality = GeminiClient::infer_modality(&goals);
 
     let session = LockInSession::start(
         goals,
@@ -222,6 +239,26 @@ async fn stop_lock_in(
 #[tauri::command]
 fn get_session(state: State<'_, AppState>) -> Option<LockInSession> {
     state.session.lock().clone()
+}
+
+#[tauri::command]
+fn get_settings(state: State<'_, AppState>) -> UserSettings {
+    let cfg = state.config.lock().clone();
+    let loaded = settings::load(&cfg);
+    state
+        .silent_mode
+        .store(loaded.silent_mode, Ordering::SeqCst);
+    loaded
+}
+
+#[tauri::command]
+fn save_settings(state: State<'_, AppState>, settings: UserSettings) -> Result<(), String> {
+    let cfg = state.config.lock().clone();
+    settings::save(&cfg, &settings)?;
+    state
+        .silent_mode
+        .store(settings.silent_mode, Ordering::SeqCst);
+    Ok(())
 }
 
 /// Speak arbitrary text with the local TTS stand-in (macOS `say`).
@@ -257,6 +294,7 @@ pub fn run() {
              (or export GEMINI_API_KEY) and rebuild."
         );
     }
+    let initial_settings = settings::load(&config);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -265,9 +303,16 @@ pub fn run() {
             session: Mutex::new(None),
             chat_history: Mutex::new(Vec::new()),
             coach_stop: Mutex::new(None),
+            silent_mode: AtomicBool::new(initial_settings.silent_mode),
         })
         .setup(|app| {
-            let _ = overlay::ensure_overlay(app.handle());
+            // Create overlay in the background so a window glitch can't delay first paint.
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = overlay::ensure_overlay(&handle) {
+                    tracing::warn!("overlay setup: {e}");
+                }
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -280,6 +325,8 @@ pub fn run() {
             start_lock_in,
             stop_lock_in,
             get_session,
+            get_settings,
+            save_settings,
             voice_speak,
             voice_listen_test
         ])

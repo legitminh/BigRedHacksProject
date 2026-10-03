@@ -49,6 +49,7 @@ pub struct SessionSummary {
     pub duration_secs: u64,
     pub modality: String,
     pub on_task_ratio: f64,
+    pub screen_checks: u32,
     pub top_distractions: Vec<String>,
     pub stress_spikes: u32,
     pub prompts: Vec<CoachPrompt>,
@@ -67,13 +68,9 @@ impl LockInSession {
         let now = chrono::Utc::now();
         let duration_secs = duration_mins.saturating_mul(60).max(60);
         let watching_note = if camera_ready && presage_ready {
-            "Watching your screen · webcam ready for Presage stress checks".into()
-        } else if camera_ready {
-            "Watching your screen · webcam on (Presage key not set — stress from vision only)".into()
-        } else if presage_ready {
-            "Watching your screen · allow Camera to enable Presage stress checks".into()
+            "Watching active app · wellness later in background".into()
         } else {
-            "Watching your screen · stress checks need Camera + Presage API key".into()
+            "Watching active app".into()
         };
         Self {
             id: Uuid::new_v4().to_string(),
@@ -117,8 +114,9 @@ impl LockInSession {
     }
 
     pub fn summarize(&self) -> SessionSummary {
+        // Never treat "no screen checks" as a perfect score.
         let ratio = if self.total_ticks == 0 {
-            1.0
+            0.0
         } else {
             self.on_task_ticks as f64 / self.total_ticks as f64
         };
@@ -130,7 +128,14 @@ impl LockInSession {
             .map(|(k, v)| format!("{k} ×{v}"))
             .collect();
 
-        let closing_note = if ratio > 0.8 && self.stress_spikes <= 1 {
+        let closing_note = if self.total_ticks == 0 {
+            "Screen checks didn’t land this session (quota limits or capture issues), so focus couldn’t be verified — that wasn’t a perfect lock-in.".into()
+        } else if !top.is_empty() && ratio < 0.6 {
+            format!(
+                "You drifted to {} — next block, keep only the goal app visible.",
+                top[0].split('×').next().unwrap_or("distractions").trim()
+            )
+        } else if ratio > 0.8 && self.stress_spikes <= 1 {
             "Strong lock-in. You stayed with the work and kept stress mostly steady.".into()
         } else if self.stress_spikes > 2 {
             "You pushed through stress spikes — next time try shorter blocks or a quick reset breath.".into()
@@ -145,6 +150,7 @@ impl LockInSession {
             duration_secs: self.duration_secs,
             modality: self.modality.clone(),
             on_task_ratio: ratio,
+            screen_checks: self.total_ticks,
             top_distractions: top,
             stress_spikes: self.stress_spikes,
             prompts: self.prompts.clone(),

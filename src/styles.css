@@ -103,6 +103,80 @@ body {
   flex-wrap: wrap;
 }
 
+.settings-tabs {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.settings-tab {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--mist);
+  border: 1px solid rgba(159, 196, 188, 0.25);
+  padding: 0.55rem 0.9rem;
+  font-size: 0.9rem;
+}
+
+.settings-tab.active {
+  color: #1a1208;
+  background: var(--amber);
+  border-color: var(--amber);
+  font-weight: 700;
+}
+
+.settings-panels {
+  max-width: 34rem;
+}
+
+.settings-panel[hidden] {
+  display: none !important;
+}
+
+.settings-heading {
+  margin: 0 0 0.4rem;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.45rem;
+  color: var(--foam);
+}
+
+.settings-copy {
+  margin: 0 0 1.25rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.settings-toggle {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  padding: 1rem;
+  border: 1px solid rgba(159, 196, 188, 0.25);
+  background: rgba(12, 32, 40, 0.45);
+  cursor: pointer;
+}
+
+.settings-toggle input {
+  margin-top: 0.25rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--amber);
+}
+
+.settings-toggle strong {
+  display: block;
+  color: var(--foam);
+  margin-bottom: 0.25rem;
+}
+
+.settings-toggle small {
+  display: block;
+  color: var(--muted);
+  line-height: 1.4;
+  font-size: 0.85rem;
+}
+
 button,
 input,
 textarea {
@@ -286,6 +360,13 @@ button:focus-visible, a:focus-visible, .table-scroll:focus-visible { outline: 2p
   gap: 0.4rem;
   color: var(--mist);
   font-size: 0.9rem;
+}
+
+.lockin-error {
+  margin: 0;
+  color: #efb0a6;
+  font-size: 0.9rem;
+  line-height: 1.35;
 }
 
 .timer-wrap {
