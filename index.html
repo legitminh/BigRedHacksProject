@@ -45,6 +45,8 @@
                   <span class="welcome-hero-star" aria-hidden="true">✦</span>
                 </p>
                 <div class="welcome-hero-art" aria-hidden="true">
+                  <img class="welcome-art-orbits" src="/src/assets/figma/orbits.svg" alt="" />
+                  <img class="welcome-art-moon" src="/src/assets/figma/moon.svg" alt="" />
                   <img class="welcome-art-ship" src="/src/assets/figma/ship.svg" alt="" />
                   <img class="welcome-art-planet" src="/src/assets/figma/planet-ringed.svg" alt="" />
                 </div>
@@ -154,6 +156,7 @@
                 <div id="home-cta" class="mc-home-dest-actions"></div>
               </div>
               <div class="mc-home-dest-art" aria-hidden="true">
+                <img class="mc-home-dest-orbits" src="/src/assets/figma/orbits.svg" alt="" />
                 <img class="mc-home-planet" src="/src/assets/figma/planet-ringed.svg" alt="" />
                 <img class="mc-home-ship" src="/src/assets/figma/ship.svg" alt="" />
                 <img class="mc-home-dest-satellite" src="/src/assets/figma/satellite.svg" alt="" />
@@ -726,187 +729,217 @@
 
         <div class="settings-page">
           <header class="settings-intro">
-            <p class="settings-kicker"><span aria-hidden="true">✦</span> Make yourself at home</p>
+            <p class="settings-kicker">Make yourself at home</p>
             <h1 class="settings-title">Your space, your settings.</h1>
             <p class="settings-lead">Choose how your copilot joins you. You’re always in control.</p>
           </header>
 
           <div class="settings-layout">
             <aside class="settings-aside">
-              <div class="settings-aside-actions">
-                <button type="button" class="settings-action settings-action--primary" id="settings-lock-in">
+              <nav class="settings-aside-tabs" role="tablist" aria-label="Settings sections">
+                <button
+                  class="settings-aside-tab active"
+                  type="button"
+                  role="tab"
+                  aria-selected="true"
+                  aria-controls="settings-lockin"
+                  data-settings-tab="lockin"
+                >
                   Lock in
                 </button>
-                <button type="button" class="settings-action settings-action--ghost" data-back>
-                  Back to home
+                <button
+                  class="settings-aside-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="settings-connection"
+                  data-settings-tab="connection"
+                >
+                  Connection
                 </button>
-              </div>
+                <button
+                  class="settings-aside-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="settings-permissions"
+                  data-settings-tab="permissions"
+                >
+                  Permissions
+                </button>
+                <button
+                  class="settings-aside-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="settings-account"
+                  data-settings-tab="account"
+                >
+                  Account
+                </button>
+                <button
+                  class="settings-aside-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="settings-coaching"
+                  data-settings-tab="coaching"
+                >
+                  Voice
+                </button>
+              </nav>
               <div class="settings-aside-art" aria-hidden="true">
                 <img class="settings-art-satellite" src="/src/assets/figma/satellite.svg" alt="" />
                 <img class="settings-art-moon" src="/src/assets/figma/moon.svg" alt="" />
               </div>
             </aside>
 
-            <div class="settings-main">
-              <article class="settings-mission-card">
-                <h2 class="settings-mission-card-title">During a mission</h2>
-                <ul class="settings-toggle-list">
-                  <li class="settings-toggle-row">
-                    <div class="settings-toggle-copy">
-                      <strong>Copilot audio</strong>
-                      <span>Speak responses and, when needed, one gentle check-in.</span>
-                    </div>
-                    <label class="mc-switch">
-                      <input id="setting-copilot-audio" type="checkbox" />
-                      <span class="mc-switch-track" aria-hidden="true"></span>
-                      <span class="visually-hidden">Copilot audio</span>
-                    </label>
-                  </li>
-                  <li class="settings-toggle-row">
-                    <div class="settings-toggle-copy">
-                      <strong>Camera signals</strong>
-                      <span>Optional. Camera cues can suggest a gentle check-in.</span>
-                    </div>
-                    <label class="mc-switch">
-                      <input id="setting-camera-signals" type="checkbox" />
-                      <span class="mc-switch-track" aria-hidden="true"></span>
-                      <span class="visually-hidden">Camera signals</span>
-                    </label>
-                  </li>
-                  <li class="settings-toggle-row">
-                    <div class="settings-toggle-copy">
-                      <strong>Screen sharing</strong>
-                      <span>Optional. Check visible activity against your stated objective.</span>
-                    </div>
-                    <label class="mc-switch">
-                      <input id="setting-screen-sharing" type="checkbox" />
-                      <span class="mc-switch-track" aria-hidden="true"></span>
-                      <span class="visually-hidden">Screen sharing</span>
-                    </label>
-                  </li>
-                  <li class="settings-toggle-row">
-                    <div class="settings-toggle-copy">
-                      <strong>Reduce motion</strong>
-                      <span>Keep the ship still and show progress through the route and timer.</span>
-                    </div>
-                    <label class="mc-switch">
-                      <input id="setting-reduce-motion" type="checkbox" />
-                      <span class="mc-switch-track" aria-hidden="true"></span>
-                      <span class="visually-hidden">Reduce motion</span>
-                    </label>
-                  </li>
-                </ul>
-                <p class="settings-mission-foot">
-                  Camera and screen sharing start off for every new mission.<br />
-                  You can stop either input instantly from the session’s top bar.
-                </p>
-                <p id="settings-save-status" class="settings-save-hint" aria-live="polite"></p>
-                <input id="setting-silent-mode" type="checkbox" hidden aria-hidden="true" tabindex="-1" />
-              </article>
+            <div class="settings-main settings-panels mc-settings-panels">
+              <div class="settings-panel active" id="settings-lockin" role="tabpanel">
+                <article class="settings-mission-card">
+                  <h2 class="settings-mission-card-title">During a mission</h2>
+                  <ul class="settings-toggle-list">
+                    <li class="settings-toggle-row">
+                      <div class="settings-toggle-copy">
+                        <strong>Copilot audio</strong>
+                        <span>Speak responses and, when needed, one gentle check-in.</span>
+                      </div>
+                      <label class="mc-switch">
+                        <input id="setting-copilot-audio" type="checkbox" />
+                        <span class="mc-switch-track" aria-hidden="true"></span>
+                        <span class="visually-hidden">Copilot audio</span>
+                      </label>
+                    </li>
+                    <li class="settings-toggle-row">
+                      <div class="settings-toggle-copy">
+                        <strong>Camera signals</strong>
+                        <span>Optional. Camera cues can suggest a gentle check-in.</span>
+                      </div>
+                      <label class="mc-switch">
+                        <input id="setting-camera-signals" type="checkbox" />
+                        <span class="mc-switch-track" aria-hidden="true"></span>
+                        <span class="visually-hidden">Camera signals</span>
+                      </label>
+                    </li>
+                    <li class="settings-toggle-row">
+                      <div class="settings-toggle-copy">
+                        <strong>Screen sharing</strong>
+                        <span>Optional. Check visible activity against your stated objective.</span>
+                      </div>
+                      <label class="mc-switch">
+                        <input id="setting-screen-sharing" type="checkbox" />
+                        <span class="mc-switch-track" aria-hidden="true"></span>
+                        <span class="visually-hidden">Screen sharing</span>
+                      </label>
+                    </li>
+                    <li class="settings-toggle-row">
+                      <div class="settings-toggle-copy">
+                        <strong>Reduce motion</strong>
+                        <span>Keep the ship still and show progress through the route and timer.</span>
+                      </div>
+                      <label class="mc-switch">
+                        <input id="setting-reduce-motion" type="checkbox" />
+                        <span class="mc-switch-track" aria-hidden="true"></span>
+                        <span class="visually-hidden">Reduce motion</span>
+                      </label>
+                    </li>
+                  </ul>
+                  <p class="settings-mission-foot">
+                    Camera and screen sharing start off for every new mission.<br />
+                    You can stop either input instantly from the session’s top bar.
+                  </p>
+                  <p id="settings-save-status" class="settings-save-hint" aria-live="polite"></p>
+                  <input id="setting-silent-mode" type="checkbox" hidden aria-hidden="true" tabindex="-1" />
+                </article>
 
-              <section class="settings-privacy" aria-labelledby="settings-privacy-title">
-                <h2 id="settings-privacy-title" class="settings-privacy-title">Your session, not a recording.</h2>
-                <p class="settings-privacy-copy">
-                  Only session events and summaries are saved. No raw video, screenshots, or audio.
-                </p>
-              </section>
+                <section class="settings-privacy" aria-labelledby="settings-privacy-title">
+                  <h2 id="settings-privacy-title" class="settings-privacy-title">Your session, not a recording.</h2>
+                  <p class="settings-privacy-copy">
+                    Only session events and summaries are saved. No raw video, screenshots, or audio.
+                  </p>
+                </section>
+              </div>
 
-              <details class="settings-advanced">
-                <summary>Mission Control &amp; permissions</summary>
-                <div class="settings-tabs mc-settings-tabs" role="tablist" aria-label="Mission Control sections">
-                  <button class="settings-tab active" type="button" role="tab" aria-selected="true" data-settings-tab="connection">
-                    Connection
-                  </button>
-                  <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="permissions">
-                    Permissions
-                  </button>
-                  <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="coaching">
-                    Voice tests
-                  </button>
-                  <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="account">
-                    Account
-                  </button>
-                </div>
-                <div class="settings-panels mc-settings-panels">
-                  <div class="settings-panel active" id="settings-connection" role="tabpanel">
-                    <article class="mc-settings-card">
-                      <h2 class="settings-heading">Connection status</h2>
-                      <p class="settings-copy tight">Cloud and local links Copilot and missions rely on.</p>
-                      <ul id="connection-status-list" class="mc-settings-list" aria-live="polite"></ul>
-                      <button id="connection-refresh" class="ghost pill" type="button">Refresh status</button>
-                    </article>
-                  </div>
-                  <div class="settings-panel" id="settings-permissions" role="tabpanel" hidden>
-                    <article class="mc-settings-card">
-                      <h2 class="settings-heading">System permissions</h2>
-                      <p class="settings-copy tight">
-                        Grant these in <strong>System Settings → Privacy &amp; Security</strong>, then quit and reopen
-                        Waypoint.
-                      </p>
-                      <ul class="mc-permissions-list">
-                        <li class="mc-perm-row">
-                          <div class="mc-perm-copy">
-                            <strong>Screen Recording</strong>
-                            <span>Required — reads your screen to see if you stay on mission objectives.</span>
-                          </div>
-                          <span id="perm-screen" class="mc-perm-badge" data-state="unknown">Checking…</span>
-                        </li>
-                        <li class="mc-perm-row">
-                          <div class="mc-perm-copy">
-                            <strong>Camera</strong>
-                            <span>Optional — webcam clips for Presage wellness and stress checks.</span>
-                          </div>
-                          <span id="perm-camera" class="mc-perm-badge" data-state="unknown">Checking…</span>
-                        </li>
-                        <li class="mc-perm-row">
-                          <div class="mc-perm-copy">
-                            <strong>Accessibility &amp; Automation</strong>
-                            <span>Reads frontmost app, window title, and browser tabs for instant coaching.</span>
-                          </div>
-                          <span id="perm-accessibility" class="mc-perm-badge" data-state="unknown">Checking…</span>
-                        </li>
-                        <li class="mc-perm-row">
-                          <div class="mc-perm-copy">
-                            <strong>Microphone</strong>
-                            <span>Optional — Copilot dictation and Voice tests (macOS Speech).</span>
-                          </div>
-                          <span id="perm-microphone" class="mc-perm-badge" data-state="unknown">Checking…</span>
-                        </li>
-                      </ul>
-                      <button id="permissions-refresh" class="ghost pill" type="button">Re-check permissions</button>
-                    </article>
-                  </div>
-                  <div class="settings-panel" id="settings-coaching" role="tabpanel" hidden>
-                    <article class="mc-settings-card mc-settings-card--sub">
-                      <h3 class="mc-settings-subhead">Invoke commands</h3>
-                      <p class="settings-copy tight">Quick tests for local Tauri voice hooks (same commands the coach uses).</p>
-                      <div class="cta-row">
-                        <button id="invoke-voice-speak" class="secondary pill" type="button">Test speak</button>
-                        <button id="invoke-voice-listen" class="ghost pill" type="button">Test mic (4s)</button>
+              <div class="settings-panel" id="settings-connection" role="tabpanel" hidden>
+                <article class="mc-settings-card">
+                  <h2 class="settings-heading">Connection status</h2>
+                  <p class="settings-copy tight">Cloud and local links Copilot and missions rely on.</p>
+                  <ul id="connection-status-list" class="mc-settings-list" aria-live="polite"></ul>
+                  <button id="connection-refresh" class="ghost pill" type="button">Refresh status</button>
+                </article>
+              </div>
+
+              <div class="settings-panel" id="settings-permissions" role="tabpanel" hidden>
+                <article class="mc-settings-card">
+                  <h2 class="settings-heading">System permissions</h2>
+                  <p class="settings-copy tight">
+                    Grant these in <strong>System Settings → Privacy &amp; Security</strong>, then quit and reopen
+                    Waypoint.
+                  </p>
+                  <ul class="mc-permissions-list">
+                    <li class="mc-perm-row">
+                      <div class="mc-perm-copy">
+                        <strong>Screen Recording</strong>
+                        <span>Required — reads your screen to see if you stay on mission objectives.</span>
                       </div>
-                      <p id="invoke-voice-result" class="composer-hint" aria-live="polite"></p>
-                    </article>
-                  </div>
-                  <div class="settings-panel" id="settings-account" role="tabpanel" hidden>
-                    <article class="mc-settings-card">
-                      <h2 class="settings-heading">Account</h2>
-                      <p class="settings-copy tight">Waypoint sign-in and optional Google for Calendar / Drive in Copilot.</p>
-                      <div class="account-block">
-                        <p class="account-label">Waypoint</p>
-                        <p id="account-waypoint-user" class="account-value">Not signed in</p>
+                      <span id="perm-screen" class="mc-perm-badge" data-state="unknown">Checking…</span>
+                    </li>
+                    <li class="mc-perm-row">
+                      <div class="mc-perm-copy">
+                        <strong>Camera</strong>
+                        <span>Optional — webcam clips for Presage wellness and stress checks.</span>
                       </div>
-                      <div class="account-block">
-                        <p class="account-label">Google (optional)</p>
-                        <p id="account-google-status" class="account-value">Not connected</p>
-                        <p class="settings-copy tight">
-                          Link Google for deadline context and Drive notes. Missions work without it.
-                        </p>
-                        <div id="account-google-actions" class="cta-row"></div>
+                      <span id="perm-camera" class="mc-perm-badge" data-state="unknown">Checking…</span>
+                    </li>
+                    <li class="mc-perm-row">
+                      <div class="mc-perm-copy">
+                        <strong>Accessibility &amp; Automation</strong>
+                        <span>Reads frontmost app, window title, and browser tabs for instant coaching.</span>
                       </div>
-                    </article>
+                      <span id="perm-accessibility" class="mc-perm-badge" data-state="unknown">Checking…</span>
+                    </li>
+                    <li class="mc-perm-row">
+                      <div class="mc-perm-copy">
+                        <strong>Microphone</strong>
+                        <span>Optional — Copilot dictation and Voice tests (macOS Speech).</span>
+                      </div>
+                      <span id="perm-microphone" class="mc-perm-badge" data-state="unknown">Checking…</span>
+                    </li>
+                  </ul>
+                  <button id="permissions-refresh" class="ghost pill" type="button">Re-check permissions</button>
+                </article>
+              </div>
+
+              <div class="settings-panel" id="settings-account" role="tabpanel" hidden>
+                <article class="mc-settings-card">
+                  <h2 class="settings-heading">Account</h2>
+                  <p class="settings-copy tight">Waypoint sign-in and optional Google for Calendar / Drive in Copilot.</p>
+                  <div class="account-block">
+                    <p class="account-label">Waypoint</p>
+                    <p id="account-waypoint-user" class="account-value">Not signed in</p>
                   </div>
-                </div>
-              </details>
+                  <div class="account-block">
+                    <p class="account-label">Google (optional)</p>
+                    <p id="account-google-status" class="account-value">Not connected</p>
+                    <p class="settings-copy tight">
+                      Link Google for deadline context and Drive notes. Missions work without it.
+                    </p>
+                    <div id="account-google-actions" class="cta-row"></div>
+                  </div>
+                </article>
+              </div>
+
+              <div class="settings-panel" id="settings-coaching" role="tabpanel" hidden>
+                <article class="mc-settings-card">
+                  <h2 class="settings-heading">Voice tests</h2>
+                  <p class="settings-copy tight">Quick tests for local Tauri voice hooks (same commands the coach uses).</p>
+                  <div class="cta-row">
+                    <button id="invoke-voice-speak" class="secondary pill" type="button">Test speak</button>
+                    <button id="invoke-voice-listen" class="ghost pill" type="button">Test mic (4s)</button>
+                  </div>
+                  <p id="invoke-voice-result" class="composer-hint" aria-live="polite"></p>
+                </article>
+              </div>
             </div>
           </div>
         </div>

@@ -28,7 +28,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: Personal-best pill uses coral flag SVG (no ✦); uppercase label via `.mc-home-tag`.
 - verified: 2026-10-03T13:41:07-04:00
 
-## done: fp-setup-top-nav
+## verified: fp-setup-top-nav
 - screen: setup
 - ref: `.cursor/figma-refs/05-mission-setup.png` · compare Home/Copilot/Settings/active: cream `settings-top-bar` / `welcome-nav--signed-in` / `copilot-nav`
 - deviation: |
@@ -44,10 +44,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     3. Claimed bf33c21 `settings-top-bar` mount is absent from current `index.html`.
 - fix_hint: |
     Replace `mission-setup-head` with the same markup as `#view-session`’s `settings-top-bar session-top-bar`: brand `<p class="settings-brand">`, nav Home + Copilot buttons (`data-session-nav` or `data-settings-nav`), Lock in as non-button `settings-nav-link--active`, Settings button → `openSettings()`, `#setup-avatar` wired in `renderNavAvatar`. Keep `#goals-copilot-affordance` launch wiring untouched.
-- escalate: scrutinous
-- reopened: true
 - commit: 3fa9f3d
 - change: Replaced setup `←` head with shared `settings-top-bar` (✦ Waypoint, Home/Copilot, Lock in active, Settings + `#setup-avatar`); reused `data-session-nav` handlers; left in-field ✦ launch affordance alone.
+- verified: 2026-10-03T14:10:57-04:00
+
 
 ## verified: fp-launch-cta-arrow
 - commit: 4cf9e19
@@ -63,7 +63,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: Active mission uses MC top bar, mission header + signal pills, two-column flight/copilot grid with in-session chat composer wired to `chat_send`.
 - verified: 2026-10-03T13:41:07-04:00
 
-## done: fp-summary-top-nav
+## verified: fp-summary-top-nav
 - screen: summary
 - ref: `.cursor/figma-refs/12-quest-complete.png` · also `.cursor/figma-refs/07---Mission-recap.svg` if present; compare active session top bar
 - deviation: |
@@ -79,10 +79,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     3. Claimed bf33c21 mount is absent from current `index.html`.
 - fix_hint: |
     Insert shared `settings-top-bar quest-complete-head` as first child of `#view-summary` (before `.quest-complete-stage`), Lock in `settings-nav-link--active`, Home/Copilot/Settings via existing `data-session-nav` handlers, `#summary-avatar` in `renderNavAvatar`.
-- escalate: scrutinous
-- reopened: true
 - commit: 3fa9f3d
 - change: Mounted `settings-top-bar quest-complete-head` above `.quest-complete-stage` with Lock in active, Settings + `#summary-avatar`, shared `data-session-nav` wiring.
+- verified: 2026-10-03T14:10:57-04:00
+
 
 ## verified: fp-launch-overlay-scrim
 - commit: 8b772b5
@@ -149,50 +149,64 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: `satellite.svg` on dashed path via `.session-flight-satellite` in active flight scene.
 - verified: 2026-10-03T13:41:07-04:00
 
-## done: fp-active-next-step-timer
+## verified: fp-active-next-step-timer
 - screen: active
 - ref: `.cursor/figma-refs/06-mission-active.png`
 - deviation: Below flight minutes, Figma shows a lavender “NEXT STEP TIMER” pill with a countdown (e.g. 04:32) and helper line “One small step at a time.”; active card ends after flight-minutes hint with no next-step widget.
 - fix_hint: Add footer row under `.session-flight-minutes-hint` with kicker pill + timer element; hook to existing coach/step timer if present or stub static layout matching ref.
-- escalate: none
 - commit: 33a98f6
 - change: Added `.session-next-step` lavender pill + countdown under flight-minutes hint; starts via suggest chip / defaults to 05:00; pauses with mission Pause.
+- verified: 2026-10-03T14:10:57-04:00
 
-## done: fp-active-pause-dev-ui
+
+## verified: fp-active-pause-dev-ui
 - screen: active
 - ref: `.cursor/figma-refs/06-mission-active.png`
 - deviation: Figma primary “Pause” control is enabled on the cream card; `#session-pause` stays disabled and `.session-pause-note` exposes internal copy (“Pause isn’t wired yet…”).
 - fix_hint: Hide or restyle the dev note for production UI; enable Pause styling to match Figma (wire pause invoke when ready, or visually match enabled state per design if behavior stays stubbed).
-- escalate: none
 - commit: af13657
 - change: Enabled Pause (aria-pressed Pause/Resume toggle); hid `.session-pause-note` via visually-hidden.
+- verified: 2026-10-03T14:10:57-04:00
+
 
 ## done: fp-settings-defaults-off
 - screen: settings
-- ref: `.cursor/figma-refs/04-settings.png`
-- deviation: “During a mission” toggles shipped with `checked` / pref defaults true; Figma shows all four switches off.
-- fix_hint: Remove default `checked`; set camera/screen/reduce-motion pref defaults to false (keep saved localStorage values).
+- ref: `.cursor/figma-refs/04-settings.png` · also active pills on `.cursor/figma-refs/06-mission-active.png`
+- deviation: |
+    EXPECTED (Figma 04 “During a mission”, top→bottom):
+    1. Copilot audio — toggle OFF
+    2. Camera signals — toggle OFF
+    3. Screen sharing — toggle OFF
+    4. Reduce motion — toggle OFF
+    Fresh install / no settings.json must render all four off. Active mission signal pills show “Audio off” when Copilot audio is off (Figma 06).
+    ACTUAL (pre-fix): camera/screen/reduce-motion prefs defaulted false, but `UserSettings.silent_mode` defaulted false so `#setting-copilot-audio` synced ON after load.
+- fix_hint: |
+    Set `UserSettings::default().silent_mode = true` so Copilot audio renders off (matches Figma 04 all-off + Figma 06 “Audio off”). Keep HTML unchecked; do not remove Settings tabs.
 - escalate: none
-- commit: af13657
-- change: HTML toggles unchecked; pref defaults false for camera/screen/reduce-motion.
+- reopened: true
+- commit: f9c0f02
+- change: Default `silent_mode` true so fresh installs show Copilot audio off (Figma 04/06); camera/screen/reduce-motion remain false prefs.
 
-## done: fp-active-waypoint-sublabels
+
+## verified: fp-active-waypoint-sublabels
 - screen: active
 - ref: `.cursor/figma-refs/06-mission-active.png`
 - deviation: Flight waypoints only said “Launch” / “Destination”; Figma places “EARTH” under Launch and “KEPLER” under Destination.
 - fix_hint: Add uppercase sublabels under each `.session-flight-waypoint`.
-- escalate: none
 - commit: af13657
 - change: Earth/Kepler sublabels stacked under Launch/Destination waypoints.
+- verified: 2026-10-03T14:10:57-04:00
 
-## done: fp-active-copilot-suggest
+
+## verified: fp-active-copilot-suggest
 - screen: active
 - ref: `.cursor/figma-refs/06-mission-active.png`
 - deviation: Session copilot sidebar jumps from chat log to composer; Figma shows a wide lavender “Set a five-minute timer” suggestion chip above the message field (plus Enter/mic hint under the composer).
 - fix_hint: Add a `.session-copilot-suggest` button + composer hint line under `#session-chat-form` matching Figma copy; stub click or wire to existing step-timer if present.
-- escalate: none
 - commit: 33a98f6
 - change: Added “Set a five-minute timer” suggest chip above session composer; wires to next-step countdown.
+- verified: 2026-10-03T14:10:57-04:00
+
 
 ## open: fp-setup-affordance-behavior
 - screen: setup
@@ -202,73 +216,161 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: none
 - note: Skipped this tick — user requested objective ✦ remain Launch; do not revert.
 
-## open: fp-copilot-chip-plus
+## done: fp-copilot-chip-plus
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png`
 - deviation: Figma prompt chips “Explain simply”, “I'm stuck”, and “Find a next step” each show a trailing “+”; only `.copilot-chip--next` includes `.copilot-chip-plus`.
 - fix_hint: Add `<span class="copilot-chip-plus">+</span>` to the explain/stuck chips to match the next-step chip.
 - escalate: none
+- commit: 2971eae
+- change: Added trailing `+` on Explain simply / I'm stuck chips; all chips share inline-flex layout.
 
-## open: fp-summary-decor-moon
+## done: fp-summary-decor-moon
 - screen: summary
 - ref: `.cursor/figma-refs/12-quest-complete.png`
 - deviation: Figma quest-complete stage shows a cratered purple moon under the left ringed planet; `.quest-complete-decor` only mounts constellation, planet, ship, and satellite.
 - fix_hint: Add `moon.svg` as `.quest-complete-moon` under the left planet with absolute placement matching the ref.
 - escalate: none
+- commit: 2971eae
+- change: Mounted `moon.svg` as `.quest-complete-moon` under the left planet in quest-complete decor.
 
-## open: fp-settings-intro-kicker
+## done: fp-settings-intro-kicker
 - screen: settings
 - ref: `.cursor/figma-refs/04-settings.png`
-- deviation: Settings intro renders “✦ Make yourself at home” above the H1; Figma 04 starts with “Your space, your settings.” and the lead — no kicker line.
-- fix_hint: Hide or remove `.settings-kicker` on `#view-settings` so the hero matches the ref.
+- deviation: Settings intro kicker rendered “✦ Make yourself at home”; Figma 04 uses plain uppercase “MAKE YOURSELF AT HOME” (kicker kept, no star).
+- fix_hint: Remove the ✦ span from `.settings-kicker`; keep the kicker line (CSS already uppercases).
 - escalate: none
+- commit: f8e6fb3
+- change: Dropped ✦ from `.settings-kicker`; plain “Make yourself at home” remains (uppercase via CSS).
 
-## open: fp-active-copilot-presence-dot
+## done: fp-active-copilot-presence-dot
 - screen: active
 - ref: `.cursor/figma-refs/06-mission-active.png`
 - deviation: Session copilot presence is plain lavender text “Here when you need me”; Figma shows a green-dot status pill (same language as the mission progress pill).
 - fix_hint: Restyle `.session-copilot-presence` with a green leading dot matching `.session-progress-pill` / Figma.
 - escalate: none
+- commit: 2971eae
+- change: Presence pill uses green leading dot matching `.session-progress-pill`.
 
-## open: fp-home-dest-orbits
+## done: fp-home-dest-orbits
 - screen: home
 - ref: `.cursor/figma-refs/02-home.png`
 - deviation: Figma dark “Your next destination?” card includes faint orbital/constellation line art behind the planet/ship; `.mc-home-dest-art` has planet/ship/moon/satellite but no orbits/constellation layer.
 - fix_hint: Add a low-opacity `orbits.svg` or constellation asset inside `.mc-home-dest-art` positioned behind the planet.
 - escalate: none
+- commit: f8e6fb3
+- change: Added low-opacity `.mc-home-dest-orbits` (`orbits.svg`) behind planet/ship in destination card art.
 
-## done: fp-summary-ctas-in-card
+## done: fp-welcome-hero-orbits-moon
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png`
+- deviation: Figma welcome hero card shows orbital ellipses + pink cratered moon around the ringed planet; `.welcome-hero-art` only mounts `ship.svg` + `planet-ringed.svg`.
+- fix_hint: Add low-opacity `orbits.svg` behind the planet and `moon.svg` on the orbit path inside `.welcome-hero-art` (keep LTR ship→planet).
+- escalate: none
+- commit: f8e6fb3
+- change: Mounted `orbits.svg` + `moon.svg` in `.welcome-hero-art` behind LTR ship→planet.
+
+## open: fp-active-route-uppercase
+- screen: active
+- ref: `.cursor/figma-refs/06-mission-active.png`
+- deviation: Flight route kicker is title case “Earth → Kepler”; Figma 06 uses all-caps “EARTH → KEPLER”.
+- fix_hint: Change `.session-flight-route` copy (or CSS `text-transform: uppercase`) to match Figma casing.
+- escalate: none
+- note: CSS already has `text-transform: uppercase` on `.session-flight-route`; confirm visual then close.
+
+## open: fp-home-kicker-plain
+- screen: home
+- ref: `.cursor/figma-refs/02-home.png`
+- deviation: Home hero kicker renders “✦ Mission control”; Figma 02 shows plain uppercase “MISSION CONTROL” with no leading star glyph.
+- fix_hint: Remove the ✦ span from `.mc-home-kicker` (keep uppercase via existing CSS).
+- escalate: none
+
+## open: fp-first-flight-kicker-plain
+- screen: home
+- ref: `.cursor/figma-refs/19-first-flight.png`
+- deviation: First-flight hero kicker is “✦ YOUR FIRST MISSION”; Figma 19 shows “YOUR FIRST MISSION” without a leading star.
+- fix_hint: Drop the ✦ from `.mc-first-flight` / `.mc-kicker--star` on that screen only.
+- escalate: none
+
+## open: fp-session-at-launch-seed
+- screen: active
+- ref: `.cursor/figma-refs/06-mission-active.png`
+- deviation: Session copilot log empty state is muted helper copy; Figma seeds an “AT LAUNCH” system message stating the mission objective and time limit before any user chat.
+- fix_hint: Seed an AT LAUNCH row in `#session-chat-log` when a mission starts (reuse goal + duration); keep empty helper for pre-start if needed.
+- escalate: none
+
+## open: fp-welcome-hero-body-plus
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png`
+- deviation: Hero body ends with a purple `✦` (`.welcome-hero-star`); Figma ends the same sentence with a trailing “+” after “one step forward.”
+- fix_hint: Replace the inline star span with a “+” (or match Figma asset) and tune color/size to the ref.
+- escalate: none
+
+## open: fp-settings-topnav-home-active
+- screen: settings
+- ref: `.cursor/figma-refs/04-settings.png`
+- deviation: On Settings, top nav leaves Home/Copilot/Lock in as plain links and marks “Settings” via `.settings-nav-current`; Figma shows Home on the lavender active pill (Settings is plain text on the right).
+- fix_hint: Apply `settings-nav-link--active` to Home when `#view-settings` is active; render Settings as a normal trailing link, not the active pill.
+- escalate: none
+
+## open: fp-settings-aside-figma-shortcuts
+- screen: settings
+- ref: `.cursor/figma-refs/04-settings.png`
+- deviation: Figma left column is two actions—“Lock in” (lavender) and “Back to home” (outlined)—plus art; `#view-settings` uses a five-tab `.settings-aside-tabs` rail (Lock in, Connection, Permissions, Account, Voice) with no “Back to home” control.
+- fix_hint: Product keeps aside tabs — do not remove. Optional: add a “Back to home” control under the tab rail without collapsing the five tabs.
+- escalate: none
+- note: Preserve Settings aside tabs (user constraint).
+
+## open: fp-summary-pb-banner-flag
+- screen: summary
+- ref: `.cursor/figma-refs/12-quest-complete.png`
+- deviation: “New longest flight! …” banner (`#summary-pb-banner`) is text-only from `renderSummary()`; Figma shows a small flag icon ahead of that line in `.quest-complete-pb-banner`.
+- fix_hint: Insert the same flag SVG used on home longest-flight (or a Figma asset) inside the banner markup before the dynamic text.
+- escalate: none
+
+## open: fp-welcome-foot-plus
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png`
+- deviation: Below the hero card, Figma shows “YOUR NEXT CHAPTER STARTS HERE” with a small “+” under the line; `.welcome-hero-foot` is plain text with no trailing/under “+”.
+- fix_hint: Add a decorative “+” under or after `.welcome-hero-foot` matching the ref spacing.
+- escalate: none
+
+## verified: fp-summary-ctas-in-card
 - screen: summary
 - ref: `.cursor/figma-refs/12-quest-complete.png`
 - deviation: Figma places “Start another mission”, “Done”, and the “Mission ended · …” footer inside the cream quest card beneath the copilot note; `#view-summary` keeps `.quest-complete-actions` and `.quest-complete-footer` as siblings after `.quest-complete-stage`, so CTAs sit outside the card chrome.
 - fix_hint: Move actions + footer inside `.quest-complete-card` (after note / before closing the card); keep existing button ids/handlers.
-- escalate: none
-- commit: 353c851
+- commit: 58eadd7
 - change: Moved `.quest-complete-actions` + footer inside `.quest-complete-card`; CTAs sit in a row under the copilot note.
+- verified: 2026-10-03T14:10:57-04:00
 
-## done: fp-summary-flight-details-extra
+
+## verified: fp-summary-flight-details-extra
 - screen: summary
 - ref: `.cursor/figma-refs/12-quest-complete.png`
 - deviation: Quest complete card includes a “Flight details” `<details>` accordion; Figma 12 has no such disclosure between the copilot note and the CTAs.
 - fix_hint: Hide the accordion for the default celebration layout (visually-hidden or remove from card flow); keep `#summary-body` available for tests if needed.
-- escalate: none
-- commit: 353c851
+- commit: 58eadd7
 - change: Hid Flight details `<details>` (`visually-hidden` + `hidden`); `#summary-body` kept in DOM for tests.
+- verified: 2026-10-03T14:10:57-04:00
 
-## done: fp-home-dest-satellite
+
+## verified: fp-home-dest-satellite
 - screen: home
 - ref: `.cursor/figma-refs/02-home.png`
 - deviation: Figma dark destination card art includes a satellite near the ship/planet; `.mc-home-dest-art` only had planet, ship, and moon.
 - fix_hint: Add `satellite.svg` into `.mc-home-dest-art` with absolute placement matching the ref.
-- escalate: none
-- commit: 353c851
+- commit: 58eadd7
 - change: Added `.mc-home-dest-satellite` (`satellite.svg`) to home destination card art.
+- verified: 2026-10-03T14:10:57-04:00
 
-## done: fp-session-mic-hint-target
+
+## verified: fp-session-mic-hint-target
 - screen: active
 - ref: `.cursor/figma-refs/06-mission-active.png`
 - deviation: Session mic feedback (`setComposerMicHint(..., "session")`) rewrites `#session-chat-empty` instead of a dedicated under-composer hint; Figma keeps a stable “Enter to send · Click the microphone…” line under the field.
 - fix_hint: Add `#session-chat-hint` under the session composer and point session mic hints there (same pattern as `#chat-hint`).
-- escalate: none
 - commit: 33a98f6
 - change: Added `#session-chat-hint` under session composer; session mic feedback targets it instead of empty-state copy.
+- verified: 2026-10-03T14:10:57-04:00
+
