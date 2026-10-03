@@ -637,6 +637,14 @@ body:has(.view-home.view-home--guest.active) .grain {
   width: 3.5rem;
 }
 
+.mc-home-dest-satellite {
+  position: absolute;
+  right: 55%;
+  bottom: 22%;
+  width: 2.75rem;
+  opacity: 0.95;
+}
+
 .mc-home-moon-sm {
   position: absolute;
   right: 8%;
@@ -4095,6 +4103,9 @@ body:has(.view-quest-complete.active) .grain {
   margin: 0.85rem auto 0;
   gap: 0.55rem;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
 }
 
 .quest-cta-primary {
@@ -5041,10 +5052,21 @@ img[src*="assets/figma/"] {
 }
 
 .view-quest-complete .quest-complete-actions {
-  max-width: 34rem;
+  max-width: none;
   width: 100%;
-  margin: 1rem auto 0;
-  flex-direction: column;
+  margin: 1rem 0 0;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.view-quest-complete .quest-complete-card .quest-complete-actions .wide {
+  flex: 1 1 10rem;
+}
+
+.view-quest-complete .quest-complete-card .quest-complete-footer {
+  max-width: none;
+  width: 100%;
+  margin: 0.75rem 0 0;
 }
 
 .view-quest-complete .flight-log-actions .primary {

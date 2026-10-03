@@ -156,6 +156,7 @@
               <div class="mc-home-dest-art" aria-hidden="true">
                 <img class="mc-home-planet" src="/src/assets/figma/planet-ringed.svg" alt="" />
                 <img class="mc-home-ship" src="/src/assets/figma/ship.svg" alt="" />
+                <img class="mc-home-dest-satellite" src="/src/assets/figma/satellite.svg" alt="" />
                 <img class="mc-home-moon-sm" src="/src/assets/figma/moon.svg" alt="" />
               </div>
             </article>
@@ -677,20 +678,20 @@
               <p class="quest-copilot-kicker">✦ A note from your copilot</p>
               <p id="summary-closing" class="quest-copilot-body"></p>
             </div>
-            <details class="quest-flight-details">
+            <details class="quest-flight-details visually-hidden" hidden>
               <summary>Flight details</summary>
               <div id="summary-body" class="summary-body quest-flight-details-body flight-log-details"></div>
             </details>
             <div id="summary-ship" class="summary-ship" hidden aria-hidden="true"></div>
+            <div class="summary-actions cta-row quest-complete-actions">
+              <button type="button" class="primary wide quest-cta-primary" id="summary-lockin-again" aria-label="Start another mission with previous goals">
+                Start another mission
+              </button>
+              <button type="button" class="ghost wide quest-cta-secondary" id="summary-go-home" aria-label="Return to Mission Control home">Done</button>
+            </div>
+            <p class="quest-complete-footer">Mission ended · Camera, screen, and microphone capture stopped.</p>
           </div>
         </div>
-        <div class="summary-actions cta-row quest-complete-actions">
-          <button type="button" class="primary wide quest-cta-primary" id="summary-lockin-again" aria-label="Start another mission with previous goals">
-            Start another mission
-          </button>
-          <button type="button" class="ghost wide quest-cta-secondary" id="summary-go-home" aria-label="Return to Mission Control home">Done</button>
-        </div>
-        <p class="quest-complete-footer">Mission ended · Camera, screen, and microphone capture stopped.</p>
       </section>
 
       <section id="view-settings" class="view view-mc-settings">
