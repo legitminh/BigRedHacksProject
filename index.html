@@ -342,22 +342,22 @@
           <form id="lockin-form" class="lockin-form mission-setup-card">
             <p class="mission-setup-step">01 / PREPARE FOR LAUNCH</p>
             <h1 class="mission-setup-title">Where are we headed?</h1>
-            <p class="mission-setup-lead">A clear objective helps — or leave it blank for a general flight.</p>
+            <p class="mission-setup-lead">One clear objective. A little room to focus.</p>
 
             <div class="mission-field mission-field--objective">
-              <label class="mission-field-label" for="goals">What do you want to finish? <span class="mission-field-optional">(optional)</span></label>
+              <label class="mission-field-label" for="goals">What do you want to finish?</label>
               <div class="mission-field-input-wrap">
                 <textarea
                   id="goals"
                   rows="1"
-                  placeholder="Finish calculus problems 1–5. Or leave blank for general study."
+                  placeholder="Finish calculus problems 1–5."
                 ></textarea>
                 <button
                   type="button"
                   id="goals-copilot-affordance"
                   class="mission-field-affordance"
-                  aria-label="Launch mission"
-                  title="Launch mission"
+                  aria-label="Dictate objective"
+                  title="Dictate objective"
                 >
                   <svg class="mission-field-affordance-target" viewBox="0 0 20 20" aria-hidden="true">
                     <circle cx="10" cy="10" r="7.25" fill="none" stroke="currentColor" stroke-width="1.75" />
@@ -398,11 +398,12 @@
             </div>
 
             <p id="lockin-error" class="lockin-error" role="alert" hidden></p>
-            <button id="lockin-start" type="submit" class="primary wide mission-launch">
+            <button id="lockin-start" type="submit" class="primary wide mission-launch" disabled>
               <span class="mission-launch-label">Launch mission →</span>
             </button>
-            <p class="mission-setup-foot">
-              You can fly with both inputs off. Nothing starts capturing until you give permission.
+            <p id="mission-setup-foot" class="mission-setup-foot">
+              Type or speak an objective to enable launch.<br />
+              Both optional inputs are off.
             </p>
           </form>
         </div>

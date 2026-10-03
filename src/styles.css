@@ -2866,11 +2866,6 @@ body:has(.view-mission-setup.active) .grain {
   text-transform: none;
 }
 
-.view-mission-setup .mission-field-optional {
-  font-weight: 500;
-  color: #6b6580;
-}
-
 .mission-field-input-wrap {
   position: relative;
 }
@@ -3067,12 +3062,31 @@ body:has(.view-mission-setup.active) .grain {
   filter: none;
 }
 
+.view-mission-setup .mission-launch:disabled,
+.view-mission-setup .mission-launch.primary:disabled {
+  background: #fffbff;
+  color: #645d73;
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+
+.view-mission-setup .mission-launch:disabled:hover,
+.view-mission-setup .mission-launch.primary:disabled:hover {
+  background: #fffbff;
+  color: #645d73;
+  filter: none;
+  opacity: 1;
+}
+
 .mission-setup-foot {
   margin: 0;
   text-align: center;
-  color: #8a829c;
-  font-size: 0.78rem;
-  line-height: 1.45;
+  color: #645d73;
+  font-size: 0.75rem;
+  line-height: 1.4;
 }
 
 @media (max-width: 720px) {
