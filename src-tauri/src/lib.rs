@@ -46,6 +46,36 @@ struct StatusPayload {
     session: Option<LockInSession>,
 }
 
+#[derive(Serialize)]
+struct SystemPermissions {
+    screen_recording: bool,
+    camera: bool,
+    accessibility: bool,
+}
+
+#[tauri::command]
+async fn get_system_permissions() -> Result<SystemPermissions, String> {
+    let screen_recording = match tokio::time::timeout(
+        std::time::Duration::from_secs(4),
+        tokio::task::spawn_blocking(capture::screen::grab_desktop_jpeg),
+    )
+    .await
+    {
+        Ok(Ok(Ok(_))) => true,
+        _ => false,
+    };
+    let camera = capture::camera::permission_granted();
+    let accessibility = match tokio::task::spawn_blocking(capture::frontmost::frontmost_info).await {
+        Ok(Ok(_)) => true,
+        _ => false,
+    };
+    Ok(SystemPermissions {
+        screen_recording,
+        camera,
+        accessibility,
+    })
+}
+
 #[tauri::command]
 fn get_status(state: State<'_, AppState>) -> StatusPayload {
     let cfg = state.config.lock().clone();
@@ -351,6 +381,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_status,
+            get_system_permissions,
             local_llm_status,
             sign_in_waypoint,
             sign_out_waypoint,

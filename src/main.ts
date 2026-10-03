@@ -30,6 +30,10 @@ interface SystemPermissions {
   accessibility: boolean;
 }
 
+interface VoiceTranscript {
+  text: string;
+}
+
 interface StatusPayload {
   signed_in: boolean;
   username?: string | null;
