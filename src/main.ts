@@ -352,6 +352,7 @@ function renderSession(session: LockInSession) {
   if (goals) goals.textContent = session.goals;
   if (note) note.textContent = session.watching_note || "Watching your screen";
   renderVitals(session.vitals);
+  void syncSessionMuteButton();
 }
 
 async function openSettings() {
@@ -390,8 +391,35 @@ async function persistSilentMode() {
       settings: { silent_mode: Boolean(silent?.checked) },
     });
     if (status) status.textContent = "Saved.";
+    await syncSessionMuteButton();
   } catch (err) {
     if (status) status.textContent = String(err);
+  }
+}
+
+async function syncSessionMuteButton() {
+  const btn = $("#session-mute-voice");
+  if (!btn) return;
+  try {
+    const settings = await invoke<UserSettings>("get_settings");
+    const on = Boolean(settings.silent_mode);
+    btn.textContent = on ? "Unmute voice" : "Mute voice";
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+  } catch {
+    // ignore — session UI still usable
+  }
+}
+
+async function toggleSessionMute() {
+  try {
+    const settings = await invoke<UserSettings>("get_settings");
+    const next = !settings.silent_mode;
+    await invoke("save_settings", { settings: { silent_mode: next } });
+    const silent = $("#setting-silent-mode") as HTMLInputElement | null;
+    if (silent) silent.checked = next;
+    await syncSessionMuteButton();
+  } catch (err) {
+    console.error(err);
   }
 }
 
@@ -434,8 +462,21 @@ function startTimer(endsAt: string) {
   stopTimer();
   currentEndsAt = endsAt;
   const tick = () => {
+    if (!currentEndsAt) return;
     const el = $("#session-timer");
-    if (el && currentEndsAt) el.textContent = formatRemaining(currentEndsAt);
+    const ms = new Date(currentEndsAt).getTime() - Date.now();
+    if (el) el.textContent = formatRemaining(currentEndsAt);
+    if (ms <= 0) {
+      const statusEl = $("#session-status");
+      if (statusEl) {
+        statusEl.textContent = "Finishing up…";
+        statusEl.className = "status-chip finishing";
+      }
+      if (timerHandle) {
+        window.clearInterval(timerHandle);
+        timerHandle = undefined;
+      }
+    }
   };
   tick();
   timerHandle = window.setInterval(tick, 1000);
@@ -588,6 +629,10 @@ window.addEventListener("DOMContentLoaded", async () => {
         startBtn.textContent = "Start lock-in";
       }
     }
+  });
+
+  $("#session-mute-voice")?.addEventListener("click", () => {
+    void toggleSessionMute();
   });
 
   $("#end-session")?.addEventListener("click", async () => {

@@ -76,7 +76,12 @@
       <section id="view-session" class="view view-session">
         <header class="session-head">
           <p class="brand-inline">Waypoint</p>
-          <button id="end-session" class="ghost danger" type="button">End</button>
+          <div class="session-head-actions">
+            <button id="session-mute-voice" class="ghost" type="button" aria-pressed="false">
+              Mute voice
+            </button>
+            <button id="end-session" class="ghost danger" type="button">End</button>
+          </div>
         </header>
         <div class="timer-wrap">
           <p id="session-timer" class="timer">45:00</p>

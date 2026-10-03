@@ -322,6 +322,13 @@ button:active {
   justify-content: space-between;
 }
 
+.session-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
 .brand-inline {
   margin: 0;
   font-family: var(--font-display);
