@@ -26,6 +26,66 @@ interface UserSettings {
   silent_mode: boolean;
 }
 
+const PREF_CAMERA_SIGNALS = "wp-setting-camera-signals";
+const PREF_SCREEN_SHARING = "wp-setting-screen-sharing";
+const PREF_REDUCE_MOTION = "wp-setting-reduce-motion";
+
+function readBoolPref(key: string, defaultValue: boolean): boolean {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === null) return defaultValue;
+    return raw === "1";
+  } catch {
+    return defaultValue;
+  }
+}
+
+function writeBoolPref(key: string, value: boolean) {
+  try {
+    localStorage.setItem(key, value ? "1" : "0");
+  } catch {
+    // private mode
+  }
+}
+
+function syncSilentModeInputs(silentMode: boolean) {
+  const silent = $("#setting-silent-mode") as HTMLInputElement | null;
+  const audio = $("#setting-copilot-audio") as HTMLInputElement | null;
+  if (silent) silent.checked = silentMode;
+  if (audio) audio.checked = !silentMode;
+}
+
+function applyReduceMotionPref() {
+  const on = readBoolPref(PREF_REDUCE_MOTION, true);
+  document.documentElement.classList.toggle("wp-reduce-motion", on);
+  const input = $("#setting-reduce-motion") as HTMLInputElement | null;
+  if (input) input.checked = on;
+}
+
+function syncSessionPreferenceToggles() {
+  const camera = $("#setting-camera-signals") as HTMLInputElement | null;
+  const screen = $("#setting-screen-sharing") as HTMLInputElement | null;
+  if (camera) camera.checked = readBoolPref(PREF_CAMERA_SIGNALS, true);
+  if (screen) screen.checked = readBoolPref(PREF_SCREEN_SHARING, true);
+  applyReduceMotionPref();
+}
+
+function renderSettingsAvatar(status: StatusPayload) {
+  const el = $("#settings-avatar");
+  if (!el) return;
+  const name = status.username?.trim();
+  if (!name) {
+    el.textContent = "—";
+    return;
+  }
+  const parts = name.split(/\s+/).filter(Boolean);
+  const initials =
+    parts.length >= 2
+      ? `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase()
+      : name.slice(0, 2).toUpperCase();
+  el.textContent = initials;
+}
+
 interface SystemPermissions {
   screen_recording: boolean;
   camera: boolean;
@@ -592,6 +652,7 @@ async function renderConnectionStatus(status: StatusPayload) {
 }
 
 async function renderMissionControlSettings(status: StatusPayload) {
+  renderSettingsAvatar(status);
   await renderConnectionStatus(status);
   await renderPermissionsStatus();
   renderAccountSettings(status);
@@ -602,16 +663,12 @@ function renderChatEmptyState() {
   if (!log || log.querySelector("#chat-empty")) return;
   const empty = document.createElement("div");
   empty.id = "chat-empty";
-  empty.className = "copilot-empty";
+  empty.className = "copilot-empty-card";
   empty.innerHTML = `
-    <div class="copilot-orbit" aria-hidden="true">
-      <span class="copilot-orbit-ring copilot-orbit-ring--outer"></span>
-      <span class="copilot-orbit-ring copilot-orbit-ring--inner"></span>
-      <span class="copilot-planet"></span>
-    </div>
-    <h3 class="copilot-empty-heading">How can I help on this mission?</h3>
+    <p class="copilot-card-kicker"><span aria-hidden="true">✦</span> COPILOT</p>
+    <h3 class="copilot-empty-heading">What are you working on today?</h3>
     <p class="copilot-empty-copy">
-      Ask a question below, try the study shortcuts, or connect Google in Settings for Calendar and Drive — optional.
+      Tell me what feels tricky, and we’ll find one manageable place to start.
     </p>`;
   log.appendChild(empty);
 }
@@ -637,7 +694,7 @@ const CHAT_FAIL_MSG =
 function setChatControlsBusy(busy: boolean) {
   $("#chat-log")?.setAttribute("aria-busy", busy ? "true" : "false");
   document
-    .querySelectorAll<HTMLButtonElement>("#chat-send, [data-study], #new-chat")
+    .querySelectorAll<HTMLButtonElement>("#chat-send, #chat-mic, [data-study], #new-chat")
     .forEach((button) => {
       button.disabled = busy;
     });
@@ -843,8 +900,8 @@ async function openSettings() {
   show("view-settings");
   try {
     const settings = await invoke<UserSettings>("get_settings");
-    const silent = $("#setting-silent-mode") as HTMLInputElement | null;
-    if (silent) silent.checked = Boolean(settings.silent_mode);
+    syncSilentModeInputs(Boolean(settings.silent_mode));
+    syncSessionPreferenceToggles();
     const status = $("#settings-save-status");
     if (status) status.textContent = "";
     const invokeResult = $("#invoke-voice-result");
@@ -874,16 +931,30 @@ function selectSettingsTab(tab: string) {
 
 async function persistSilentMode() {
   const silent = $("#setting-silent-mode") as HTMLInputElement | null;
+  const audio = $("#setting-copilot-audio") as HTMLInputElement | null;
+  const silentMode = silent
+    ? silent.checked
+    : audio
+      ? !audio.checked
+      : false;
+  syncSilentModeInputs(silentMode);
   const status = $("#settings-save-status");
   try {
     await invoke("save_settings", {
-      settings: { silent_mode: Boolean(silent?.checked) },
+      settings: { silent_mode: silentMode },
     });
     if (status) status.textContent = "Saved.";
     await syncSessionMuteButton();
   } catch (err) {
     if (status) status.textContent = String(err);
   }
+}
+
+async function persistCopilotAudioFromToggle() {
+  const audio = $("#setting-copilot-audio") as HTMLInputElement | null;
+  const silent = $("#setting-silent-mode") as HTMLInputElement | null;
+  if (silent && audio) silent.checked = !audio.checked;
+  await persistSilentMode();
 }
 
 async function syncSessionMuteButton() {
@@ -904,8 +975,7 @@ async function toggleSessionMute() {
     const settings = await invoke<UserSettings>("get_settings");
     const next = !settings.silent_mode;
     await invoke("save_settings", { settings: { silent_mode: next } });
-    const silent = $("#setting-silent-mode") as HTMLInputElement | null;
-    if (silent) silent.checked = next;
+    syncSilentModeInputs(next);
     await syncSessionMuteButton();
   } catch (err) {
     console.error(err);
@@ -936,29 +1006,29 @@ function renderSummary(summary: SessionSummary) {
       ? '<p class="flight-log-stat-hint muted">No screen checks — focus ratio unavailable.</p>'
       : "";
 
-  closing.textContent = summary.closing_note;
+  if (summary.closing_note) {
+    closing.textContent = summary.closing_note;
+    closing.hidden = false;
+  } else {
+    closing.textContent = "";
+    closing.hidden = true;
+  }
+
+  const flightMinutes = Math.max(0, Math.round(summary.duration_secs / 60));
 
   stats.innerHTML = `
-    <article class="flight-log-stat">
-      <span class="flight-log-stat-icon" aria-hidden="true">⏱</span>
-      <p class="flight-log-stat-value">${escapeHtml(formatFlightDuration(summary.duration_secs))}</p>
-      <p class="flight-log-stat-label">Flight time</p>
+    <article class="flight-log-stat flight-log-stat--hero">
+      <p class="flight-log-stat-value">${flightMinutes}</p>
+      <p class="flight-log-stat-label">flight minutes</p>
     </article>
-    <article class="flight-log-stat">
-      <span class="flight-log-stat-icon" aria-hidden="true">◎</span>
+    <article class="flight-log-stat flight-log-stat--hero">
       <p class="flight-log-stat-value">${escapeHtml(onTaskValue)}</p>
-      <p class="flight-log-stat-label">On task</p>
+      <p class="flight-log-stat-label">on task</p>
       ${onTaskHint}
     </article>
-    <article class="flight-log-stat">
-      <span class="flight-log-stat-icon" aria-hidden="true">📡</span>
+    <article class="flight-log-stat flight-log-stat--hero flight-log-stat--cream">
       <p class="flight-log-stat-value">${checks}</p>
-      <p class="flight-log-stat-label">Screen checks</p>
-    </article>
-    <article class="flight-log-stat">
-      <span class="flight-log-stat-icon" aria-hidden="true">⚡</span>
-      <p class="flight-log-stat-value">${summary.stress_spikes}</p>
-      <p class="flight-log-stat-label">Stress spikes</p>
+      <p class="flight-log-stat-label">screen checks</p>
     </article>
   `;
 
@@ -1077,6 +1147,45 @@ window.addEventListener("DOMContentLoaded", async () => {
     restoreLockinFromLastSession();
   });
   $("#summary-go-home")?.addEventListener("click", () => show("view-home"));
+  $("#home-first-flight-cta")?.addEventListener("click", () => show("view-lockin"));
+
+  $("#view-chat")?.querySelectorAll<HTMLButtonElement>("[data-copilot-nav]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const dest = button.dataset.copilotNav;
+      if (dest === "home") show("view-home");
+      else if (dest === "lockin") show("view-lockin");
+      else if (dest === "settings") void openSettings();
+    });
+  });
+  $("#copilot-start-mission")?.addEventListener("click", () => show("view-lockin"));
+
+  let chatMicListening = false;
+  $("#chat-mic")?.addEventListener("click", async () => {
+    if (chatBusy || chatMicListening) return;
+    const input = $<HTMLTextAreaElement>("#chat-input");
+    const mic = $("#chat-mic") as HTMLButtonElement | null;
+    chatMicListening = true;
+    if (mic) {
+      mic.disabled = true;
+      mic.textContent = "…";
+    }
+    try {
+      const transcript = await invoke<VoiceTranscript>("voice_listen_test", { seconds: 4 });
+      const text = transcript.text?.trim();
+      if (text && input) {
+        input.value = input.value.trim() ? `${input.value.trim()} ${text}` : text;
+        input.focus();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      chatMicListening = false;
+      if (mic) {
+        mic.disabled = chatBusy;
+        mic.textContent = "Mic";
+      }
+    }
+  });
 
   $("#chat-form")?.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -1093,7 +1202,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   const studyPrompts: Record<string, [string, string]> = {
     explain: ["Explain this topic simply, with a worked example: ", "Explain the topic we’re discussing more simply, with a worked example."],
     quiz: ["Quiz me on this topic, one question at a time: ", "Quiz me on the topic we’re discussing. Ask one question, wait for my answer, then give feedback."],
-    plan: ["Help me make a short study plan. My goal and available time are: ", "Turn what we’ve discussed into at most three concrete study steps with time estimates. Ask about my available time if needed."],
+    stuck: ["I'm stuck on this. Here's where I am: ", "I'm stuck on what we're discussing. Help me find one manageable next step without overwhelming me."],
+    plan: ["Help me find one manageable next step for: ", "Based on our conversation, suggest one small next step I can take in the next 15 minutes."],
   };
   document.querySelectorAll<HTMLButtonElement>("[data-study]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1249,9 +1359,35 @@ window.addEventListener("DOMContentLoaded", async () => {
       selectSettingsTab(button.dataset.settingsTab || "connection"),
     );
   });
+  document.querySelectorAll<HTMLButtonElement>("[data-settings-nav]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const dest = button.dataset.settingsNav;
+      if (dest === "copilot") show("view-chat");
+      else if (dest === "lockin") show("view-lockin");
+      else show("view-home");
+    });
+  });
+  $("#settings-lock-in")?.addEventListener("click", () => show("view-lockin"));
+  $("#setting-copilot-audio")?.addEventListener("change", () => {
+    void persistCopilotAudioFromToggle();
+  });
   $("#setting-silent-mode")?.addEventListener("change", () => {
     void persistSilentMode();
   });
+  $("#setting-camera-signals")?.addEventListener("change", (event) => {
+    const input = event.target as HTMLInputElement;
+    writeBoolPref(PREF_CAMERA_SIGNALS, input.checked);
+  });
+  $("#setting-screen-sharing")?.addEventListener("change", (event) => {
+    const input = event.target as HTMLInputElement;
+    writeBoolPref(PREF_SCREEN_SHARING, input.checked);
+  });
+  $("#setting-reduce-motion")?.addEventListener("change", (event) => {
+    const input = event.target as HTMLInputElement;
+    writeBoolPref(PREF_REDUCE_MOTION, input.checked);
+    applyReduceMotionPref();
+  });
+  applyReduceMotionPref();
   $("#connection-refresh")?.addEventListener("click", async () => {
     try {
       const status = await invoke<StatusPayload>("get_status");

@@ -196,55 +196,116 @@
       </section>
 
       <section id="view-chat" class="view view-copilot">
-        <header class="panel-head copilot-head">
-          <button class="back copilot-back" data-back type="button" aria-label="Back to home">←</button>
-          <div class="copilot-head-text">
-            <p class="copilot-eyebrow">Mission assistant</p>
-            <h2 class="copilot-title">Copilot</h2>
+        <img
+          class="copilot-constellation"
+          src="/src/assets/figma/constellation.svg"
+          alt=""
+          aria-hidden="true"
+        />
+
+        <header class="copilot-nav">
+          <button type="button" class="copilot-nav-brand" data-copilot-nav="home">
+            <span class="copilot-nav-star" aria-hidden="true">✦</span>
+            Waypoint
+          </button>
+          <nav class="copilot-nav-links" aria-label="Primary">
+            <button type="button" class="copilot-nav-link" data-copilot-nav="home">Home</button>
+            <button type="button" class="copilot-nav-link is-active" aria-current="page">Copilot</button>
+            <button type="button" class="copilot-nav-link" data-copilot-nav="lockin">Lock in</button>
+          </nav>
+          <div class="copilot-nav-end">
+            <button type="button" class="copilot-nav-link" data-copilot-nav="settings">Settings</button>
+            <span class="copilot-nav-avatar" aria-hidden="true">JL</span>
+            <button id="new-chat" class="ghost copilot-nav-new" type="button">New chat</button>
           </div>
-          <button id="new-chat" class="ghost chat-reset copilot-reset" type="button">New chat</button>
         </header>
-        <div class="copilot-panel">
-          <div
-            id="chat-log"
-            class="chat-log copilot-log"
-            role="log"
-            aria-label="Copilot conversation"
-            aria-live="polite"
-            aria-relevant="additions text"
-          >
-            <div id="chat-empty" class="copilot-empty">
-              <div class="copilot-orbit" aria-hidden="true">
-                <span class="copilot-orbit-ring copilot-orbit-ring--outer"></span>
-                <span class="copilot-orbit-ring copilot-orbit-ring--inner"></span>
-                <span class="copilot-planet"></span>
+
+        <div class="copilot-shell">
+          <aside class="copilot-sidebar">
+            <p class="copilot-kicker"><span aria-hidden="true">✦</span> YOUR COPILOT</p>
+            <h2 class="copilot-sidebar-title">A sounding board for your next step.</h2>
+            <p class="copilot-sidebar-body">
+              Ask a question, talk through a roadblock, or get ready to focus.
+            </p>
+            <button type="button" class="copilot-sidebar-cta primary" id="copilot-start-mission">
+              Start a mission
+            </button>
+            <p class="copilot-sidebar-status" id="copilot-mission-status">No mission running.</p>
+            <img
+              class="copilot-sidebar-planet"
+              src="/src/assets/figma/planet-ringed.svg"
+              alt=""
+              aria-hidden="true"
+            />
+          </aside>
+
+          <div class="copilot-main">
+            <header class="copilot-intro">
+              <h1 class="copilot-page-title">A little help, a clearer path.</h1>
+              <p class="copilot-page-sub">Ask freely. Your next step can be small.</p>
+            </header>
+
+            <div class="copilot-panel">
+              <div
+                id="chat-log"
+                class="chat-log copilot-log"
+                role="log"
+                aria-label="Copilot conversation"
+                aria-live="polite"
+                aria-relevant="additions text"
+              >
+                <div id="chat-empty" class="copilot-empty-card">
+                  <p class="copilot-card-kicker"><span aria-hidden="true">✦</span> COPILOT</p>
+                  <h3 class="copilot-empty-heading">What are you working on today?</h3>
+                  <p class="copilot-empty-copy">
+                    Tell me what feels tricky, and we’ll find one manageable place to start.
+                  </p>
+                </div>
               </div>
-              <h3 class="copilot-empty-heading">How can I help on this mission?</h3>
-              <p class="copilot-empty-copy">
-                Ask a question below, try the study shortcuts, or connect Google in Settings for Calendar and
-                Drive — optional.
-              </p>
             </div>
+
+            <div class="copilot-prompts-row">
+              <div class="study-actions copilot-shortcuts" role="group" aria-label="Prompt suggestions">
+                <button class="copilot-chip" type="button" data-study="explain">Explain simply</button>
+                <button class="copilot-chip" type="button" data-study="stuck">I'm stuck</button>
+                <button class="copilot-chip copilot-chip--next" type="button" data-study="plan">
+                  Find a next step
+                  <span class="copilot-chip-plus" aria-hidden="true">+</span>
+                </button>
+              </div>
+              <img
+                class="copilot-astronaut"
+                src="/src/assets/figma/astronaut.svg"
+                alt=""
+                aria-hidden="true"
+              />
+            </div>
+
+            <footer class="copilot-composer">
+              <form id="chat-form" class="chat-form copilot-form">
+                <div class="copilot-input-wrap">
+                  <textarea
+                    id="chat-input"
+                    rows="1"
+                    aria-label="Message Copilot"
+                    aria-describedby="chat-hint"
+                    placeholder="Message your copilot..."
+                  ></textarea>
+                  <button id="chat-mic" type="button" class="copilot-mic" aria-label="Microphone">
+                    Mic
+                  </button>
+                </div>
+                <button id="chat-send" type="submit" class="primary copilot-send" aria-label="Send message">
+                  <span aria-hidden="true">↑</span>
+                </button>
+              </form>
+              <p id="chat-hint" class="composer-hint copilot-hint">
+                Enter to send · Click the microphone to start or stop a voice turn<br />
+                Responses always appear as text. Audio is yours to turn on.
+              </p>
+            </footer>
           </div>
         </div>
-        <footer class="copilot-composer">
-          <div class="study-actions copilot-shortcuts" role="group" aria-label="Study shortcuts">
-            <button class="copilot-chip" type="button" data-study="explain">Explain simply</button>
-            <button class="copilot-chip" type="button" data-study="quiz">Quiz me</button>
-            <button class="copilot-chip" type="button" data-study="plan">Make a plan</button>
-          </div>
-          <form id="chat-form" class="chat-form copilot-form">
-            <textarea
-              id="chat-input"
-              rows="2"
-              aria-label="Message Copilot"
-              aria-describedby="chat-hint"
-              placeholder="Ask Copilot or paste what you’re working on…"
-            ></textarea>
-            <button id="chat-send" type="submit" class="primary copilot-send">Send</button>
-          </form>
-          <p id="chat-hint" class="composer-hint copilot-hint">Enter to send · Shift+Enter for a new line</p>
-        </footer>
       </section>
 
       <section id="view-lockin" class="view view-mission-setup">
@@ -425,39 +486,50 @@
         </div>
       </section>
 
-      <section id="view-summary" class="view view-summary view-flight-log view-quest-complete" aria-label="Quest complete">
-        <header class="panel-head quest-complete-head">
-          <button class="back" data-back type="button" aria-label="Back to home">←</button>
-          <p class="brand-inline">Mission Control</p>
-        </header>
+      <section id="view-summary" class="view view-summary view-quest-complete" aria-label="Quest complete">
         <div class="quest-complete-stage">
           <div class="quest-complete-decor" aria-hidden="true">
             <img class="quest-complete-constellation" src="/src/assets/figma/constellation.svg" alt="" />
             <img class="quest-complete-planet quest-complete-planet--left" src="/src/assets/figma/planet-ringed.svg" alt="" />
-            <img class="quest-complete-ship" src="/src/assets/figma/ship.svg" alt="" />
+            <img class="quest-complete-ship quest-complete-ship--decor" src="/src/assets/figma/ship.svg" alt="" />
             <img class="quest-complete-satellite" src="/src/assets/figma/satellite.svg" alt="" />
             <span class="celebration-confetti quest-complete-confetti"></span>
           </div>
           <div class="flight-log-scroll quest-complete-card">
-            <div id="summary-celebration" class="mission-celebration" hidden>
+            <div id="summary-celebration" class="quest-complete-hero">
               <p id="summary-celebration-badge" class="quest-complete-badge">✓&nbsp;&nbsp;QUEST COMPLETE</p>
-              <h2 id="summary-celebration-title" class="mission-celebration__title">One mission. Well done.</h2>
-              <p id="summary-celebration-sub" class="mission-celebration__sub"></p>
+              <h1 id="summary-celebration-title" class="quest-complete-title">One mission. Well done.</h1>
+              <p id="summary-celebration-sub" class="quest-complete-objective"></p>
               <p id="summary-celebration-kicker" class="mission-celebration__kicker" hidden></p>
             </div>
-            <div id="summary-ship" class="summary-ship" aria-live="polite" hidden></div>
-            <p id="summary-closing" class="flight-log-closing"></p>
-            <div id="summary-stats" class="flight-log-stats" aria-label="Mission stats"></div>
-            <div id="summary-body" class="summary-body flight-log-details"></div>
+            <div id="summary-stats" class="quest-complete-stats" aria-label="Mission stats"></div>
+            <div id="summary-pb-banner" class="quest-complete-pb-banner" hidden></div>
+            <div class="quest-objective-section">
+              <h2 class="quest-objective-heading">Did you finish your objective?</h2>
+              <div class="quest-objective-choices" role="group" aria-label="Objective completion">
+                <button type="button" class="quest-objective-btn is-selected" data-objective="finished">Finished</button>
+                <button type="button" class="quest-objective-btn" data-objective="partly">Partly</button>
+                <button type="button" class="quest-objective-btn" data-objective="not-yet">Not yet</button>
+              </div>
+            </div>
+            <div class="quest-copilot-note">
+              <p class="quest-copilot-kicker">✦ A note from your copilot</p>
+              <p id="summary-closing" class="quest-copilot-body"></p>
+            </div>
+            <details class="quest-flight-details">
+              <summary>Flight details</summary>
+              <div id="summary-body" class="summary-body quest-flight-details-body flight-log-details"></div>
+            </details>
+            <div id="summary-ship" class="summary-ship" hidden aria-hidden="true"></div>
           </div>
         </div>
-        <div class="summary-actions cta-row flight-log-actions quest-complete-actions">
-          <button type="button" class="primary wide" id="summary-lockin-again" aria-label="Start another mission with previous goals">
+        <div class="summary-actions cta-row quest-complete-actions">
+          <button type="button" class="primary wide quest-cta-primary" id="summary-lockin-again" aria-label="Start another mission with previous goals">
             Start another mission
           </button>
-          <button type="button" class="ghost wide" id="summary-go-home" aria-label="Return to Mission Control home">Done</button>
-          <p class="quest-complete-footer muted">Mission ended · Camera, screen, and microphone capture stopped.</p>
+          <button type="button" class="ghost wide quest-cta-secondary" id="summary-go-home" aria-label="Return to Mission Control home">Done</button>
         </div>
+        <p class="quest-complete-footer">Mission ended · Camera, screen, and microphone capture stopped.</p>
       </section>
 
       <section id="view-settings" class="view view-mc-settings">
