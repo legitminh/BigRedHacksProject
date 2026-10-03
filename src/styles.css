@@ -3590,10 +3590,11 @@ body:has(.view-session.active) .grain {
   top: 22%;
   z-index: 2;
   display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.2rem 0.45rem 0.2rem 0.35rem;
-  border-radius: var(--radius-pill);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  padding: 0.25rem 0.5rem 0.3rem 0.35rem;
+  border-radius: 0.45rem;
   background: rgba(26, 18, 48, 0.72);
   font-size: 0.58rem;
   font-weight: 600;
@@ -3601,6 +3602,22 @@ body:has(.view-session.active) .grain {
   color: rgba(255, 255, 255, 0.88);
   pointer-events: none;
   transform: translate(-50%, -50%);
+  line-height: 1.15;
+}
+
+.session-flight-pb-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.session-flight-pb-kicker {
+  white-space: nowrap;
+}
+
+.session-flight-personal-best #session-orbit-pb-label {
+  padding-left: 1.1rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .session-flight-pb-flag {
@@ -3840,6 +3857,10 @@ body:has(.view-session.active) .grain {
   justify-content: center;
   gap: 0.65rem 0.85rem;
   margin: 1rem 0 0;
+}
+
+#view-session.is-session-listening #session-next-step {
+  display: none;
 }
 
 .session-next-step-pill {

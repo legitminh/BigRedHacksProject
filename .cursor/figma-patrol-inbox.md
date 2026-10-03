@@ -1197,7 +1197,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: `.session-chat-turn--user` left-aligned (`flex-start`).
 - verified: 2026-10-03T16:10:00-04:00
 
-## done: fp-home-footnote-rail
+## verified: fp-home-footnote-rail
 - screen: home
 - ref: `.cursor/figma-refs/02-home.png` · live `2:34` · footnote `5:169` · satellite `22:1311`
 - deviation: |
@@ -1212,10 +1212,11 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `.mc-home-best` (same vertical band as the copilot card). Keep CTA / Open copilot
     wiring. Distinct from dest-card satellite.
 - escalate: none
-- commit: PENDING
+- commit: 43e68a5
 - change: Moved `.mc-home-bottom` into grid col 2 / row 2 under `.mc-home-best` (footnote + satellite).
+- verified: 2026-10-03T16:25:30-04:00
 
-## done: fp-home-copilot-shortcut-row
+## verified: fp-home-copilot-shortcut-row
 - screen: home
 - ref: `.cursor/figma-refs/02-home.png` · live `2:34` · shortcut `5:164` · copy `5:165`
 - deviation: |
@@ -1229,8 +1230,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Restructure `.mc-home-copilot`: title full-width; put Talk-it-through text and
     `#home-copilot-cta` in one flex row matching `5:164`. Keep Open-copilot → show chat.
 - escalate: none
-- commit: PENDING
+- commit: 43e68a5
 - change: Title alone on first row; Talk-it-through + `#home-copilot-cta` in `.mc-home-copilot-shortcut` row (`5:164`). CTA remains “Open copilot  →”.
+- verified: 2026-10-03T16:25:30-04:00
 
 ## verified: fp-home-copilot-cta-arrow
 - screen: home
@@ -1282,3 +1284,106 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - commit: 5873ecf
 - change: `#chat-hint` keeps Enter/mic only; Responses/Audio moved to `.copilot-responses-foot`.
 - verified: 2026-10-03T16:19:28-04:00
+
+## done: fp-welcome-signin-title
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · title `5:61`
+- expected: |
+    Live 01 Sign in card H2 is “Your seat is ready.” above lead
+    “Sign in to return to your space.”
+- actual: |
+    `.welcome-signin-title` reads “Sign in to continue.”
+- deviation: |
+    EXPECTED (live `5:61`): card title “Your seat is ready.”
+    ACTUAL (`#welcome-signin-form`): “Sign in to continue.” Distinct from open
+    `fp-welcome-signin-form` (fields/CTA/foot) — title string alone is wrong.
+- fix_hint: |
+    Set `.welcome-signin-title` to “Your seat is ready.”; leave Google wiring and
+    the broader form open (`fp-welcome-signin-form`) for Email/Password/guest.
+- escalate: scrutinous
+- commit: PENDING
+- change: `.welcome-signin-title` → “Your seat is ready.” (live `5:61`); form/Google path untouched.
+
+## open: fp-relaunch-live-panel-copy
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41`
+- expected: |
+    Live 09: progress pill “↗ Ready to relaunch?”; caption
+    “REMAINING · TIMER PAUSED”; primary row “Take a break” + “End mission”;
+    right card badge “↗ READY TO RELAUNCH?”, title “Let’s pick one small next
+    step.”, body “Your {n} earned minutes are safe. Take a breath and start
+    small.”, labeled Next step field, Relaunch + Take a break, footer
+    “Same objective. Same flight. A fresh start.”
+- actual: |
+    No relaunch session surface (only `RELAUNCH_FLAG_KEY` stats counter).
+- deviation: |
+    Complements open `fp-relaunch-session-panel` with exact live 09 copy + left
+    chrome (↗ pill, TIMER PAUSED caption, Take a break replacing Pause).
+- fix_hint: |
+    When relaunch state fires: set progress/caption/controls per live 09; swap
+    `.session-copilot-panel` to the relaunch card with Next step + Relaunch.
+    Keep End mission wiring; do not change intentional Pause/End contracts on
+    normal active.
+- escalate: scrutinous
+
+## open: fp-timer-replace-body-copy
+- screen: active
+- ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` · body `6:1566`
+- expected: |
+    Live 15 modal body: “Your current timer has {m:ss} left. Replace it with a
+    new five-minute timer?” under title “Replace your step timer?” / badge
+    “ONE TIMER AT A TIME”; actions Keep current · Replace timer.
+- actual: |
+    Suggest chip silently overwrites the countdown (open `fp-timer-replace-modal`
+    covers missing modal shell) — no remaining-time sentence either.
+- deviation: |
+    When the replace modal is built, body must interpolate the live remaining
+    countdown (sample 4:32), not a generic “replace?” only.
+- fix_hint: |
+    In the MC modal for `fp-timer-replace-modal`, set body from live `6:1566`
+    template using current `#session-next-step-timer` value.
+- escalate: scrutinous
+
+## done: fp-session-pb-marker-stack
+- screen: active
+- ref: `.cursor/figma-refs/06-mission-active.png` · live `2:38` · marker `6:191`–
+    `6:193`
+- expected: |
+    Personal best callout stacks two lines: “⚑ Personal best” then “20 min”
+    under it (`6:192` / `6:193`).
+- actual: |
+    `#session-orbit-pb-label` is a single inline string
+    “Personal best {n} min” beside the flag (`.session-flight-personal-best`
+    is `inline-flex` row).
+- deviation: |
+    Live marker is a vertical stack (label over minutes), not one horizontal
+    phrase.
+- fix_hint: |
+    Split into kicker + minutes elements (or two lines in the label) matching
+    `6:191`; keep `updateSessionOrbitPersonalBest()` wiring.
+- escalate: none
+- commit: PENDING
+- change: PB callout stacks flag+“Personal best” then `{n} min`; `updateSessionOrbitPersonalBest` sets minutes only.
+
+## done: fp-listening-hides-next-step
+- screen: active
+- ref: `.cursor/figma-refs/14-listening.png` · live `2:46`
+- expected: |
+    Live 14 Listening: left flight card has NO `#session-next-step` /
+    Secondary timer row (dashboard ends at earned-minutes); right panel keeps
+    “Set a five-minute timer” + listening composer (● Listening… / ■ / 
+    “Listening… click mic to stop”).
+- actual: |
+    Open `fp-listening-session-ui` notes next-step “may remain”; app always
+    mounts `#session-next-step` during mid-flight, including while mic is
+    listening.
+- deviation: |
+    Live 14 removes the left NEXT STEP TIMER row while listening (height 662
+    vs 714 on 06). Complements `fp-listening-session-ui` presence/composer work.
+- fix_hint: |
+    While session mic is listening, hide `#session-next-step`; restore when
+    idle. Keep suggest chip + Pause/End. Distinct from launch-chrome hide
+    (`fp-session-at-launch-chrome`).
+- escalate: scrutinous
+- commit: PENDING
+- change: `#view-session.is-session-listening` hides `#session-next-step`; toggled via `setSessionListeningUi` on session mic start/end.

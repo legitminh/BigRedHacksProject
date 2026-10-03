@@ -1530,7 +1530,11 @@ function updateSessionOrbitPersonalBest() {
     return;
   }
   wrap.hidden = false;
-  label.textContent = `Personal best ${mins} min`;
+  label.textContent = `${mins} min`;
+}
+
+function setSessionListeningUi(listening: boolean) {
+  $("#view-session")?.classList.toggle("is-session-listening", listening);
 }
 
 function formatVitals(vitals?: VitalsSnapshot | null): string {
@@ -2501,6 +2505,7 @@ async function bootApp() {
     const input = $<HTMLTextAreaElement>("#session-chat-input");
     const mic = $("#session-chat-mic") as HTMLButtonElement | null;
     chatMicListening = true;
+    setSessionListeningUi(true);
     if (mic) {
       mic.disabled = true;
       mic.textContent = "…";
@@ -2527,6 +2532,7 @@ async function bootApp() {
       setComposerMicHint(String(err), "session");
     } finally {
       chatMicListening = false;
+      setSessionListeningUi(false);
       if (mic) {
         mic.disabled = false;
         mic.textContent = "Mic";
