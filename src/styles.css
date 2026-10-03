@@ -4,23 +4,208 @@
 .bubble.assistant .katex { font-size: 1.1em; }
 
 :root {
-  --ink: #0c0e14;
-  --foam: #f1f5f9;
-  --mist: #cbd5e1;
-  --amber: #e2a35a;
-  --violet: #7c3aed;
-  --violet-soft: rgba(124, 58, 237, 0.35);
-  --cyan-glow: #22d3ee;
+  /* Mission Control — surfaces */
+  --mc-bg-void: #070b14;
+  --mc-bg-deep: #0a1020;
+  --mc-bg-base: #0f1629;
+  --mc-bg-elevated: #151d32;
+  --mc-bg-card: #1a2340;
+  --mc-surface-glass: rgba(15, 22, 41, 0.72);
+  --mc-border-subtle: rgba(148, 163, 184, 0.12);
+  --mc-border-default: rgba(148, 163, 184, 0.22);
+  --mc-border-strong: rgba(124, 58, 237, 0.38);
+
+  /* Mission Control — accents */
+  --mc-accent-purple: #7c3aed;
+  --mc-accent-purple-bright: #9333ea;
+  --mc-accent-purple-glow: rgba(124, 58, 237, 0.45);
+  --mc-accent-cyan: #22d3ee;
+  --mc-accent-cyan-dim: #0891b2;
+  --mc-accent-cyan-glow: rgba(34, 211, 238, 0.35);
+  --mc-accent-green: #34d399;
+  --mc-accent-green-dim: #10b981;
+
+  /* Mission Control — text */
+  --mc-text-primary: #f1f5f9;
+  --mc-text-secondary: #cbd5e1;
+  --mc-text-muted: #94a3b8;
+  --mc-text-label: #a5b4c8;
+  --mc-text-on-accent: #ffffff;
+
+  /* Mission Control — semantic */
+  --mc-danger: #f87171;
+  --mc-danger-muted: #fca5a5;
+  --mc-danger-border: rgba(248, 113, 113, 0.55);
+  --mc-warning: #fbbf24;
+
+  /* Mission Control — typography */
+  --font-display: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --mc-font-display: var(--font-display);
+  --mc-font-body: var(--font-body);
+  --mc-text-xs: 0.75rem;
+  --mc-text-sm: 0.875rem;
+  --mc-text-base: 1rem;
+  --mc-text-lg: 1.125rem;
+  --mc-text-xl: 1.25rem;
+  --mc-text-2xl: 1.5rem;
+  --mc-weight-medium: 500;
+  --mc-weight-semibold: 600;
+  --mc-weight-bold: 700;
+  --mc-tracking-tight: -0.02em;
+  --mc-tracking-wide: 0.06em;
+  --mc-leading-normal: 1.45;
+
+  /* Mission Control — radius & space */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-pill: 9999px;
+  --mc-radius-sm: var(--radius-sm);
+  --mc-radius-md: var(--radius-md);
+  --mc-radius-lg: var(--radius-lg);
+  --mc-radius-xl: var(--radius-xl);
+  --mc-radius-pill: var(--radius-pill);
+  --mc-space-sm: 0.5rem;
+  --mc-space-md: 0.75rem;
+  --mc-space-lg: 1rem;
+  --mc-space-xl: 1.5rem;
+
+  /* Mission Control — effects */
+  --mc-shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --mc-shadow-glow-purple: 0 0 28px var(--mc-accent-purple-glow);
+  --mc-shadow-glow-cyan: 0 0 22px var(--mc-accent-cyan-glow);
+
+  /* Ship gamification (feature views) */
   --ship-glow: #6ee7d8;
   --ship-hull: #f1f5f9;
   --ship-accent: #a78bfa;
-  --card: rgba(15, 18, 32, 0.72);
-  --glass: rgba(12, 16, 28, 0.58);
-  --text: #e8f4ef;
-  --muted: #94a3b8;
-  --font-display: "Fraunces", Georgia, serif;
-  --font-body: "Manrope", "Segoe UI", sans-serif;
+
+  /* Legacy aliases — existing views keep working */
+  --ink: var(--mc-bg-deep);
+  --foam: var(--mc-text-primary);
+  --mist: var(--mc-text-label);
+  --amber: var(--mc-accent-purple);
+  --violet: var(--mc-accent-purple);
+  --violet-soft: var(--mc-accent-purple-glow);
+  --cyan-glow: var(--mc-accent-cyan);
+  --card: var(--mc-surface-glass);
+  --glass: var(--mc-surface-glass);
+  --text: var(--mc-text-primary);
+  --muted: var(--mc-text-muted);
 }
+
+/* Mission Control shared primitives (reuse in feature views) */
+.mc-card {
+  background: var(--mc-surface-glass);
+  border: 1px solid var(--mc-border-default);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.mc-input,
+input.mc-input,
+textarea.mc-input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  color: var(--mc-text-primary);
+  background: rgba(7, 11, 20, 0.72);
+  border: 1px solid var(--mc-border-default);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 0.9rem;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mc-input::placeholder {
+  color: var(--mc-text-muted);
+}
+
+.mc-input:focus {
+  border-color: var(--mc-accent-purple-bright);
+  box-shadow: 0 0 0 3px var(--mc-accent-purple-glow);
+}
+
+.mc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font: inherit;
+  font-weight: var(--mc-weight-semibold);
+  line-height: 1.2;
+  border-radius: var(--radius-pill);
+  padding: 0.85rem 1.35rem;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.15s ease, background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.mc-btn:active {
+  transform: translateY(1px);
+}
+
+.mc-btn--primary {
+  background: linear-gradient(135deg, var(--mc-accent-purple-bright) 0%, var(--mc-accent-purple) 100%);
+  color: var(--mc-text-on-accent);
+  box-shadow: var(--mc-shadow-glow-purple);
+}
+
+.mc-btn--primary:hover {
+  filter: brightness(1.06);
+}
+
+.mc-btn--secondary {
+  background: transparent;
+  color: var(--mc-text-primary);
+  border: 1px solid rgba(34, 211, 238, 0.45);
+}
+
+.mc-btn--secondary:hover {
+  border-color: var(--mc-accent-cyan);
+  box-shadow: var(--mc-shadow-glow-cyan);
+}
+
+.mc-btn--ghost {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--mc-text-label);
+  border: 1px solid var(--mc-border-default);
+  padding: 0.5rem 0.85rem;
+  font-size: var(--mc-text-sm);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  padding: 0.35rem 0.85rem;
+  font-size: var(--mc-text-xs);
+  font-weight: var(--mc-weight-semibold);
+  letter-spacing: var(--mc-tracking-wide);
+  text-transform: uppercase;
+}
+
+.pill--purple {
+  background: rgba(124, 58, 237, 0.22);
+  color: #ddd6fe;
+  border: 1px solid var(--mc-border-strong);
+}
+
+.pill--cyan {
+  background: rgba(34, 211, 238, 0.12);
+  color: #a5f3fc;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+}
+
+.pill--green {
+  background: rgba(52, 211, 153, 0.14);
+  color: #6ee7b7;
+  border: 1px solid rgba(52, 211, 153, 0.4);
+}
+
 
 * {
   box-sizing: border-box;
@@ -511,6 +696,13 @@ body {
   outline: none;
   border-color: var(--mc-accent-purple-bright);
   box-shadow: 0 0 0 3px var(--mc-accent-purple-glow);
+}
+
+.signin-back {
+  align-self: flex-start;
+  margin: -0.25rem 0 0.15rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
 }
 
 .signin-error {
@@ -1363,8 +1555,8 @@ body:has(.view-session.active) .atmosphere {
 }
 
 .session-orbit[data-state="on_task"] .session-orbit-progress {
-  stroke: var(--mission-cyan);
-  filter: drop-shadow(0 0 10px var(--mission-cyan-glow));
+  stroke: var(--cyan-glow);
+  filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.45));
 }
 
 .session-orbit[data-state="distracted"] .session-orbit-progress {
@@ -1392,13 +1584,13 @@ body:has(.view-session.active) .atmosphere {
     radial-gradient(circle at 65% 70%, rgba(34, 211, 238, 0.25), transparent 55%),
     radial-gradient(circle at 50% 50%, #5b21b6 0%, #1e1035 72%, #0a0612 100%);
   box-shadow:
-    0 0 40px var(--mission-purple-glow),
+    0 0 40px var(--violet-soft),
     inset 0 -8px 24px rgba(0, 0, 0, 0.45);
 }
 
 .session-orbit[data-state="on_task"] .session-orbit-planet {
   box-shadow:
-    0 0 48px var(--mission-cyan-glow),
+    0 0 48px rgba(34, 211, 238, 0.35),
     inset 0 -8px 24px rgba(0, 0, 0, 0.45);
 }
 
@@ -1416,6 +1608,12 @@ body:has(.view-session.active) .atmosphere {
   top: 0;
   transform: translate(-50%, -42%);
   filter: drop-shadow(0 0 6px rgba(232, 244, 239, 0.65));
+}
+
+.session-orbit-ship svg {
+  display: block;
+  width: 2rem;
+  height: auto;
 }
 
 .session-orbit-core {
@@ -1598,10 +1796,176 @@ body:has(.view-session.active) .atmosphere {
   text-align: center;
 }
 
+.view-flight-log {
+  min-height: 0;
+}
+
+.flight-log-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 0.15rem;
+  max-width: 36rem;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.view-flight-log .mission-celebration {
+  max-width: none;
+  margin-bottom: 1rem;
+}
+
+.flight-log-debrief,
+.flight-log-closing {
+  margin: 0 0 1rem;
+  line-height: 1.45;
+  color: var(--foam);
+  font-size: 0.98rem;
+  text-align: center;
+}
+
+.flight-log-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+@media (min-width: 520px) {
+  .flight-log-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.flight-log-stat {
+  padding: 0.85rem 0.65rem 0.75rem;
+  text-align: center;
+  background: var(--card);
+  border: 1px solid rgba(124, 58, 237, 0.28);
+  border-radius: 0.85rem;
+}
+
+.flight-log-stat-icon {
+  display: block;
+  font-size: 1.1rem;
+  margin-bottom: 0.35rem;
+  opacity: 0.9;
+}
+
+.flight-log-stat-value {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--foam);
+  line-height: 1.1;
+}
+
+.flight-log-stat-label {
+  margin: 0.25rem 0 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.flight-log-stat-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.68rem;
+  line-height: 1.25;
+}
+
+.flight-log-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.flight-log-card {
+  padding: 0.95rem 1rem;
+  background: rgba(12, 32, 40, 0.55);
+  border: 1px solid rgba(159, 196, 188, 0.18);
+  border-radius: 0.85rem;
+  line-height: 1.45;
+  color: var(--foam);
+}
+
+.flight-log-card-title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.95rem;
+  margin: 0 0 0.45rem;
+  color: var(--amber);
+}
+
+.flight-log-goals {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.flight-log-modality {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+}
+
+.flight-log-distractions {
+  margin: 0;
+  padding-left: 1.15rem;
+}
+
+.flight-log-distractions li {
+  margin: 0.2rem 0;
+}
+
+.summary-ship {
+  margin-bottom: 0.85rem;
+}
+
+.ship-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  background: var(--card);
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  border-radius: 0.85rem;
+}
+
+.ship-summary-title {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(167, 139, 250, 0.95);
+}
+
+.ship-summary-stat {
+  margin: 0;
+  color: var(--foam);
+  font-size: 0.92rem;
+}
+
+.flight-log-actions {
+  max-width: 36rem;
+  width: 100%;
+  margin: 1rem auto 0;
+  gap: 0.55rem;
+}
+
+.flight-log-actions .primary {
+  background: linear-gradient(135deg, var(--violet) 0%, #5b21b6 100%);
+  border: 1px solid rgba(167, 139, 250, 0.45);
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.35);
+}
+
 .view-summary.active .summary-body {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow-y: visible;
+}
+
+.view-flight-log.active .flight-log-scroll .summary-body {
+  flex: none;
+  overflow: visible;
 }
 
 .summary-actions {
@@ -1614,6 +1978,10 @@ body:has(.view-session.active) .atmosphere {
   max-width: 32rem;
   line-height: 1.5;
   color: var(--foam);
+}
+
+.view-flight-log .summary-body {
+  max-width: none;
 }
 
 .mission-celebration {
@@ -1921,7 +2289,17 @@ body:has(.view-session.active) .atmosphere {
     text-shadow: 0 0 0 transparent;
   }
   50% {
-    text-shadow: 0 0 28px var(--mc-accent-purple-glow);
+    text-shadow: 0 0 28px var(--violet-soft);
+  }
+}
+
+@keyframes orbitAlert {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
   }
 }
 
