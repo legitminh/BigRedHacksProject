@@ -333,14 +333,24 @@
             <h1 class="mission-setup-title">Where are we headed?</h1>
             <p class="mission-setup-lead">One clear objective. A little room to focus.</p>
 
-            <div class="mission-field">
+            <div class="mission-field mission-field--objective">
               <label class="mission-field-label" for="goals">What do you want to finish?</label>
-              <textarea
-                id="goals"
-                rows="3"
-                required
-                placeholder="Finish calculus problems 1–5."
-              ></textarea>
+              <div class="mission-field-input-wrap">
+                <textarea
+                  id="goals"
+                  rows="3"
+                  required
+                  placeholder="Finish calculus problems 1–5."
+                ></textarea>
+                <button
+                  type="button"
+                  id="goals-copilot-affordance"
+                  class="mission-field-affordance"
+                  aria-label="Get copilot help with your objective"
+                >
+                  <span aria-hidden="true">✦</span>
+                </button>
+              </div>
             </div>
 
             <fieldset class="mission-duration">
@@ -389,106 +399,184 @@
         <div class="session-sky" aria-hidden="true">
           <img class="session-constellation" src="/src/assets/figma/constellation.svg" alt="" />
         </div>
-        <header class="session-head">
-          <div class="session-head-brand">
-            <p class="session-kicker">✦ Active mission</p>
-            <p class="brand-inline session-brand">Waypoint</p>
-          </div>
-          <div class="session-head-actions">
-            <button id="session-mute-voice" class="ghost session-pill" type="button" aria-pressed="false">
-              Mute voice
-            </button>
+
+        <header class="settings-top-bar session-top-bar">
+          <p class="settings-brand"><span class="settings-brand-star" aria-hidden="true">✦</span> Waypoint</p>
+          <nav class="settings-nav" aria-label="Primary">
+            <button type="button" class="settings-nav-link" data-session-nav="home">Home</button>
+            <button type="button" class="settings-nav-link" data-session-nav="copilot">Copilot</button>
+            <span class="settings-nav-link settings-nav-link--active" aria-current="page">Lock in</span>
+          </nav>
+          <div class="settings-nav-end">
+            <button type="button" class="settings-nav-link" data-session-nav="settings">Settings</button>
+            <span id="session-avatar" class="settings-avatar" aria-hidden="true">—</span>
           </div>
         </header>
-        <article class="session-mission-card">
-          <p id="session-goals" class="session-goals"></p>
-          <div
-            id="session-orbit"
-            class="session-flight-scene"
-            data-state="watching"
-            role="group"
-            aria-label="Active mission flight path"
-          >
-            <img
-              class="session-flight-moon"
-              src="/src/assets/figma/moon.svg"
-              alt=""
-              width="48"
-              height="48"
-            />
-            <img
-              class="session-flight-dest"
-              src="/src/assets/figma/planet-ringed.svg"
-              alt=""
-              width="72"
-              height="72"
-            />
-            <svg class="session-flight-path-svg" viewBox="0 0 320 100" preserveAspectRatio="none" aria-hidden="true">
-              <defs>
-                <linearGradient id="session-orbit-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stop-color="#8b7cf7" />
-                  <stop offset="100%" stop-color="#43968f" />
-                </linearGradient>
-              </defs>
-              <path
-                class="session-orbit-track session-flight-path"
-                d="M 28 58 Q 160 18 292 58"
-                pathLength="100"
-              />
-              <path
-                id="session-orbit-progress"
-                class="session-orbit-progress session-flight-path"
-                d="M 28 58 Q 160 18 292 58"
-                pathLength="100"
-              />
-            </svg>
-            <span class="session-flight-waypoint session-flight-waypoint--launch">Launch</span>
-            <span class="session-flight-waypoint session-flight-waypoint--dest">Destination</span>
-            <div id="session-orbit-ship-wrap" class="session-flight-ship-wrap" aria-hidden="true">
-              <span id="session-orbit-ship" class="session-orbit-ship">
-                <img
-                  class="session-figma-ship"
-                  src="/src/assets/figma/ship.svg"
-                  alt=""
-                  width="88"
-                  height="60"
-                />
-              </span>
+
+        <div class="session-page">
+          <header class="session-mission-header">
+            <div class="session-mission-header-main">
+              <span class="session-mission-star" aria-hidden="true">✦</span>
+              <div>
+                <p class="session-mission-kicker">CURRENT MISSION</p>
+                <h1 id="session-goals" class="session-mission-title"></h1>
+              </div>
             </div>
+            <div class="session-signal-pills" role="group" aria-label="Mission capture signals">
+              <span id="session-pill-camera" class="session-signal-pill">Camera off</span>
+              <span id="session-pill-screen" class="session-signal-pill">Screen off</span>
+              <button
+                id="session-mute-voice"
+                type="button"
+                class="session-signal-pill session-signal-pill--btn"
+                aria-pressed="false"
+              >
+                Audio off
+              </button>
+            </div>
+          </header>
+
+          <div class="session-layout">
+            <article class="session-mission-card">
+              <div class="session-card-head">
+                <p id="session-progress-pill" class="session-progress-pill">
+                  <span class="session-progress-dot" aria-hidden="true"></span>
+                  Mission in progress
+                </p>
+                <p class="session-mission-id">MISSION 001</p>
+              </div>
+              <p id="session-status" class="visually-hidden" aria-live="polite">watching</p>
+              <div
+                id="session-orbit"
+                class="session-flight-scene"
+                data-state="watching"
+                role="group"
+                aria-label="Active mission flight path"
+              >
+                <img
+                  class="session-flight-orbits"
+                  src="/src/assets/figma/orbits.svg"
+                  alt=""
+                  aria-hidden="true"
+                />
+                <img
+                  class="session-flight-moon"
+                  src="/src/assets/figma/moon.svg"
+                  alt=""
+                  width="48"
+                  height="48"
+                />
+                <img
+                  class="session-flight-dest"
+                  src="/src/assets/figma/planet-ringed.svg"
+                  alt=""
+                  width="72"
+                  height="72"
+                />
+                <svg class="session-flight-path-svg" viewBox="0 0 320 100" preserveAspectRatio="none" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="session-orbit-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stop-color="#8b7cf7" />
+                      <stop offset="100%" stop-color="#43968f" />
+                    </linearGradient>
+                  </defs>
+                  <path
+                    class="session-orbit-track session-flight-path"
+                    d="M 28 58 Q 160 18 292 58"
+                    pathLength="100"
+                  />
+                  <path
+                    id="session-orbit-progress"
+                    class="session-orbit-progress session-flight-path"
+                    d="M 28 58 Q 160 18 292 58"
+                    pathLength="100"
+                  />
+                </svg>
+                <span class="session-flight-waypoint session-flight-waypoint--launch">Launch</span>
+                <span class="session-flight-waypoint session-flight-waypoint--dest">Destination</span>
+                <div id="session-orbit-ship-wrap" class="session-flight-ship-wrap" aria-hidden="true">
+                  <span id="session-orbit-ship" class="session-orbit-ship">
+                    <img
+                      class="session-figma-ship"
+                      src="/src/assets/figma/ship.svg"
+                      alt=""
+                      width="88"
+                      height="60"
+                    />
+                  </span>
+                </div>
+              </div>
+              <div class="session-timer-block">
+                <p id="session-timer" class="timer session-timer">45:00</p>
+                <p class="session-timer-caption">REMAINING IN YOUR FLIGHT</p>
+              </div>
+              <div class="session-controls">
+                <button
+                  id="session-pause"
+                  type="button"
+                  class="primary session-control-pill"
+                  disabled
+                  aria-disabled="true"
+                >
+                  Pause
+                </button>
+                <button id="end-session" type="button" class="ghost session-control-pill session-control-pill--end">
+                  End mission
+                </button>
+              </div>
+              <p class="session-pause-note">Pause isn&apos;t wired yet — use End mission to stop early.</p>
+              <p id="session-flight-minutes" class="session-flight-minutes">0 of 45 flight minutes earned</p>
+              <p class="session-flight-minutes-hint">Time in session, excluding breaks and resets.</p>
+            </article>
+
+            <aside class="session-copilot-panel" aria-label="Mission copilot">
+              <header class="session-copilot-head">
+                <p class="session-copilot-kicker"><span aria-hidden="true">✦</span> Your copilot</p>
+                <p class="session-copilot-presence">Here when you need me</p>
+              </header>
+              <div
+                id="session-chat-log"
+                class="chat-log session-copilot-log"
+                role="log"
+                aria-label="Copilot conversation during mission"
+                aria-live="polite"
+              >
+                <p id="session-chat-empty" class="session-copilot-empty muted">
+                  Message your copilot if you hit a roadblock mid-flight.
+                </p>
+              </div>
+              <footer class="session-copilot-composer copilot-composer">
+                <form id="session-chat-form" class="chat-form copilot-form">
+                  <div class="copilot-input-wrap">
+                    <textarea
+                      id="session-chat-input"
+                      rows="1"
+                      aria-label="Message your copilot"
+                      placeholder="Message your copilot..."
+                    ></textarea>
+                    <button id="session-chat-mic" type="button" class="copilot-mic" aria-label="Microphone">
+                      Mic
+                    </button>
+                  </div>
+                  <button id="session-chat-send" type="submit" class="primary copilot-send" aria-label="Send message">
+                    <span aria-hidden="true">↑</span>
+                  </button>
+                </form>
+              </footer>
+            </aside>
           </div>
-          <p id="session-status" class="status-chip session-status session-status--inline">watching</p>
-          <div class="session-timer-block">
-            <p id="session-timer" class="timer session-timer">45:00</p>
-            <p class="session-timer-caption">REMAINING IN YOUR FLIGHT</p>
-          </div>
-          <div class="session-controls">
-            <button
-              id="session-pause"
-              type="button"
-              class="primary session-control-pill"
-              disabled
-              aria-disabled="true"
-            >
-              Pause
-            </button>
-            <button id="end-session" type="button" class="ghost session-control-pill session-control-pill--end">
-              End mission
-            </button>
-          </div>
-          <p class="session-pause-note">Pause isn&apos;t wired yet — use End mission to stop early.</p>
-          <p id="session-flight-minutes" class="session-flight-minutes">0 of 45 flight minutes earned</p>
-          <p class="session-flight-minutes-hint">Time in session, excluding breaks and resets.</p>
-        </article>
+        </div>
+
         <div id="session-ship-flight" class="session-ship-flight" hidden aria-hidden="true"></div>
         <div
           id="session-coach-log"
-          class="prompt-feed session-coach-log"
+          class="prompt-feed session-coach-log visually-hidden"
           role="log"
           aria-label="Coach messages"
           aria-live="polite"
         ></div>
-        <p id="session-watch-note" class="session-watch-note"></p>
-        <div id="session-vitals" class="vitals-panel" aria-live="polite">
+        <p id="session-watch-note" class="session-watch-note visually-hidden"></p>
+        <div id="session-vitals" class="vitals-panel visually-hidden" aria-live="polite">
           <p class="vitals-label">Wellness</p>
           <p id="vitals-line">Running quietly in the background (not required to lock in)</p>
         </div>

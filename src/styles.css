@@ -1495,6 +1495,13 @@ body:has(.view-home.view-home--guest.active) .grain {
   color: var(--mc-text-primary);
 }
 
+.settings-nav-link--active {
+  background: var(--mc-surface-lavender);
+  color: var(--mc-text-primary);
+  font-weight: 600;
+  cursor: default;
+}
+
 .settings-nav-end {
   display: flex;
   align-items: center;
@@ -2806,6 +2813,39 @@ body:has(.view-mission-setup.active) .grain {
   text-transform: none;
 }
 
+.mission-field-input-wrap {
+  position: relative;
+}
+
+.view-mission-setup .mission-field-input-wrap textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding-right: 3.1rem;
+}
+
+.mission-field-affordance {
+  position: absolute;
+  right: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  color: #fff;
+  background: linear-gradient(145deg, #7c5cff, #6b4cff);
+  box-shadow: 0 2px 8px rgba(107, 76, 255, 0.35);
+  cursor: pointer;
+}
+
+.mission-field-affordance:hover {
+  filter: brightness(1.05);
+}
+
 .view-mission-setup .mission-field textarea {
   border-radius: 0.85rem;
   min-height: 3.25rem;
@@ -3015,11 +3055,209 @@ body:has(.view-mission-setup.active) .grain {
 
 .view-session {
   position: relative;
-  align-items: center;
+  align-items: stretch;
   width: 100%;
-  max-width: 42rem;
+  max-width: 72rem;
   margin: 0 auto;
+  padding: 0 clamp(0.75rem, 3vw, 1.25rem) 1.5rem;
   overflow: hidden;
+}
+
+.session-top-bar {
+  width: 100%;
+  max-width: none;
+}
+
+.session-page {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1rem, 2.5vw, 1.5rem);
+}
+
+.session-mission-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.25rem;
+}
+
+.session-mission-header-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: min(100%, 18rem);
+}
+
+.session-mission-star {
+  flex-shrink: 0;
+  width: 2.35rem;
+  height: 2.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.65rem;
+  font-size: 1rem;
+  color: #fff;
+  background: linear-gradient(145deg, #6b4cff, #5a3fe0);
+}
+
+.session-mission-kicker {
+  margin: 0 0 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mc-accent-purple);
+}
+
+.session-mission-title {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.8vw, 1.85rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--mc-text-primary);
+}
+
+.session-signal-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.session-signal-pill {
+  margin: 0;
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--mc-text-secondary);
+  background: var(--mc-bg-card);
+  border: 1px solid var(--mc-border-subtle);
+}
+
+.session-signal-pill--btn {
+  cursor: pointer;
+  font: inherit;
+}
+
+.session-signal-pill.is-on {
+  color: var(--mc-text-primary);
+  background: rgba(107, 76, 255, 0.1);
+  border-color: rgba(107, 76, 255, 0.25);
+}
+
+.session-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: clamp(0.85rem, 2vw, 1.25rem);
+  align-items: stretch;
+}
+
+@media (max-width: 860px) {
+  .session-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.session-card-head {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.session-progress-pill {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--mc-text-primary);
+  background: var(--mc-surface-lavender);
+  border: 1px solid rgba(107, 76, 255, 0.12);
+}
+
+.session-progress-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--mc-accent-green);
+  box-shadow: 0 0 0 2px rgba(67, 150, 143, 0.25);
+}
+
+.session-progress-pill.is-finishing .session-progress-dot {
+  background: var(--mc-accent-purple);
+}
+
+.session-mission-id {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mc-text-muted);
+}
+
+.session-copilot-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 1.1rem 1.15rem 1rem;
+  border-radius: 1.25rem;
+  border: 1px solid var(--mc-border-default);
+  background: var(--mc-bg-card);
+  box-shadow: var(--mc-shadow-soft);
+}
+
+.session-copilot-kicker {
+  margin: 0 0 0.45rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--mc-text-primary);
+}
+
+.session-copilot-presence {
+  margin: 0 0 0.85rem;
+  display: inline-block;
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--mc-text-secondary);
+  background: var(--mc-surface-lavender);
+}
+
+.session-copilot-log {
+  flex: 1;
+  min-height: 10rem;
+  max-height: min(38vh, 20rem);
+  overflow: auto;
+  padding: 0.25rem 0.15rem;
+  margin-bottom: 0.65rem;
+}
+
+.session-copilot-empty {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.session-copilot-composer {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
 }
 
 .view-session.active ~ .atmosphere,
@@ -3049,8 +3287,8 @@ body:has(.view-session.active) .grain {
   object-fit: cover;
 }
 
-.view-session > .session-head,
-.view-session > .session-mission-card,
+.view-session > .session-top-bar,
+.view-session > .session-page,
 .view-session > .session-coach-log,
 .view-session > .session-watch-note,
 .view-session > .vitals-panel {
@@ -3095,17 +3333,7 @@ body:has(.view-session.active) .grain {
   flex-direction: column;
   align-items: center;
   gap: 0.65rem;
-  margin-bottom: 1rem;
-}
-
-.session-goals {
-  width: 100%;
-  margin: 0;
-  text-align: left;
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--mc-text-primary);
-  line-height: 1.4;
+  margin-bottom: 0;
 }
 
 .session-flight-scene {
@@ -3183,6 +3411,18 @@ body:has(.view-session.active) .grain {
   right: 6%;
 }
 
+.session-flight-orbits {
+  position: absolute;
+  inset: 8% 4% 18%;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  opacity: 0.55;
+  pointer-events: none;
+  object-fit: contain;
+  background: transparent;
+}
+
 .session-flight-moon {
   position: absolute;
   left: 6%;
@@ -3191,6 +3431,7 @@ body:has(.view-session.active) .grain {
   height: auto;
   opacity: 0.85;
   pointer-events: none;
+  background: transparent;
 }
 
 .session-flight-dest {
