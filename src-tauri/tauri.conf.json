@@ -27,6 +27,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "category": "Education",
+    "shortDescription": "Study navigation coach with Gemini + Presage",
+    "longDescription": "Waypoint helps students navigate school logistics and lock-in study sessions with Gemini coaching, Google Calendar/Drive context, and Presage wellness signals.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

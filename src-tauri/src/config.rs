@@ -13,28 +13,53 @@ pub struct AppConfig {
 
 impl AppConfig {
     pub fn load() -> Self {
-        // Prefer repo-root .env; also accept cwd /.env for local runs.
-        let candidates = [
-            PathBuf::from(".env"),
-            PathBuf::from("../.env"),
-            env::var("CARGO_MANIFEST_DIR")
-                .map(|d| PathBuf::from(d).join("../.env"))
-                .unwrap_or_default(),
-        ];
+        let data_dir = dirs::config_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("waypoint");
+        let _ = std::fs::create_dir_all(&data_dir);
+
+        // Release-friendly lookup order:
+        // 1) ~/.config/waypoint/.env (or macOS/Windows equivalent)
+        // 2) .env beside the Waypoint executable
+        // 3) current working directory / repo root (dev)
+        let mut candidates = vec![data_dir.join(".env")];
+
+        if let Ok(exe) = env::current_exe() {
+            if let Some(dir) = exe.parent() {
+                candidates.push(dir.join(".env"));
+            }
+        }
+
+        candidates.push(PathBuf::from(".env"));
+        candidates.push(PathBuf::from("../.env"));
+        if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
+            candidates.push(PathBuf::from(manifest_dir).join("../.env"));
+        }
+
         for path in candidates {
             if path.as_os_str().is_empty() {
                 continue;
             }
             if dotenvy::from_path(&path).is_ok() {
+                tracing::info!("loaded env from {}", path.display());
                 break;
             }
         }
         let _ = dotenvy::dotenv();
 
-        let data_dir = dirs::config_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("waypoint");
-        let _ = std::fs::create_dir_all(&data_dir);
+        // Seed an empty config-dir .env template the first time so users know where keys go.
+        let template = data_dir.join(".env");
+        if !template.exists() {
+            let _ = std::fs::write(
+                &template,
+                "# Waypoint local secrets — never commit this file\n\
+                 GEMINI_API_KEY=\n\
+                 GEMINI_MODEL=gemini-flash-latest\n\
+                 PRESAGE_API_KEY=\n\
+                 GOOGLE_CLIENT_ID=\n\
+                 GOOGLE_CLIENT_SECRET=\n",
+            );
+        }
 
         Self {
             gemini_api_key: env::var("GEMINI_API_KEY").ok().filter(|s| !s.is_empty()),
