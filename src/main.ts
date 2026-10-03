@@ -11,7 +11,7 @@ type ViewId =
 interface StatusPayload {
   google_connected: boolean;
   gemini_ready: boolean;
-  presage_ready: boolean;
+  google_oauth_ready: boolean;
   session: LockInSession | null;
 }
 
@@ -24,13 +24,11 @@ interface LockInSession {
   id: string;
   goals: string;
   duration_secs: number;
-  started_at: string;
   ends_at: string;
   modality: string;
   status: string;
   active: boolean;
   prompts: CoachPrompt[];
-  vitals: VitalsSnapshot;
 }
 
 interface CoachPrompt {
@@ -40,25 +38,12 @@ interface CoachPrompt {
   kind: string;
 }
 
-interface VitalsSnapshot {
-  heart_rate?: number | null;
-  breathing_rate?: number | null;
-  hrv_rmssd?: number | null;
-  stress_index?: number | null;
-  stressed: boolean;
-  focus_ok: boolean;
-  raw_summary: string;
-  source: string;
-}
-
 interface SessionSummary {
   goals: string;
-  duration_secs: number;
   modality: string;
   on_task_ratio: number;
   top_distractions: string[];
   stress_spikes: number;
-  prompts: CoachPrompt[];
   closing_note: string;
 }
 
@@ -70,25 +55,56 @@ function show(view: ViewId) {
   $(`#${view}`)?.classList.add("active");
 }
 
-function renderPills(status: StatusPayload) {
-  const host = $("#connection-pills");
+function renderHome(status: StatusPayload) {
+  const host = $("#home-cta");
   if (!host) return;
-  const items = [
-    ["Gemini", status.gemini_ready],
-    ["Google", status.google_connected],
-    ["Presage", status.presage_ready],
-  ] as const;
-  host.innerHTML = items
-    .map(
-      ([label, on]) =>
-        `<span class="pill ${on ? "on" : ""}">${label}${on ? " · live" : ""}</span>`,
-    )
-    .join("");
+  host.innerHTML = "";
 
-  const btn = $("#btn-google");
-  if (btn) {
-    btn.textContent = status.google_connected ? "Google connected" : "Connect Google";
+  if (!status.google_connected) {
+    const signIn = document.createElement("button");
+    signIn.className = "primary";
+    signIn.type = "button";
+    signIn.textContent = status.google_oauth_ready
+      ? "Sign in with Google"
+      : "Google sign-in not configured";
+    signIn.disabled = !status.google_oauth_ready;
+    signIn.addEventListener("click", async () => {
+      signIn.textContent = "Opening Google…";
+      signIn.disabled = true;
+      try {
+        await invoke("connect_google");
+        await refreshStatus();
+      } catch (e) {
+        alert(String(e));
+        await refreshStatus();
+      }
+    });
+    host.appendChild(signIn);
+    return;
   }
+
+  const chat = document.createElement("button");
+  chat.className = "primary";
+  chat.type = "button";
+  chat.textContent = "Ask";
+  chat.addEventListener("click", () => show("view-chat"));
+
+  const lock = document.createElement("button");
+  lock.className = "secondary";
+  lock.type = "button";
+  lock.textContent = "Lock in";
+  lock.addEventListener("click", () => show("view-lockin"));
+
+  const out = document.createElement("button");
+  out.className = "ghost";
+  out.type = "button";
+  out.textContent = "Sign out";
+  out.addEventListener("click", async () => {
+    await invoke("disconnect_google");
+    await refreshStatus();
+  });
+
+  host.append(chat, lock, out);
 }
 
 function appendChat(role: "user" | "assistant", content: string) {
@@ -102,45 +118,30 @@ function appendChat(role: "user" | "assistant", content: string) {
 }
 
 function formatRemaining(endsAt: string): string {
-  const end = new Date(endsAt).getTime();
-  const ms = Math.max(0, end - Date.now());
+  const ms = Math.max(0, new Date(endsAt).getTime() - Date.now());
   const total = Math.floor(ms / 1000);
-  const m = Math.floor(total / 60)
-    .toString()
-    .padStart(2, "0");
+  const m = Math.floor(total / 60).toString().padStart(2, "0");
   const s = (total % 60).toString().padStart(2, "0");
   return `${m}:${s}`;
 }
 
 function statusLabel(status: string): string {
-  return status.replace(/([A-Z])/g, "_$1").replace(/^_/, "").toLowerCase();
+  return String(status)
+    .replace(/([a-z])([A-Z])/g, "$1_$2")
+    .toLowerCase();
 }
 
 function renderSession(session: LockInSession) {
   const timer = $("#session-timer");
   const status = $("#session-status");
-  const modality = $("#session-modality");
   const goals = $("#session-goals");
-  const vitals = $("#vitals");
   if (timer) timer.textContent = formatRemaining(session.ends_at);
   if (status) {
-    const label = statusLabel(String(session.status));
+    const label = statusLabel(session.status);
     status.textContent = label.replace(/_/g, " ");
     status.className = `status-chip ${label}`;
   }
-  if (modality) modality.textContent = `Mode · ${session.modality}`;
   if (goals) goals.textContent = session.goals;
-  if (vitals) {
-    const v = session.vitals;
-    vitals.innerHTML = [
-      v.heart_rate != null ? `<span>HR ${Math.round(v.heart_rate)}</span>` : "",
-      v.breathing_rate != null ? `<span>RR ${Math.round(v.breathing_rate)}</span>` : "",
-      v.hrv_rmssd != null ? `<span>HRV ${Math.round(v.hrv_rmssd)}</span>` : "",
-      `<span>${v.source}</span>`,
-    ]
-      .filter(Boolean)
-      .join("");
-  }
 }
 
 function appendPrompt(prompt: CoachPrompt) {
@@ -161,9 +162,9 @@ function renderSummary(summary: SessionSummary) {
     <h3>Goals</h3>
     <p>${summary.goals}</p>
     <h3>On task</h3>
-    <p>${pct}% · modality ${summary.modality} · stress spikes ${summary.stress_spikes}</p>
+    <p>${pct}%</p>
     <h3>Distractions</h3>
-    <p>${summary.top_distractions.length ? summary.top_distractions.join(", ") : "None logged"}</p>
+    <p>${summary.top_distractions.length ? summary.top_distractions.join(", ") : "None"}</p>
   `;
 }
 
@@ -182,37 +183,14 @@ function startTimer(endsAt: string) {
 }
 
 async function refreshStatus() {
-  try {
-    const status = await invoke<StatusPayload>("get_status");
-    renderPills(status);
-  } catch (e) {
-    console.error(e);
-  }
+  const status = await invoke<StatusPayload>("get_status");
+  renderHome(status);
+  return status;
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
-  $("#goto-chat")?.addEventListener("click", () => show("view-chat"));
-  $("#goto-lockin")?.addEventListener("click", () => show("view-lockin"));
   document.querySelectorAll("[data-back]").forEach((btn) => {
     btn.addEventListener("click", () => show("view-home"));
-  });
-
-  $("#btn-google")?.addEventListener("click", async () => {
-    const btn = $("#btn-google");
-    if (btn) btn.textContent = "Opening Google…";
-    try {
-      await invoke("connect_google");
-      await refreshStatus();
-    } catch (e) {
-      alert(String(e));
-      await refreshStatus();
-    }
-  });
-
-  $("#clear-chat")?.addEventListener("click", async () => {
-    await invoke("clear_chat");
-    const log = $("#chat-log");
-    if (log) log.innerHTML = "";
   });
 
   $("#chat-form")?.addEventListener("submit", async (e) => {
@@ -222,14 +200,13 @@ window.addEventListener("DOMContentLoaded", async () => {
     const message = input.value.trim();
     input.value = "";
     appendChat("user", message);
-    appendChat("assistant", "Navigating…");
-    const log = $("#chat-log");
-    const pending = log?.lastElementChild as HTMLElement | null;
+    appendChat("assistant", "…");
+    const pending = $("#chat-log")?.lastElementChild as HTMLElement | null;
     try {
       const reply = await invoke<ChatMessage>("chat_send", { message });
       if (pending) pending.textContent = reply.content;
     } catch (err) {
-      if (pending) pending.textContent = `Couldn’t reach Gemini: ${err}`;
+      if (pending) pending.textContent = String(err);
     }
   });
 
@@ -253,16 +230,12 @@ window.addEventListener("DOMContentLoaded", async () => {
   });
 
   $("#end-session")?.addEventListener("click", async () => {
-    try {
-      const summary = await invoke<SessionSummary | null>("stop_lock_in");
-      if (summary) {
-        renderSummary(summary);
-        show("view-summary");
-      } else {
-        show("view-home");
-      }
-    } catch (err) {
-      alert(String(err));
+    const summary = await invoke<SessionSummary | null>("stop_lock_in");
+    if (summary) {
+      renderSummary(summary);
+      show("view-summary");
+    } else {
+      show("view-home");
     }
   });
 
@@ -270,21 +243,16 @@ window.addEventListener("DOMContentLoaded", async () => {
     renderSession(event.payload);
     startTimer(event.payload.ends_at);
   });
-
-  await listen<CoachPrompt>("coach-prompt", (event) => {
-    appendPrompt(event.payload);
-  });
-
+  await listen<CoachPrompt>("coach-prompt", (event) => appendPrompt(event.payload));
   await listen<SessionSummary>("session-ended", (event) => {
     renderSummary(event.payload);
     show("view-summary");
   });
-
   await listen<string>("coach-error", (event) => {
     appendPrompt({
       id: crypto.randomUUID(),
       at: new Date().toISOString(),
-      text: `Coach hiccup: ${event.payload}`,
+      text: event.payload,
       kind: "error",
     });
   });

@@ -1,6 +1,56 @@
 use std::env;
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Default)]
+struct EmbeddedSecrets {
+    gemini_api_key: String,
+    gemini_model: String,
+    presage_api_key: String,
+    google_client_id: String,
+    google_client_secret: String,
+}
+
+fn parse_toml_secrets(raw: &str) -> EmbeddedSecrets {
+    let mut out = EmbeddedSecrets::default();
+    for line in raw.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let key = key.trim();
+        let value = value
+            .trim()
+            .trim_matches('"')
+            .trim_matches('\'')
+            .to_string();
+        match key {
+            "gemini_api_key" => out.gemini_api_key = value,
+            "gemini_model" => out.gemini_model = value,
+            "presage_api_key" => out.presage_api_key = value,
+            "google_client_id" => out.google_client_id = value,
+            "google_client_secret" => out.google_client_secret = value,
+            _ => {}
+        }
+    }
+    out
+}
+
+fn embedded() -> EmbeddedSecrets {
+    // Compiled into the binary from src-tauri/secrets.toml (gitignored).
+    parse_toml_secrets(include_str!("../secrets.toml"))
+}
+
+fn first_nonempty(values: &[Option<String>]) -> Option<String> {
+    values
+        .iter()
+        .flatten()
+        .find(|s| !s.is_empty())
+        .cloned()
+}
+
 #[derive(Debug, Clone)]
 pub struct AppConfig {
     pub gemini_api_key: Option<String>,
@@ -13,68 +63,62 @@ pub struct AppConfig {
 
 impl AppConfig {
     pub fn load() -> Self {
+        let baked = embedded();
         let data_dir = dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join("waypoint");
         let _ = std::fs::create_dir_all(&data_dir);
 
-        // Release-friendly lookup order:
-        // 1) ~/.config/waypoint/.env (or macOS/Windows equivalent)
-        // 2) .env beside the Waypoint executable
-        // 3) current working directory / repo root (dev)
-        let mut candidates = vec![data_dir.join(".env")];
-
+        // Optional overrides for developers only (env / .env). End users rely on baked secrets.
+        let mut candidates = vec![data_dir.join(".env"), PathBuf::from(".env"), PathBuf::from("../.env")];
         if let Ok(exe) = env::current_exe() {
             if let Some(dir) = exe.parent() {
-                candidates.push(dir.join(".env"));
+                candidates.insert(0, dir.join(".env"));
             }
         }
-
-        candidates.push(PathBuf::from(".env"));
-        candidates.push(PathBuf::from("../.env"));
-        if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
-            candidates.push(PathBuf::from(manifest_dir).join("../.env"));
-        }
-
         for path in candidates {
-            if path.as_os_str().is_empty() {
-                continue;
-            }
-            if dotenvy::from_path(&path).is_ok() {
-                tracing::info!("loaded env from {}", path.display());
-                break;
-            }
+            let _ = dotenvy::from_path(&path);
         }
         let _ = dotenvy::dotenv();
 
-        // Seed an empty config-dir .env template the first time so users know where keys go.
-        let template = data_dir.join(".env");
-        if !template.exists() {
-            let _ = std::fs::write(
-                &template,
-                "# Waypoint local secrets — never commit this file\n\
-                 GEMINI_API_KEY=\n\
-                 GEMINI_MODEL=gemini-flash-latest\n\
-                 PRESAGE_API_KEY=\n\
-                 GOOGLE_CLIENT_ID=\n\
-                 GOOGLE_CLIENT_SECRET=\n",
-            );
-        }
+        let gemini_model = env::var("GEMINI_MODEL")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| {
+                if baked.gemini_model.is_empty() {
+                    "gemini-flash-latest".into()
+                } else {
+                    baked.gemini_model.clone()
+                }
+            });
 
         Self {
-            gemini_api_key: env::var("GEMINI_API_KEY").ok().filter(|s| !s.is_empty()),
-            gemini_model: env::var("GEMINI_MODEL")
-                .unwrap_or_else(|_| "gemini-flash-latest".into()),
-            presage_api_key: env::var("PRESAGE_API_KEY").ok().filter(|s| !s.is_empty()),
-            google_client_id: env::var("GOOGLE_CLIENT_ID").ok().filter(|s| !s.is_empty()),
-            google_client_secret: env::var("GOOGLE_CLIENT_SECRET")
-                .ok()
-                .filter(|s| !s.is_empty()),
+            gemini_api_key: first_nonempty(&[
+                env::var("GEMINI_API_KEY").ok(),
+                Some(baked.gemini_api_key),
+            ]),
+            gemini_model,
+            presage_api_key: first_nonempty(&[
+                env::var("PRESAGE_API_KEY").ok(),
+                Some(baked.presage_api_key),
+            ]),
+            google_client_id: first_nonempty(&[
+                env::var("GOOGLE_CLIENT_ID").ok(),
+                Some(baked.google_client_id),
+            ]),
+            google_client_secret: first_nonempty(&[
+                env::var("GOOGLE_CLIENT_SECRET").ok(),
+                Some(baked.google_client_secret),
+            ]),
             data_dir,
         }
     }
 
     pub fn google_token_path(&self) -> PathBuf {
         self.data_dir.join("google_tokens.json")
+    }
+
+    pub fn google_oauth_ready(&self) -> bool {
+        self.google_client_id.is_some() && self.google_client_secret.is_some()
     }
 }

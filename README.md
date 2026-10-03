@@ -1,114 +1,156 @@
 # Waypoint
 
-Rust study navigation coach for Big Red Hacks (theme: **navigation**).
+End-user study navigation app for Big Red Hacks.
 
-Waypoint helps you navigate school logistics through a Gemini chat grounded in Google Calendar + Drive, then runs **lock-in** sessions that watch your screen and webcam. [Presage](https://physiology.presagetech.com/) supplies stress/focus wellness signals; Gemini vision distinguishes distractions (phone vs calculator) and nudges you with text prompts.
+Users open the app and **Sign in with Google**. API keys are baked in at build time — they never edit config files.
 
-## Stack
+---
 
-- **Tauri 2** (Rust core + Vite/TypeScript webview)
-- **Gemini** — school chat + multimodal session coaching
-- **Google OAuth** — Calendar + Drive (readonly)
-- **Presage Physiology API** — HR / RR / HRV-style signals from short webcam clips
+## Exact steps: download + build on your Mac
 
-## Build the final Mac app (recommended)
+### 0) One-time installs (skip if you already have them)
 
-On your **Mac** (Apple Silicon or Intel):
-
-1. Install prerequisites:
-   - [Xcode Command Line Tools](https://developer.apple.com/xcode/resources/): `xcode-select --install`
-   - [Rust](https://rustup.rs/)
-   - [Node 20+](https://nodejs.org/)
-   - Optional: `brew install ffmpeg` (Presage clips)
-
-2. Clone and install:
+Open **Terminal** and run:
 
 ```bash
+xcode-select --install
+```
+
+Install Rust:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Then close Terminal, open a **new** Terminal window, and confirm:
+
+```bash
+rustc --version
+```
+
+Install Node (if needed):
+
+```bash
+brew install node
+```
+
+Optional (Presage video clips):
+
+```bash
+brew install ffmpeg
+```
+
+---
+
+### 1) Download the project
+
+```bash
+cd ~
 git clone https://github.com/legitminh/BigRedHacksProject.git
 cd BigRedHacksProject
 git checkout cursor/waypoint-rust-study-nav-bd7b
 npm install
 ```
 
-3. Create secrets (dev or beside the built app later):
+---
+
+### 2) Create Google OAuth credentials (needed so users can Sign in)
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create/select a project
+3. **APIs & Services → Library** → enable:
+   - Google Calendar API
+   - Google Drive API
+4. **APIs & Services → OAuth consent screen**
+   - User type: **External**
+   - App name: `Waypoint`
+   - Add your email as developer/test user
+   - Scopes: add
+     - `https://www.googleapis.com/auth/calendar.readonly`
+     - `https://www.googleapis.com/auth/drive.readonly`
+5. **APIs & Services → Credentials → Create credentials → OAuth client ID**
+   - Application type: **Desktop app**
+   - Name: `Waypoint`
+   - Create → copy **Client ID** and **Client secret**
+
+---
+
+### 3) Bake secrets into the app (you do this once as the builder)
 
 ```bash
-cp .env.example .env
-# edit .env — add GEMINI_API_KEY, GOOGLE_*, PRESAGE_API_KEY
+cd ~/BigRedHacksProject
+cp src-tauri/secrets.example.toml src-tauri/secrets.toml
+open -e src-tauri/secrets.toml
 ```
 
-| Variable | Purpose |
-|---|---|
-| `GEMINI_API_KEY` | Google AI Studio key |
-| `GEMINI_MODEL` | defaults to `gemini-flash-latest` |
-| `PRESAGE_API_KEY` | Presage Physiology API key |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Cloud OAuth client with Calendar + Drive readonly |
+Fill it like this (keep quotes):
 
-Google scopes:
+```toml
+gemini_api_key = "YOUR_GEMINI_KEY"
+gemini_model = "gemini-flash-latest"
+presage_api_key = "YOUR_PRESAGE_KEY_OR_LEAVE_EMPTY"
+google_client_id = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
+google_client_secret = "YOUR_GOOGLE_CLIENT_SECRET"
+```
 
-- `https://www.googleapis.com/auth/calendar.readonly`
-- `https://www.googleapis.com/auth/drive.readonly`
+Save the file.  
+`src-tauri/secrets.toml` is **gitignored** — it will not go to GitHub. It gets compiled into `Waypoint.app`.
 
-Allow loopback redirects (`http://127.0.0.1`) on the OAuth client. Waypoint opens a local callback during Connect Google.
+---
 
-4. **Compile the distributable app:**
+### 4) Build the final Mac app
 
 ```bash
+cd ~/BigRedHacksProject
 npm run app:build
 ```
 
-When it finishes, open:
+Wait until it finishes (several minutes the first time).
 
-```text
-src-tauri/target/release/bundle/macos/Waypoint.app
-```
+---
 
-Also produced (if bundling succeeds):
-
-```text
-src-tauri/target/release/bundle/dmg/Waypoint_0.1.0_*.dmg
-```
-
-Double-click **Waypoint.app** (or install from the `.dmg`). First launch may need **System Settings → Privacy & Security** approval for camera/screen recording.
-
-5. Put API keys where the shipped app can find them (pick one):
-
-- `~/Library/Application Support/com.bigredhacks.waypoint/.env`  
-  (Tauri/config dir may also be `~/Library/Application Support/waypoint/.env` — Waypoint creates a template `.env` under its config folder on first run), or
-- A `.env` file next to the app binary inside the bundle (less convenient), or
-- Keep developing with repo-root `.env` via `npm run app:dev`
-
-After editing keys, restart Waypoint.
-
-### Dev mode (hot reload, not the final app)
+### 5) Run it
 
 ```bash
+open ~/BigRedHacksProject/src-tauri/target/release/bundle/macos/Waypoint.app
+```
+
+Or Finder → go to that folder → double-click **Waypoint.app**.
+
+If macOS blocks it: **System Settings → Privacy & Security → Open Anyway**.
+
+Also allow **Camera** and **Screen Recording** when lock-in asks.
+
+A `.dmg` (if produced) will be under:
+
+```text
+~/BigRedHacksProject/src-tauri/target/release/bundle/dmg/
+```
+
+---
+
+### 6) End-user flow (what people see)
+
+1. Open Waypoint  
+2. Tap **Sign in with Google**  
+3. Approve Calendar + Drive access  
+4. Use **Ask** or **Lock in**
+
+No API key screens. No `.env` for end users.
+
+---
+
+## Dev mode (optional, not the shipped app)
+
+```bash
+cd ~/BigRedHacksProject
 npm run app:dev
 ```
 
-## Demo flow
+---
 
-1. Connect Google (Calendar + Drive).
-2. Ask Waypoint what to do next — replies use live agenda and recent Drive notes.
-3. Start a lock-in: duration + goals (e.g. calc PSet). Waypoint classifies paper vs computer.
-4. Stay in frame; allow camera + screen capture. Text coach prompts appear when you drift.
-5. End session for an on-task summary.
+## Notes
 
-Wellness metrics are informational only — not medical diagnosis.
-
-## Project layout
-
-```
-src/                 # webview UI
-src-tauri/src/
-  gemini.rs          # Gemini chat + vision coach
-  google/            # OAuth, Calendar, Drive
-  presage.rs         # Physiology API client
-  capture/           # webcam + screen frames
-  session.rs         # lock-in state
-  coach.rs           # coaching loop
-```
-
-## Note on Cloud Agent builds
-
-Linux CI/cloud VMs cannot produce a signed macOS `.app`. Always run `npm run app:build` on your Mac for the final binary.
+- Rebuild after any change to `src-tauri/secrets.toml` (`npm run app:build` again).
+- Embedded keys can be extracted from a desktop binary — fine for a hackathon demo; rotate keys after the event if the repo/app is shared widely.
+- This Linux cloud environment cannot produce a macOS `.app`. Always build on your Mac.

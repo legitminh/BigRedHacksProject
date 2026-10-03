@@ -29,6 +29,7 @@ pub struct AppState {
 struct StatusPayload {
     google_connected: bool,
     gemini_ready: bool,
+    google_oauth_ready: bool,
     presage_ready: bool,
     session: Option<LockInSession>,
 }
@@ -39,6 +40,7 @@ fn get_status(state: State<'_, AppState>) -> StatusPayload {
     StatusPayload {
         google_connected: google::oauth::is_connected(&cfg),
         gemini_ready: cfg.gemini_api_key.is_some(),
+        google_oauth_ready: cfg.google_oauth_ready(),
         presage_ready: cfg.presage_api_key.is_some(),
         session: state.session.lock().clone(),
     }
