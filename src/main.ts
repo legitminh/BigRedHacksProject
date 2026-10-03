@@ -915,14 +915,25 @@ async function retryChatAssistant(userMessage: string, bubble: HTMLElement) {
   }
 }
 
-function appendSessionChat(role: "user" | "assistant", content: string) {
+function appendSessionChat(
+  role: "user" | "assistant",
+  content: string,
+  meta?: string,
+) {
   const log = $("#session-chat-log");
   if (!log) return;
   $("#session-chat-empty")?.remove();
+  const turn = document.createElement("div");
+  turn.className = `session-chat-turn session-chat-turn--${role}`;
+  const kicker = document.createElement("p");
+  kicker.className = "session-chat-meta";
+  kicker.textContent =
+    meta ?? (role === "user" ? "YOU · JUST NOW" : "COPILOT · JUST NOW");
   const bubble = document.createElement("div");
   bubble.className = `bubble ${role}`;
   bubble.textContent = content;
-  log.appendChild(bubble);
+  turn.append(kicker, bubble);
+  log.appendChild(turn);
   log.scrollTop = log.scrollHeight;
   return bubble;
 }
@@ -1276,6 +1287,7 @@ function renderSession(session: LockInSession) {
 
 async function openSettings() {
   show("view-settings");
+  selectSettingsTab("lockin");
   try {
     const settings = await invoke<UserSettings>("get_settings");
     syncSilentModeInputs(Boolean(settings.silent_mode));
@@ -1292,17 +1304,18 @@ async function openSettings() {
 }
 
 function selectSettingsTab(tab: string) {
+  const next = tab || "lockin";
   document.querySelectorAll<HTMLButtonElement>("[data-settings-tab]").forEach((button) => {
-    const active = button.dataset.settingsTab === tab;
+    const active = button.dataset.settingsTab === next;
     button.classList.toggle("active", active);
     button.setAttribute("aria-selected", active ? "true" : "false");
   });
   document.querySelectorAll<HTMLElement>(".settings-panel").forEach((panel) => {
-    const active = panel.id === `settings-${tab}`;
+    const active = panel.id === `settings-${next}`;
     panel.classList.toggle("active", active);
     panel.hidden = !active;
   });
-  if (tab === "permissions") {
+  if (next === "permissions") {
     void renderPermissionsStatus();
   }
 }
@@ -1912,7 +1925,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   document.querySelectorAll<HTMLButtonElement>("[data-settings-tab]").forEach((button) => {
     button.addEventListener("click", () =>
-      selectSettingsTab(button.dataset.settingsTab || "connection"),
+      selectSettingsTab(button.dataset.settingsTab || "lockin"),
     );
   });
   document.querySelectorAll<HTMLButtonElement>("[data-settings-nav]").forEach((button) => {
@@ -1983,7 +1996,6 @@ window.addEventListener("DOMContentLoaded", async () => {
       }
     }
   });
-  $("#settings-lock-in")?.addEventListener("click", () => show("view-lockin"));
   $("#setting-copilot-audio")?.addEventListener("change", () => {
     void persistCopilotAudioFromToggle();
   });

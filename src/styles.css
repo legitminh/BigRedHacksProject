@@ -3138,10 +3138,15 @@ body:has(.view-mission-setup.active) .grain {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.65rem;
-  font-size: 1rem;
-  color: #fff;
-  background: linear-gradient(145deg, #6b4cff, #5a3fe0);
+  border-radius: 0.75rem;
+  background: #282237;
+  color: #e9ddfd;
+}
+
+.session-mission-star svg {
+  width: 1.35rem;
+  height: 1.35rem;
+  display: block;
 }
 
 .session-mission-kicker {
@@ -3308,6 +3313,48 @@ body:has(.view-mission-setup.active) .grain {
   overflow: auto;
   padding: 0.25rem 0.15rem;
   margin-bottom: 0.65rem;
+}
+
+.session-chat-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  width: 100%;
+  max-width: 100%;
+  align-items: flex-start;
+}
+
+.session-chat-turn--user {
+  align-items: flex-end;
+}
+
+.session-chat-meta {
+  margin: 0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mc-text-muted, #8a7fa8);
+}
+
+.session-copilot-log .bubble {
+  max-width: 100%;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.9rem;
+}
+
+.session-copilot-log .bubble.user {
+  background: transparent;
+  color: var(--mc-text-primary);
+  align-self: stretch;
+  padding: 0;
+}
+
+.session-copilot-log .bubble.assistant {
+  background: var(--mc-surface-lavender, #e9ddfd);
+  border-left: none;
+  border-radius: 0.85rem;
+  color: var(--mc-text-primary);
 }
 
 .session-copilot-empty {
@@ -3527,6 +3574,7 @@ body:has(.view-session.active) .grain {
   font-size: 0.58rem;
   font-weight: 700;
   letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: rgba(255, 255, 255, 0.9);
 }
 

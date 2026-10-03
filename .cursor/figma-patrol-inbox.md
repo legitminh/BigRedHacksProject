@@ -169,7 +169,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - verified: 2026-10-03T14:10:57-04:00
 
 
-## done: fp-settings-defaults-off
+## verified: fp-settings-defaults-off
 - screen: settings
 - ref: `.cursor/figma-refs/04-settings.png` · also active pills on `.cursor/figma-refs/06-mission-active.png`
 - deviation: |
@@ -186,6 +186,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - reopened: true
 - commit: f9c0f02
 - change: Default `silent_mode` true so fresh installs show Copilot audio off (Figma 04/06); camera/screen/reduce-motion remain false prefs.
+- verified: 2026-10-03T14:32:29-04:00
 
 
 ## verified: fp-active-waypoint-sublabels
@@ -216,12 +217,14 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: none
 - note: Skipped this tick — user requested objective ✦ remain Launch; do not revert.
 
-## open: fp-active-waypoint-sublabels-uppercase
+## done: fp-active-waypoint-sublabels-uppercase
 - screen: active
 - ref: `.cursor/figma-refs/06-mission-active.png`
 - deviation: Waypoint subs render title case “Earth” / “Kepler”; Figma 06 shows all-caps “EARTH” / “KEPLER” under Launch/Destination. `.session-flight-waypoint-sub` has letter-spacing but no `text-transform: uppercase`.
 - fix_hint: Add `text-transform: uppercase` on `.session-flight-waypoint-sub` (or change HTML copy).
 - escalate: none
+- commit: 232e40d
+- change: Added `text-transform: uppercase` on `.session-flight-waypoint-sub`.
 
 ## open: fp-end-confirm-figma-modal
 - screen: active
@@ -237,30 +240,38 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - fix_hint: When a check-in fires, swap/overlay the session copilot panel with the Figma quick-check-in card; wire buttons to existing coach responses.
 - escalate: none
 
-## open: fp-session-chat-meta-kickers
+## done: fp-session-chat-meta-kickers
 - screen: active
 - ref: `.cursor/figma-refs/06-mission-active.png`
 - deviation: Session chat rows are plain `.bubble` nodes; Figma 06 prefixes each turn with uppercase meta kickers (“AT LAUNCH”, “YOU · JUST NOW”) above the message body.
 - fix_hint: Extend `appendSessionChat` (and AT LAUNCH seed) to render a meta kicker line + body per Figma.
 - escalate: none
+- commit: 232e40d
+- change: `appendSessionChat` wraps turns with `.session-chat-meta` kickers (YOU · JUST NOW / COPILOT · JUST NOW; optional AT LAUNCH override).
 
-## open: fp-session-mission-star-style
+## done: fp-session-mission-star-style
 - screen: active
 - ref: `.cursor/figma-refs/06-mission-active.png`
 - deviation: `.session-mission-star` is a purple filled gradient square with a ✦ glyph; Figma 06 uses a dark rounded square with a white outline star.
 - fix_hint: Restyle `.session-mission-star` to dark navy fill + outline star (SVG or border glyph) matching the ref.
 - escalate: none
+- commit: 232e40d
+- change: Dark `#282237` rounded square + lavender outline-star SVG from Figma 06 path.
 
-## done: fp-copilot-chip-plus
+## open: fp-copilot-chip-plus
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png`
-- deviation: Figma prompt chips “Explain simply”, “I'm stuck”, and “Find a next step” each show a trailing “+”; only `.copilot-chip--next` includes `.copilot-chip-plus`.
-- fix_hint: Add `<span class="copilot-chip-plus">+</span>` to the explain/stuck chips to match the next-step chip.
-- escalate: none
+- deviation: |
+    EXPECTED (Figma 03 chip row, cropped): “Explain simply” and “I'm stuck” are plain lavender pills with label only; only “Find a next step” has a trailing darker-purple “+” inside the pill.
+    ACTUAL (2971eae): all three chips mount `<span class="copilot-chip-plus">+</span>`, so Explain/Stuck overshoot Figma.
+- fix_hint: Remove `.copilot-chip-plus` from explain/stuck chips; keep it only on `.copilot-chip--next` (“Find a next step”).
+- escalate: scrutinous
+- reopened: true
 - commit: 2971eae
 - change: Added trailing `+` on Explain simply / I'm stuck chips; all chips share inline-flex layout.
+- note: Compliance 2026-10-03 — prior patrol claim that all three chips have + does not match Figma 03; reopen to strip extras.
 
-## done: fp-summary-decor-moon
+## verified: fp-summary-decor-moon
 - screen: summary
 - ref: `.cursor/figma-refs/12-quest-complete.png`
 - deviation: Figma quest-complete stage shows a cratered purple moon under the left ringed planet; `.quest-complete-decor` only mounts constellation, planet, ship, and satellite.
@@ -268,17 +279,19 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: none
 - commit: 2971eae
 - change: Mounted `moon.svg` as `.quest-complete-moon` under the left planet in quest-complete decor.
+- verified: 2026-10-03T14:32:29-04:00
 
-## done: fp-settings-intro-kicker
+## verified: fp-settings-intro-kicker
 - screen: settings
 - ref: `.cursor/figma-refs/04-settings.png`
 - deviation: Settings intro kicker rendered “✦ Make yourself at home”; Figma 04 uses plain uppercase “MAKE YOURSELF AT HOME” (kicker kept, no star).
 - fix_hint: Remove the ✦ span from `.settings-kicker`; keep the kicker line (CSS already uppercases).
 - escalate: none
-- commit: f8e6fb3
+- commit: 64a5890
 - change: Dropped ✦ from `.settings-kicker`; plain “Make yourself at home” remains (uppercase via CSS).
+- verified: 2026-10-03T14:32:29-04:00
 
-## done: fp-active-copilot-presence-dot
+## verified: fp-active-copilot-presence-dot
 - screen: active
 - ref: `.cursor/figma-refs/06-mission-active.png`
 - deviation: Session copilot presence is plain lavender text “Here when you need me”; Figma shows a green-dot status pill (same language as the mission progress pill).
@@ -286,51 +299,57 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: none
 - commit: 2971eae
 - change: Presence pill uses green leading dot matching `.session-progress-pill`.
+- verified: 2026-10-03T14:32:29-04:00
 
-## done: fp-home-dest-orbits
+## verified: fp-home-dest-orbits
 - screen: home
 - ref: `.cursor/figma-refs/02-home.png`
 - deviation: Figma dark “Your next destination?” card includes faint orbital/constellation line art behind the planet/ship; `.mc-home-dest-art` has planet/ship/moon/satellite but no orbits/constellation layer.
 - fix_hint: Add a low-opacity `orbits.svg` or constellation asset inside `.mc-home-dest-art` positioned behind the planet.
 - escalate: none
-- commit: f8e6fb3
+- commit: 64a5890
 - change: Added low-opacity `.mc-home-dest-orbits` (`orbits.svg`) behind planet/ship in destination card art.
+- verified: 2026-10-03T14:32:29-04:00
 
-## done: fp-welcome-hero-orbits-moon
+## verified: fp-welcome-hero-orbits-moon
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png`
 - deviation: Figma welcome hero card shows orbital ellipses + pink cratered moon around the ringed planet; `.welcome-hero-art` only mounts `ship.svg` + `planet-ringed.svg`.
 - fix_hint: Add low-opacity `orbits.svg` behind the planet and `moon.svg` on the orbit path inside `.welcome-hero-art` (keep LTR ship→planet).
 - escalate: none
-- commit: f8e6fb3
+- commit: 64a5890
 - change: Mounted `orbits.svg` + `moon.svg` in `.welcome-hero-art` behind LTR ship→planet.
+- verified: 2026-10-03T14:32:29-04:00
 
-## done: fp-active-route-uppercase
+## verified: fp-active-route-uppercase
 - screen: active
 - ref: `.cursor/figma-refs/06-mission-active.png`
 - deviation: Flight route kicker is title case “Earth → Kepler”; Figma 06 uses all-caps “EARTH → KEPLER”.
 - fix_hint: Change `.session-flight-route` copy (or CSS `text-transform: uppercase`) to match Figma casing.
 - escalate: none
-- commit: 7fd068b
+- commit: 3b12a30
 - change: Set `.session-flight-route` copy to “EARTH → KEPLER” (CSS uppercase retained).
+- verified: 2026-10-03T14:32:29-04:00
 
-## done: fp-home-kicker-plain
+## verified: fp-home-kicker-plain
 - screen: home
 - ref: `.cursor/figma-refs/02-home.png`
 - deviation: Home hero kicker renders “✦ Mission control”; Figma 02 shows plain uppercase “MISSION CONTROL” with no leading star glyph.
 - fix_hint: Remove the ✦ span from `.mc-home-kicker` (keep uppercase via existing CSS).
 - escalate: none
-- commit: 7fd068b
+- commit: 3b12a30
 - change: Removed ✦ from `.mc-home-kicker`; plain “Mission control” (uppercase via CSS).
+- verified: 2026-10-03T14:32:29-04:00
 
-## done: fp-first-flight-kicker-plain
+## verified: fp-first-flight-kicker-plain
 - screen: home
 - ref: `.cursor/figma-refs/19-first-flight.png`
 - deviation: First-flight hero kicker is “✦ YOUR FIRST MISSION”; Figma 19 shows “YOUR FIRST MISSION” without a leading star.
 - fix_hint: Drop the ✦ from `.mc-first-flight` / `.mc-kicker--star` on that screen only.
 - escalate: none
-- commit: 7fd068b
+- commit: 3b12a30
 - change: Dropped ✦ / `mc-kicker--star` from first-flight hero kicker; plain “YOUR FIRST MISSION”.
+- verified: 2026-10-03T14:32:29-04:00
 
 ## open: fp-session-at-launch-seed
 - screen: active
@@ -353,7 +372,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - fix_hint: Apply `settings-nav-link--active` to Home when `#view-settings` is active; render Settings as a normal trailing link, not the active pill.
 - escalate: none
 
-## done: fp-settings-aside-figma-shortcuts
+## verified: fp-settings-aside-figma-shortcuts
 - screen: settings
 - ref: `.cursor/figma-refs/04-settings.png`
 - deviation: Figma left column is two actions—“Lock in” (lavender) and “Back to home” (outlined)—plus art; `#view-settings` uses a five-tab `.settings-aside-tabs` rail (Lock in, Connection, Permissions, Account, Voice) with no “Back to home” control.
@@ -362,6 +381,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - note: Intentional product IA (user): aside is settings section tabs, not Lock-in/Back CTAs. Closed won’t-fix vs Figma shortcuts.
 - commit: n/a
 - change: Kept five-tab Settings rail; do not revert.
+- verified: 2026-10-03T14:32:29-04:00
 
 ## open: fp-summary-pb-banner-flag
 - screen: summary
