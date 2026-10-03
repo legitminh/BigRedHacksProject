@@ -275,8 +275,14 @@
 
             <div class="copilot-prompts-row">
               <div class="study-actions copilot-shortcuts" role="group" aria-label="Prompt suggestions">
-                <button class="copilot-chip" type="button" data-study="explain">Explain simply</button>
-                <button class="copilot-chip" type="button" data-study="stuck">I'm stuck</button>
+                <button class="copilot-chip" type="button" data-study="explain">
+                  Explain simply
+                  <span class="copilot-chip-plus" aria-hidden="true">+</span>
+                </button>
+                <button class="copilot-chip" type="button" data-study="stuck">
+                  I'm stuck
+                  <span class="copilot-chip-plus" aria-hidden="true">+</span>
+                </button>
                 <button class="copilot-chip copilot-chip--next" type="button" data-study="plan">
                   Find a next step
                   <span class="copilot-chip-plus" aria-hidden="true">+</span>
@@ -575,7 +581,10 @@
             <aside class="session-copilot-panel" aria-label="Mission copilot">
               <header class="session-copilot-head">
                 <p class="session-copilot-kicker"><span aria-hidden="true">✦</span> Your copilot</p>
-                <p class="session-copilot-presence">Here when you need me</p>
+                <p class="session-copilot-presence">
+                  <span class="session-copilot-presence-dot" aria-hidden="true"></span>
+                  Here when you need me
+                </p>
               </header>
               <div
                 id="session-chat-log"
@@ -653,6 +662,7 @@
           <div class="quest-complete-decor" aria-hidden="true">
             <img class="quest-complete-constellation" src="/src/assets/figma/constellation.svg" alt="" />
             <img class="quest-complete-planet quest-complete-planet--left" src="/src/assets/figma/planet-ringed.svg" alt="" />
+            <img class="quest-complete-moon" src="/src/assets/figma/moon.svg" alt="" />
             <img class="quest-complete-ship quest-complete-ship--decor" src="/src/assets/figma/ship.svg" alt="" />
             <img class="quest-complete-satellite" src="/src/assets/figma/satellite.svg" alt="" />
             <span class="celebration-confetti quest-complete-confetti"></span>

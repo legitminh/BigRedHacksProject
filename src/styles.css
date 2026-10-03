@@ -2393,6 +2393,9 @@ button:active {
 }
 
 .copilot-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
   background: var(--mc-surface-lavender);
   border: 1px solid rgba(107, 76, 255, 0.18);
   color: var(--mc-text-primary);
@@ -2401,12 +2404,6 @@ button:active {
   font-size: 0.88rem;
   font-weight: 600;
   transition: border-color 0.2s ease, background 0.2s ease;
-}
-
-.copilot-chip--next {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
 }
 
 .copilot-chip-plus {
@@ -3249,13 +3246,25 @@ body:has(.view-mission-setup.active) .grain {
 
 .session-copilot-presence {
   margin: 0 0 0.85rem;
-  display: inline-block;
-  padding: 0.3rem 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.75rem;
   border-radius: var(--radius-pill);
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--mc-text-secondary);
+  color: var(--mc-text-primary);
   background: var(--mc-surface-lavender);
+  border: 1px solid rgba(107, 76, 255, 0.12);
+}
+
+.session-copilot-presence-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--mc-accent-green);
+  box-shadow: 0 0 0 2px rgba(67, 150, 143, 0.25);
+  flex-shrink: 0;
 }
 
 .session-copilot-log {
@@ -3902,6 +3911,14 @@ body:has(.view-quest-complete.active) .grain {
   left: -2%;
   bottom: 8%;
   opacity: 0.92;
+}
+
+.quest-complete-moon {
+  width: min(14vw, 4.25rem);
+  left: 8%;
+  bottom: 1%;
+  opacity: 0.92;
+  z-index: 1;
 }
 
 .quest-complete-ship--decor {
@@ -4955,6 +4972,15 @@ img[src*="assets/figma/"] {
   bottom: 8%;
   width: clamp(5rem, 12vw, 8rem);
   opacity: 0.85;
+}
+
+.view-quest-complete .quest-complete-moon {
+  position: absolute;
+  left: 8%;
+  bottom: 1%;
+  width: clamp(2.5rem, 6vw, 4rem);
+  opacity: 0.9;
+  z-index: 1;
 }
 
 .view-quest-complete .quest-complete-ship {
