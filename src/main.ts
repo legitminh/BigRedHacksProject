@@ -117,8 +117,10 @@ function updateSummaryCelebration(firstFlight: boolean): void {
     firstFlight ? "mission-celebration--first-flight" : "mission-celebration--quest",
     "mission-celebration--enter",
   );
+  const kicker = $("#summary-celebration-kicker");
   const title = $("#summary-celebration-title");
   const sub = $("#summary-celebration-sub");
+  if (kicker) kicker.textContent = "Mission";
   if (firstFlight) {
     if (title) title.textContent = "First flight";
     if (sub) {
@@ -126,8 +128,8 @@ function updateSummaryCelebration(firstFlight: boolean): void {
         "You completed your first mission. Your flight log starts here — ready for the next orbit?";
     }
   } else {
-    if (title) title.textContent = "Quest complete";
-    if (sub) sub.textContent = "Mission ended — here's your flight summary.";
+    if (title) title.textContent = "Flight log";
+    if (sub) sub.textContent = "Mission ended — your debrief and stats are below.";
   }
 }
 
