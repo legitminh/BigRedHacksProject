@@ -34,11 +34,14 @@ Install Node (if needed):
 brew install node
 ```
 
-Optional (Presage video clips):
+Optional on the **API host only** (not required for people who just open a shipped `.app`):
 
 ```bash
-brew install ffmpeg
+brew install ollama
+# see docs/BACKEND.md — Ollama runs next to BigRedHacksProjectBackend
 ```
+
+Presage clips use a **bundled AVFoundation encoder** (no Homebrew ffmpeg for end users). ffmpeg remains an optional dev fallback.
 
 ---
 
@@ -94,7 +97,8 @@ google_client_secret = "YOUR_GOOGLE_CLIENT_SECRET"
 ```
 
 `gemini_api_key` is **required** — the Rust crate will not compile if it is empty (unless you export a non-empty `GEMINI_API_KEY`).  
-`presage_api_key` unlocks webcam stress / HR–RR checks during lock-in.
+`presage_api_key` unlocks webcam stress / HR–RR checks during lock-in.  
+`local_llm_base` + `coach_api_token` point at the Waypoint API coach proxy (`http://127.0.0.1:8787/v1/coach`) so lock-in does **not** need Ollama on the user Mac — see [docs/BACKEND.md](docs/BACKEND.md).
 
 Save the file.  
 `src-tauri/secrets.toml` is **gitignored** — it will not go to GitHub. It gets compiled into `Waypoint.app`.
@@ -122,7 +126,7 @@ Or Finder → go to that folder → double-click **Waypoint.app**.
 
 If macOS blocks it: **System Settings → Privacy & Security → Open Anyway**.
 
-For lock-in, allow **Screen Recording** (required — Waypoint watches your screen) and **Camera** (for Presage wellness). Install `ffmpeg` if you want Presage clips to encode.
+For lock-in, allow **Screen Recording** (required — Waypoint watches your screen) and **Camera** (for Presage wellness). End users do **not** need Homebrew, Ollama, or ffmpeg — only the `.app`, permissions, and network (Gemini + your API if coach is remote).
 
 A `.dmg` (if produced) will be under:
 

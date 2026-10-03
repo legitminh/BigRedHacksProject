@@ -11,6 +11,14 @@ use serde_json::{json, Value};
 use crate::config::AppConfig;
 use crate::gemini::CoachVisionResult;
 
+fn with_coach_auth(req: reqwest::RequestBuilder, cfg: &AppConfig) -> reqwest::RequestBuilder {
+    if let Some((name, value)) = cfg.coach_auth_header() {
+        req.header(name, value)
+    } else {
+        req
+    }
+}
+
 const MIN_CONFIDENCE: f32 = 0.55;
 const PROBE_TTL_SECS: u64 = 45;
 
@@ -70,7 +78,7 @@ pub async fn is_available(cfg: &AppConfig) -> bool {
         }
     }
     let local = LocalJudgeConfig::from_app(cfg);
-    let (ok, detail) = probe(&local).await;
+    let (ok, detail) = probe(cfg, &local).await;
     if let Ok(mut guard) = PROBE_CACHE.lock() {
         *guard = Some((Instant::now(), ok, detail));
     }
@@ -79,21 +87,21 @@ pub async fn is_available(cfg: &AppConfig) -> bool {
 
 pub async fn status_line(cfg: &AppConfig) -> String {
     if !cfg.local_llm_enabled {
-        return "Local model off".into();
+        return "Coach off".into();
     }
     let local = LocalJudgeConfig::from_app(cfg);
-    let (ok, detail) = probe(&local).await;
+    let (ok, detail) = probe(cfg, &local).await;
     if let Ok(mut guard) = PROBE_CACHE.lock() {
         *guard = Some((Instant::now(), ok, detail.clone()));
     }
     if ok {
-        format!("Local model ready · {}", local.model)
+        format!("Coach ready · {}", local.model)
     } else {
-        format!("Local model unavailable · {detail}")
+        format!("Coach unavailable · {detail}")
     }
 }
 
-async fn probe(cfg: &LocalJudgeConfig) -> (bool, String) {
+async fn probe(app: &AppConfig, cfg: &LocalJudgeConfig) -> (bool, String) {
     let client = match Client::builder()
         .timeout(Duration::from_secs(2))
         .build()
@@ -102,17 +110,23 @@ async fn probe(cfg: &LocalJudgeConfig) -> (bool, String) {
         Err(e) => return (false, e.to_string()),
     };
     let url = format!("{}/api/tags", cfg.base_url.trim_end_matches('/'));
-    let res = match client.get(&url).send().await {
+    let res = match with_coach_auth(client.get(&url), app).send().await {
         Ok(r) => r,
         Err(_) => {
             return (
                 false,
-                "install Ollama and run `ollama serve`, then `ollama pull qwen2.5:0.5b`".into(),
+                "start Waypoint API on this Mac".into(),
             );
         }
     };
     if !res.status().is_success() {
-        return (false, format!("Ollama HTTP {}", res.status()));
+        let code = res.status().as_u16();
+        let msg = if code == 401 || code == 403 {
+            "check coach API token".into()
+        } else {
+            format!("API returned {code}")
+        };
+        return (false, msg);
     }
     let body: Value = match res.json().await {
         Ok(v) => v,
@@ -125,7 +139,7 @@ async fn probe(cfg: &LocalJudgeConfig) -> (bool, String) {
     if models.is_empty() {
         return (
             false,
-            format!("no models — run `ollama pull {}`", cfg.model),
+            format!("no coach models yet — pull {}", cfg.model),
         );
     }
     let want = cfg.model.to_lowercase();
@@ -148,7 +162,7 @@ async fn probe(cfg: &LocalJudgeConfig) -> (bool, String) {
         (
             false,
             format!(
-                "need `ollama pull {}` (have: {})",
+                "need model {} (have: {})",
                 cfg.model,
                 have.join(", ")
             ),
@@ -206,12 +220,11 @@ page_text: {excerpt}"#
         }
     });
 
-    let res = client
-        .post(url_api)
+    let res = with_coach_auth(client.post(url_api), cfg)
         .json(&body)
         .send()
         .await
-        .map_err(|e| format!("local model request failed: {e}"))?;
+        .map_err(|e| format!("coach model request failed: {e}"))?;
     let status = res.status();
     let text = res.text().await.unwrap_or_default();
     if !status.is_success() {
@@ -443,7 +456,11 @@ mission goals: {goals_short}"#
         }
     });
 
-    let Ok(res) = client.post(url_api).json(&body).send().await else {
+    let Ok(res) = with_coach_auth(client.post(url_api), cfg)
+        .json(&body)
+        .send()
+        .await
+    else {
         remember_line(&fallback);
         return fallback;
     };

@@ -11,6 +11,7 @@ struct EmbeddedSecrets {
     local_llm_base: String,
     local_llm_model: String,
     local_vision_model: String,
+    coach_api_token: String,
 }
 
 fn parse_toml_secrets(raw: &str) -> EmbeddedSecrets {
@@ -38,6 +39,13 @@ fn parse_toml_secrets(raw: &str) -> EmbeddedSecrets {
             "local_llm_base" => out.local_llm_base = value,
             "local_llm_model" => out.local_llm_model = value,
             "local_vision_model" => out.local_vision_model = value,
+            "coach_api_token" => out.coach_api_token = value,
+            "waypoint_api_base" => {
+                // Convenience: if only API root is set, coach lives at /v1/coach
+                if out.local_llm_base.is_empty() {
+                    out.local_llm_base = format!("{}/v1/coach", value.trim_end_matches('/'));
+                }
+            }
             _ => {}
         }
     }
@@ -64,11 +72,13 @@ pub struct AppConfig {
     pub presage_api_key: Option<String>,
     pub google_client_id: Option<String>,
     pub google_client_secret: Option<String>,
-    /// Ollama (or compatible) base URL for on-device on-task judgment.
+    /// Coach LLM base URL (Waypoint API `/v1/coach` proxy, or local Ollama for dev).
     pub local_llm_base: String,
     pub local_llm_model: String,
     /// Tiny multimodal model for rare screenshot checks (e.g. moondream).
     pub local_vision_model: String,
+    /// Bearer token for `/v1/coach/*` (matches backend `COACH_API_TOKEN`).
+    pub coach_api_token: Option<String>,
     pub local_llm_enabled: bool,
     pub data_dir: PathBuf,
 }
@@ -107,6 +117,9 @@ impl AppConfig {
         let local_llm_base = env::var("LOCAL_LLM_BASE")
             .ok()
             .filter(|s| !s.is_empty())
+            .or_else(|| env::var("WAYPOINT_API_BASE").ok().filter(|s| !s.is_empty()).map(|b| {
+                format!("{}/v1/coach", b.trim_end_matches('/'))
+            }))
             .or_else(|| {
                 if baked.local_llm_base.is_empty() {
                     None
@@ -114,7 +127,13 @@ impl AppConfig {
                     Some(baked.local_llm_base.clone())
                 }
             })
-            .unwrap_or_else(|| "http://127.0.0.1:11434".into());
+            // Default: Waypoint API coach proxy (Ollama runs on the API host).
+            .unwrap_or_else(|| "http://127.0.0.1:8787/v1/coach".into());
+
+        let coach_api_token = first_nonempty(&[
+            env::var("COACH_API_TOKEN").ok(),
+            Some(baked.coach_api_token),
+        ]);
 
         let local_llm_model = env::var("LOCAL_LLM_MODEL")
             .ok()
@@ -166,9 +185,18 @@ impl AppConfig {
             local_llm_base,
             local_llm_model,
             local_vision_model,
+            coach_api_token,
             local_llm_enabled,
             data_dir,
         }
+    }
+
+    /// Attach Bearer auth when talking to the Waypoint coach proxy.
+    pub fn coach_auth_header(&self) -> Option<(&str, String)> {
+        self.coach_api_token
+            .as_ref()
+            .filter(|t| !t.is_empty())
+            .map(|t| ("Authorization", format!("Bearer {t}")))
     }
 
     pub fn google_token_path(&self) -> PathBuf {
