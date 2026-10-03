@@ -422,9 +422,17 @@ function renderSummary(summary: SessionSummary) {
 let timerHandle: number | undefined;
 let currentEndsAt: string | null = null;
 
+function stopTimer() {
+  if (timerHandle) {
+    window.clearInterval(timerHandle);
+    timerHandle = undefined;
+  }
+  currentEndsAt = null;
+}
+
 function startTimer(endsAt: string) {
+  stopTimer();
   currentEndsAt = endsAt;
-  if (timerHandle) window.clearInterval(timerHandle);
   const tick = () => {
     const el = $("#session-timer");
     if (el && currentEndsAt) el.textContent = formatRemaining(currentEndsAt);
@@ -586,6 +594,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (!window.confirm("End this lock-in? Screen watching will stop.")) {
       return;
     }
+    stopTimer();
     const summary = await invoke<SessionSummary | null>("stop_lock_in");
     if (summary) {
       renderSummary(summary);
@@ -607,7 +616,12 @@ window.addEventListener("DOMContentLoaded", async () => {
     startTimer(event.payload.ends_at);
   });
   await listen<VitalsSnapshot>("vitals-update", (event) => renderVitals(event.payload));
+  await listen<string>("coach-error", (event) => {
+    const note = $("#session-watch-note");
+    if (note) note.textContent = `Wellness check: ${event.payload}`;
+  });
   await listen<SessionSummary>("session-ended", (event) => {
+    stopTimer();
     renderSummary(event.payload);
     show("view-summary");
   });
