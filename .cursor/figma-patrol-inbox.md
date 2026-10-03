@@ -527,7 +527,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: Matched live Figma 03 structure/copy/composer (in-pill Mic+Send), removed kickers/astronaut/chip +, cream nav + sidebar divider + deco pluses.
 - verified: 2026-10-03T15:06:26-04:00
 
-## done: fp-setup-affordance-glyph
+## verified: fp-setup-affordance-glyph
 - screen: setup
 - ref: `.cursor/figma-refs/05-mission-setup.png` · live `2:37`
 - deviation: |
@@ -538,19 +538,21 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Restyle `#goals-copilot-affordance` to a concentric target (CSS rings or tiny SVG). Keep Launch
     wiring / `requestSubmit()` (intentional product: objective control launches — do not reopen as Copilot).
 - escalate: scrutinous
-- commit: 3981aa5
+- commit: 4a33e9e
 - change: Replaced star glyph with `#6750A4` concentric target SVG; Launch `requestSubmit()` wiring unchanged.
+- verified: 2026-10-03T15:15:00-04:00
 
-## done: fp-settings-kicker-period
+## verified: fp-settings-kicker-period
 - screen: settings
 - ref: `.cursor/figma-refs/04-settings.png` · live `2:36`
 - deviation: |
-    EXPECTED (OCR live 04): intro kicker “MAKE YOURSELF AT HOME.” with a trailing period.
-    ACTUAL (`.settings-kicker`): “Make yourself at home” — CSS uppercases, but no period character.
-- fix_hint: Append `.` to `.settings-kicker` copy in `index.html` (leave five-tab rail alone).
+    EXPECTED (live Figma text `5:306`): intro kicker “MAKE YOURSELF AT HOME” with no trailing period.
+    ACTUAL after 4a33e9e: `.settings-kicker` had “Make yourself at home.” (period from bad OCR).
+- fix_hint: Keep kicker without trailing period; leave five-tab rail alone.
 - escalate: scrutinous
-- commit: 3981aa5
-- change: Appended trailing period to `.settings-kicker` (“Make yourself at home.”).
+- commit: 4a33e9e
+- change: Proof-fixed — removed trailing period so `.settings-kicker` matches live `5:306` (no period).
+- verified: 2026-10-03T15:15:00-04:00
 
 ## open: fp-gentle-checkin-progress-pill
 - screen: active
@@ -596,7 +598,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `fp-gentle-checkin-session-panel`.
 - escalate: scrutinous
 
-## done: fp-active-next-step-clock
+## verified: fp-active-next-step-clock
 - screen: active
 - ref: `.cursor/figma-refs/06-mission-active.png` · live `2:38`
 - deviation: |
@@ -608,10 +610,11 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Add a small clock SVG (or unicode) as first child of `.session-next-step-pill` before the kicker;
     keep existing timer wiring.
 - escalate: scrutinous
-- commit: 3981aa5
+- commit: 4a33e9e
 - change: Leading clock SVG in `.session-next-step-pill` before kicker; timer wiring unchanged.
+- verified: 2026-10-03T15:15:00-04:00
 
-## open: fp-setup-objective-compact
+## done: fp-setup-objective-compact
 - screen: setup
 - ref: `.cursor/figma-refs/05-mission-setup.png` · live `2:37`
 - deviation: |
@@ -623,6 +626,8 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Drop to `rows="1"` (or 2) and lower min-height so the field matches the compact Figma row; keep
     resize/overflow usable for longer goals.
 - escalate: scrutinous
+- commit: 7c05f42
+- change: `#goals` rows=1; min-height 2.5rem + tighter padding; resize/overflow kept for longer goals.
 
 ## open: fp-break-live-panel-copy
 - screen: active
@@ -637,5 +642,80 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - fix_hint: |
     On pause: set caption + swap copilot panel to the break card with exact live copy; Resume keeps
     existing pause invoke. Do not change End mission.
+- escalate: scrutinous
+
+## open: fp-listening-session-ui
+- screen: active
+- ref: `.cursor/figma-refs/14-listening.png` · live `2:46`
+- deviation: |
+    EXPECTED (live 14 Listening): session copilot presence pill becomes “● Listening…”; composer
+    field shows “Listening… click mic to stop”; mic control becomes a stop (■) affordance beside
+    Send inside the cream input pill; stable hint under the field remains.
+    ACTUAL (`#session-chat-mic` handler): presence stays “Here when you need me”; mic text flips to
+    “…” and disables; hint becomes “Listening for 4 seconds… speak now.” — no stop icon, no
+    in-field listening copy.
+- fix_hint: |
+    While `chatMicListening` on session: set `.session-copilot-presence` to “Listening…”, put
+    listening copy in `#session-chat-input` (or overlay), swap mic glyph to ■ stop (toggle to
+    cancel if wired), restore idle presence/placeholder on end. Keep mic invoke.
+- escalate: scrutinous
+
+## open: fp-permission-handoff-modal
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49`
+- deviation: |
+    EXPECTED (live 17): before OS/browser permission, cream MC modal over “YOUR CHOICE / Fly on
+    your own terms.” — badge “PERMISSION HANDOFF”, title “Share an optional input?”, body about
+    browser asking for camera/screen, actions “Not now” + “Continue”, footer that next step is
+    the native prompt.
+    ACTUAL: camera/screen permission goes straight to OS/Tauri prompts (`request_permission_*` /
+    capture paths) with no MC handoff modal.
+- fix_hint: |
+    When enabling camera/screen from setup or settings, show the Figma handoff modal first;
+    Continue proceeds to existing permission request; Not now cancels without prompting OS.
+- escalate: scrutinous
+
+## open: fp-permission-denied-modal
+- screen: overlay
+- ref: `.cursor/figma-refs/18-permission-denied.png` · live `2:50`
+- deviation: |
+    EXPECTED (live 18): after deny, cream modal — badge “INPUT REMAINS OFF”, title “You’re still
+    cleared for launch.”, body that permission wasn’t granted / mission works without it, CTAs
+    “Back to setup” + “View settings”, footer “Denied access never blocks starting a mission.”
+    ACTUAL: no MC denied surface; deny paths leave toggles/status text only (Settings permissions
+    list / silent continue on launch).
+- fix_hint: |
+    On camera/screen deny after handoff Continue, present the Figma denied modal; Back to setup →
+    `#view-lockin`; View settings → Permissions tab. Do not block Launch.
+- escalate: scrutinous
+
+## done: fp-session-composer-in-pill
+- screen: active
+- ref: `.cursor/figma-refs/06-mission-active.png` · `14-listening.png` · live `2:38` / `2:46`
+- deviation: |
+    EXPECTED (live 06/14 composer): Mic + Send sit inside one cream input pill (same pattern as
+    fixed Copilot 03 — both circular controls in `.copilot-input-wrap`).
+    ACTUAL (`#session-chat-form`): `#session-chat-mic` is inside `.copilot-input-wrap`, but
+    `#session-chat-send` is a sibling outside the wrap (pre–ffaa518 Copilot layout).
+- fix_hint: |
+    Move `#session-chat-send` into `.copilot-input-wrap` beside the mic; reuse `.view-copilot`
+    in-pill composer CSS for `.session-copilot-composer` / `#view-session`. Keep send/mic wiring.
+- escalate: none
+- commit: 7c05f42
+- change: Moved `#session-chat-send` into cream `.copilot-input-wrap` with Mic; reused Copilot in-pill CSS for session composer.
+
+## open: fp-relaunch-preserved-banner
+- screen: active
+- ref: `.cursor/figma-refs/20-relaunched.png` · live `2:52`
+- deviation: |
+    EXPECTED (live 20 Relaunched): under the mission card, a left-aligned kicker
+    “→ Relaunch {n} · all {m} flight minutes preserved”; mission header can show a teal
+    “Next step: …” line under the objective.
+    ACTUAL: after relaunch, `#view-session` has no preserved-minutes banner and no next-step
+    subhead under `#session-goals` (only `RELAUNCH_FLAG_KEY` for summary stats). Distinct from
+    open `fp-relaunch-session-panel` (frame 09 pre-relaunch card).
+- fix_hint: |
+    When resuming from relaunch, mount a `.session-relaunch-banner` under the mission card with
+    live copy; optional next-step subline from coach/suggest. Keep Pause/End wiring.
 - escalate: scrutinous
 

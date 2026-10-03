@@ -2517,13 +2517,15 @@ button:active {
   padding-top: 0.5rem;
 }
 
-.view-copilot .copilot-form {
+.view-copilot .copilot-form,
+.view-session .session-copilot-composer .copilot-form {
   align-items: center;
   gap: 0;
   width: 100%;
 }
 
-.view-copilot .copilot-input-wrap {
+.view-copilot .copilot-input-wrap,
+.view-session .session-copilot-composer .copilot-input-wrap {
   flex: 1;
   display: flex;
   align-items: center;
@@ -2548,7 +2550,8 @@ button:active {
   background: var(--mc-surface-lavender);
 }
 
-.view-copilot .chat-form textarea {
+.view-copilot .chat-form textarea,
+.view-session .session-copilot-composer .chat-form textarea {
   flex: 1;
   min-height: 2.25rem;
   max-height: 8rem;
@@ -2560,12 +2563,14 @@ button:active {
   font-size: 0.95rem;
 }
 
-.view-copilot .chat-form textarea:focus {
+.view-copilot .chat-form textarea:focus,
+.view-session .session-copilot-composer .chat-form textarea:focus {
   box-shadow: none;
   border-color: transparent;
 }
 
-.view-copilot .copilot-input-wrap:focus-within {
+.view-copilot .copilot-input-wrap:focus-within,
+.view-session .session-copilot-composer .copilot-input-wrap:focus-within {
   border-color: var(--mc-accent-purple-bright);
   box-shadow: 0 0 0 3px var(--mc-accent-purple-glow);
 }
@@ -2587,7 +2592,8 @@ button:active {
   letter-spacing: 0.04em;
 }
 
-.view-copilot .copilot-mic {
+.view-copilot .copilot-mic,
+.view-session .session-copilot-composer .copilot-mic {
   width: 3.25rem;
   height: 3.25rem;
   padding: 0;
@@ -2607,11 +2613,13 @@ button:active {
   background: rgba(107, 76, 255, 0.2);
 }
 
-.view-copilot .copilot-mic:hover:not(:disabled) {
+.view-copilot .copilot-mic:hover:not(:disabled),
+.view-session .session-copilot-composer .copilot-mic:hover:not(:disabled) {
   background: #ddd0f5;
 }
 
-.view-copilot .copilot-send.primary {
+.view-copilot .copilot-send.primary,
+.view-session .session-copilot-composer .copilot-send.primary {
   flex-shrink: 0;
   width: 3.25rem;
   height: 3.25rem;
@@ -2979,14 +2987,16 @@ body:has(.view-mission-setup.active) .grain {
 
 .view-mission-setup .mission-field textarea {
   border-radius: 0.85rem;
-  min-height: 3.25rem;
+  min-height: 2.5rem;
+  max-height: 8rem;
   resize: vertical;
+  overflow-y: auto;
   background: #f0ebfa;
   border: 1px solid rgba(107, 76, 255, 0.12);
   color: #2a2440;
-  padding: 0.9rem 1rem;
+  padding: 0.65rem 1rem;
   font-size: 0.95rem;
-  line-height: 1.45;
+  line-height: 1.35;
 }
 
 .view-mission-setup .mission-field textarea::placeholder {
