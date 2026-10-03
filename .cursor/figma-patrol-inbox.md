@@ -260,40 +260,24 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 
 ## done: fp-copilot-chip-plus
 - screen: copilot
-- ref: `.cursor/figma-refs/03-copilot.png` · `.cursor/figma-refs/03---Copilot.svg`
+- ref: `.cursor/figma-refs/03-copilot.png` · live Figma `2:35`
 - deviation: |
-    EXPECTED (Figma 03 Copilot prompt-chip row under empty card, left of astronaut; PNG + SVG raster):
-    1. Row: `.copilot-prompts-row` → `.study-actions.copilot-shortcuts` — three lavender pills, left→right:
-       - `button.copilot-chip[data-study="explain"]` → text “Explain simply” only — NO trailing `+`, no `.copilot-chip-plus` child.
-       - `button.copilot-chip[data-study="stuck"]` → text “I'm stuck” only — NO trailing `+`, no `.copilot-chip-plus` child.
-       - `button.copilot-chip.copilot-chip--next[data-study="plan"]` → “Find a next step” + ONE trailing thin dark `+` glyph inside the pill (plain stroke/character after a small gap past “step”; same ink family as the label).
-    2. Ambient decorative `+` marks near the astronaut / page margins are NOT chip children.
-    ACTUAL (`index.html` `#view-chat` `.copilot-prompts-row .copilot-shortcuts`, HEAD after 2971eae):
-    1. Explain chip mounts `<span class="copilot-chip-plus" aria-hidden="true">+</span>` after “Explain simply”.
-    2. Stuck chip mounts the same `<span class="copilot-chip-plus">+</span>` after “I'm stuck”.
-    3. Plan/next chip also mounts `<span class="copilot-chip-plus">+</span>` (correct presence; style covered by sibling open).
-    4. Overshoot vs Figma: two extra trailing pluses on explain + stuck.
-- fix_hint: |
-    In `index.html`, delete the `.copilot-chip-plus` span from `[data-study="explain"]` and `[data-study="stuck"]` only. Keep the span on `.copilot-chip--next` / `[data-study="plan"]`. Do not touch Settings five-tab, Pause/End, LTR orbit, objective ✦ Launch, or `silent_mode` default true.
+    Live Figma 03 Copilot prompt chips are plain labels only — no trailing `+` on any chip
+    (including “Find a next step”). Ambient decorative `+` marks belong on page margins, not in chips.
+- fix_hint: Remove all `.copilot-chip-plus` mounts; keep three lavender text chips.
 - escalate: scrutinous
-- reopened: true
-- commit: 52749cd
-- change: Removed `.copilot-chip-plus` from explain + stuck chips; kept only on `copilot-chip--next` / plan.
+- change: Stripped chip trailing `+` entirely; decorative page-corner `+` marks remain outside chips.
 - note: |
-    Compliance 2026-10-03 — prior claim that all three chips should have + does not match Figma 03; reopen to strip extras.
-    Scrutinous rewrite 2026-10-03T14:35 — pixel crops of 03-copilot.png + 03---Copilot.svg confirm only “Find a next step” carries a trailing +.
+    Earlier 52749cd kept + on Find a next step per older PNG crops; live frame 2:35 (2026-10-03)
+    no longer includes that glyph.
 
 ## done: fp-copilot-chip-plus-glyph
 - screen: copilot
-- ref: `.cursor/figma-refs/03-copilot.png` · `.cursor/figma-refs/03---Copilot.svg`
-- deviation: |
-    EXPECTED (Figma 03 trailing mark on “Find a next step” only): plain thin dark charcoal/`#`-ink `+` glyph after the label inside the pill — no nested circle, no fill disc behind the plus.
-    ACTUAL (`src/styles.css` `.copilot-chip-plus`): `width/height: 1.35rem`, `border-radius: 50%`, `background: rgba(107, 76, 255, 0.12)`, bold `color: var(--mc-accent-purple)` — reads as a circular badge control nested in the chip, not Figma’s thin trailing glyph.
-- fix_hint: |
-    Restyle `.copilot-chip-plus` to a plain inline glyph (drop circle dimensions/background/radius); keep mounted only on `.copilot-chip--next` after `fp-copilot-chip-plus` strip. Tune spacing with `.copilot-chip` `gap` / margin so “step” → `+` matches the ref gap.
+- ref: `.cursor/figma-refs/03-copilot.png` · live Figma `2:35`
+- deviation: Chip trailing `+` glyph styling superseded — live Figma has no chip plus.
+- fix_hint: n/a — remove mount.
 - escalate: none
-- commit: 52749cd
-- change: Restyled `.copilot-chip-plus` as thin plain ink glyph (no circular lavender badge).
+- change: `.copilot-chip-plus` unused/hidden; no chip glyph to style.
 
 ## verified: fp-summary-decor-moon
 - screen: summary
@@ -381,7 +365,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - deviation: Session copilot log empty state is muted helper copy; Figma seeds an “AT LAUNCH” system message stating the mission objective and time limit before any user chat.
 - fix_hint: Seed an AT LAUNCH row in `#session-chat-log` when a mission starts (reuse goal + duration); keep empty helper for pre-start if needed.
 - escalate: none
-- commit: 597a693
+- commit: 7edce57
 - change: Seed `#session-chat-log` with AT LAUNCH system row (goal + duration) once per mission via `ensureSessionAtLaunchSeed`.
 
 ## done: fp-welcome-hero-body-plus
@@ -519,6 +503,21 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - fix_hint: |
     Add a flight-logged celebration branch (badge + title + optional ended-early helper under objective choices) when ending early / not marking quest complete; keep quest-complete + first-flight paths.
 - escalate: none
-- commit: 597a693
+- commit: 7edce57
 - change: Early End uses ✦ FLIGHT LOGGED / “Every flight moves you forward.”; timer-complete keeps QUEST COMPLETE; first-flight unchanged.
+
+## done: fp-copilot-live-match
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live Figma `BR1qUqQ2xrpSCJdLgzhKDI` node `2:35`
+- deviation: |
+    EXPECTED (live 03 • Copilot): cream pill top nav with Copilot active lavender pill; sidebar without
+    ✦ YOUR COPILOT kicker; body “Ask a question, talk through a roadblock…”, divider, CTA, status
+    “No mission running”, ringed planet; main title/sub; empty card without ✦ COPILOT kicker; three
+    plain chips (no +); Mic + Send circular controls inside cream input pill; two hint lines; corner
+    decorative + marks; no astronaut; no outer lavender #app frame.
+    ACTUAL: kicker + old sidebar copy; empty kicker; astronaut; chip + on Find a next step; Send
+    outside lavender input wrap; nav without cream bar chrome.
+- fix_hint: Align `#view-chat` markup + `.view-copilot` CSS to live frame; keep chip/send/mic/nav wiring.
+- escalate: scrutinous
+- change: Matched live Figma 03 structure/copy/composer (in-pill Mic+Send), removed kickers/astronaut/chip +, cream nav + sidebar divider + deco pluses.
 
