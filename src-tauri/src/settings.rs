@@ -14,7 +14,8 @@ pub struct UserSettings {
 
 impl Default for UserSettings {
     fn default() -> Self {
-        Self { silent_mode: false }
+        // Figma 04: Copilot audio starts off (spoken TTS opt-in).
+        Self { silent_mode: true }
     }
 }
 
