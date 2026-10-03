@@ -726,20 +726,21 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/14-listening.png` · live `2:46` · presence `6:1373` ·
   composer `6:1388` · stop `6:1389`
 - deviation: |
-    EXPECTED (live 14): presence “●  Listening…”; cream composer
-    “Listening… click mic to stop”; in-pill mic → ■ stop beside Send ↑; footer
-    hint stays “Enter to send · Click the microphone…”. Suggest chip “Set a
-    five-minute timer” stays (`6:1383`). Left NEXT STEP TIMER is absent —
-    already verified via `fp-listening-hides-next-step` (cc11ce5).
-    ACTUAL (`#session-chat-mic`): presence stays “Here when you need me”; mic →
-    “…” and `disabled`; hint → “Listening for 4 seconds… speak now.”;
-    `#session-chat-input` never shows listening copy. Copilot
-    `fp-copilot-listening-composer` already has ■ + listening placeholder —
-    session path not ported.
+    EXPECTED (live 14 get_screenshot tick11): presence “●  Listening…”; cream
+    composer “Listening… click mic to stop”; in-pill mic → ■ stop (`6:1389`)
+    beside Send ↑; footer hint stays “Enter to send · Click the microphone…”.
+    Suggest “Set a five-minute timer” stays (`6:1383`). NEXT STEP TIMER absent
+    (verified `fp-listening-hides-next-step`).
+    ACTUAL after c00ab73: session Live uses Talk label + phase fills
+    (“Live”/“…”) via `applyMicLiveUi(..., "Talk")`; presence stays idle;
+    `#session-chat-input` never gets listening placeholder; STT path still
+    flashes “Listening for 4 seconds…”. Copilot path now verified tonal “Mic”
+    + listening placeholder (`fp-copilot-mic-live-phase-chrome`) — session 14
+    still needs ■ stop chrome, not Copilot’s sticky Mic.
 - fix_hint: |
-    Mirror Copilot listening on session: presence “Listening…”, input listening
-    copy, mic ■ (keep enabled to cancel), restore idle on end. Keep mic invoke
-    + suggest chip. Do not re-show next-step while listening.
+    On session listen: presence “●  Listening…”, input listening copy, mic ■
+    (enabled to cancel), restore idle on end. Keep mic invoke + suggest.
+    Do not re-show next-step while listening. Do not copy Copilot sticky Mic.
 - escalate: scrutinous
 
 ## verified: fp-permission-handoff-modal
@@ -2179,9 +2180,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: active
 - ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` · panel `6:653`
 - expected: |
-    Live 09 right panel is 434×560 — badge “↗ READY TO RELAUNCH?”, title,
-    body, divider, Next step field, Relaunch, Take a break, footer only.
-    NO ✦ Your copilot header, presence, chat history, suggest, or composer.
+    Live 09 right panel is 434×560 — badge “→  READY TO RELAUNCH?” (→ not ↗;
+    see `fp-relaunch-live-panel-copy`), title, body, divider, Next step field,
+    Relaunch, Take a break, footer only. NO ✦ Your copilot header, presence,
+    chat history, suggest, or composer.
 - actual: |
     Opens cover panel existence/copy/CTA/field/chrome-hide — not that the
     relaunch surface is a short status card replacing the chat column.
@@ -2725,7 +2727,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: Base `.mc-perm-modal__card` → 580px / `#fffbff` / `#c8bfd7` / 28px / 33px pad (handoff + denied + end-session); Continue/Not now CTAs unchanged.
 - verified: 2026-10-03T18:32:50-04:00
 
-## done: fp-copilot-mic-idle-label
+## verified: fp-copilot-mic-idle-label
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · Mic `5:251` ·
   listening `10:667` / `10:736`
@@ -2752,8 +2754,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     `#chat-mic` idle/live label → “Mic” (HTML + `applyMicLiveUi(..., "Mic",
     { stickyLabel: true })`); Live start/end wiring kept; session Talk unchanged.
+- verified: 2026-10-03T18:52:40-04:00
 
-## done: fp-copilot-composer-hint-copy
+## verified: fp-copilot-composer-hint-copy
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · hint `5:256`
 - expected: |
@@ -2778,8 +2781,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     `#chat-hint` idle → live `5:256` Enter/mic sentence; temporary Live
     status hints still ok and restore idle copy when Live ends.
+- verified: 2026-10-03T18:52:40-04:00
 
-## done: fp-copilot-responses-foot-copy
+## verified: fp-copilot-responses-foot-copy
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · foot `5:257`
 - expected: |
@@ -2800,8 +2804,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     `.copilot-responses-foot` → live `5:257` “Responses always appear as
     text. Audio is yours to turn on.”
+- verified: 2026-10-03T18:52:40-04:00
 
-## done: fp-copilot-mic-live-phase-chrome
+## verified: fp-copilot-mic-live-phase-chrome
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · `31-copilot-listening.png` ·
   live `2:35` / `10:667` · Mic `5:251` / `10:736`
@@ -2828,8 +2833,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Copilot `.copilot-mic.is-*` stays tonal `#e9ddfd` + “Mic”; session
     Talk phase fills kept; listening sets `#chat-input` placeholder to
     “Listening… click mic to stop”.
+- verified: 2026-10-03T18:52:40-04:00
 
-## done: fp-welcome-title-scale
+## verified: fp-welcome-title-scale
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · title `5:61`
 - expected: |
@@ -2853,6 +2859,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     `.welcome-signin-title` → Medium 32px / line-height 1.4 / weight 500
     (live `5:61`); string “Your seat is ready.” unchanged.
+- verified: 2026-10-03T18:52:40-04:00
 
 ## open: fp-relaunch-title-medium-28
 - screen: active
@@ -2935,7 +2942,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     page. Preserve Settings five-tab; do not block Launch.
 - escalate: scrutinous
 
-## done: fp-welcome-title-medium-32
+## verified: fp-welcome-title-medium-32
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · title `5:61`
 - expected: |
@@ -2958,3 +2965,124 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     `.welcome-signin-title` → Medium 32px / line-height 1.4 / weight 500
     (live `5:61`); string “Your seat is ready.” unchanged.
+- verified: 2026-10-03T18:52:40-04:00
+
+## done: fp-copilot-page-title-scale
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · title `5:233`
+- expected: |
+    Live 03 page title “A little help, a clearer path.” (`5:233`, ~880×53 /
+    text raster ~449×36): Medium ~36px / weight 500 on the conversation
+    column — not Semibold. Spot-check after `c00ab73` Mic/hint/foot/tonal
+    (those match live `5:251` / `5:256` / `5:257` / `#e9ddfd`).
+- actual: |
+    Tick22 Copilot priority: `.copilot-page-title` is
+    `clamp(1.85rem, 3.2vw, 2.375rem)` with `font-weight: 600` / line-height
+    1.3 — overshoots Medium 36 and uses Semibold.
+- deviation: |
+    Page title type scale/weight vs live `5:233`. Distinct from verified
+    sidebar-title-scale / empty-heading-weight; Mic chrome dones OK.
+- fix_hint: |
+    Set `.copilot-page-title` to 36px / `font-weight: 500` / line-height
+    ~1.4; keep Start a mission + Mic/Send wiring. Preserve Pause/End /
+    Settings five-tab / `#app` padding 0.
+- escalate: scrutinous
+- commit: b0e40e8
+- change: |
+    `.copilot-page-title` → Medium 36px / line-height 1.4 / weight 500
+    (live `5:233`); Mic/Send + Start a mission wiring unchanged.
+
+## done: fp-copilot-intro-gap
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · title `5:233` ·
+  sub `5:234`
+- expected: |
+    Live Conversation stack: title at y=0 (h≈53) then sub “Ask freely.
+    Your next step can be small.” at y=75 (h≈16–22) — ~22px gap between
+    title box and sub.
+- actual: |
+    `.copilot-intro` uses `gap: 0.85rem` (~13.6px) between
+    `.copilot-page-title` and `.copilot-page-sub`. Sub copy/size (~16px)
+    already match.
+- deviation: |
+    Intro vertical gap vs live `5:233`→`5:234`. Complements page-title
+    scale; Copilot priority tick22 after Mic dones.
+- fix_hint: |
+    Set `.copilot-intro` gap to 22px (or margin-top on sub); leave chip /
+    composer / Mic wiring.
+- escalate: scrutinous
+- commit: b0e40e8
+- change: |
+    `.copilot-intro` gap → `1.375rem` (22px) for live `5:233`→`5:234`;
+    chip / composer / Mic wiring unchanged.
+
+## open: fp-relaunch-take-break-quiet-fill
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  secondary `8:426` · field `8:421`
+- expected: |
+    Live 09 card “Take a break” (`8:426`, 386×52) under Relaunch is Quiet
+    fill matching the Next step Editable (`#f7f2ff` / `#c8bfd7`) — not
+    raised tonal `#e9ddfd` chip chrome. Relaunch stays filled primary.
+- actual: |
+    Open `fp-relaunch-cta-hierarchy` says card Take a break is “tonal
+    secondary” (`#e9ddfd` risk). Tick22 live crop/metadata: secondary
+    matches field Quiet, not suggest-pill tonal. App has no relaunch card.
+- deviation: |
+    Secondary CTA fill token vs live `8:426`. Corrects tonal assumption
+    on cta-hierarchy; under-covered `2:41`.
+- fix_hint: |
+    When mounting relaunch CTAs: Relaunch filled purple; Take a break
+    Quiet `#f7f2ff` + `#c8bfd7` border (same as Next step field). Keep
+    End / Take a break → pause wiring.
+- escalate: scrutinous
+
+## open: fp-connection-lost-composer-hint-copy
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  hint `6:1734` · composer `6:1725`
+- expected: |
+    Live 16 under-composer hint (`6:1734`): “Enter to send · Click the
+    microphone to start or stop a voice turn.” while disconnected —
+    same Enter/mic sentence as Copilot idle `5:256`. Composer stays with
+    Mic + Send (not Talk).
+- actual: |
+    Opens cover composer-stays / Mic presence / Retry — not hint string.
+    App `#session-chat-hint` is “Talk for live voice · type + Enter for a
+    turn · ends with the mission” and mic label stays “Talk”.
+- deviation: |
+    Lost-state composer hint (+ Mic label) vs live `6:1734` / `6:1728`.
+    Distinct from presence-pill / latest-card / retry-tonal; under-covered
+    `2:48`.
+- fix_hint: |
+    On disconnect: set `#session-chat-hint` to live Enter/mic sentence and
+    `#session-chat-mic` label “Mic”; restore Talk hint/label on reconnect.
+    Keep composer mounted + Retry wiring.
+- escalate: scrutinous
+
+## done: fp-permission-handoff-title-scale
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  title `7:418` · modal `7:415`
+- expected: |
+    Live handoff title “Allow camera signals?” (`7:418`, 516×42): Medium
+    ~28–30px / weight 500 (not Bold ~25px). Badge PERMISSION HANDOFF +
+    camera body/footer already match verified camera-copy / surface.
+- actual: |
+    Tick22 YOUR CHOICE spot-check: `.mc-perm-modal__title` is `1.55rem`
+    (~24.8px) `font-weight: 700`. Copy strings OK after `b7ea57b`;
+    interstitial page still open (`fp-permissions-choice-surface`).
+- deviation: |
+    Handoff title type scale/weight vs live `7:418`. Distinct from
+    choice-surface / title-size (page intro) / art; under-covered
+    permissions choice.
+- fix_hint: |
+    Set `.mc-perm-modal__title` to ~28px / `font-weight: 500` / line-height
+    ~1.4; keep Not now · Continue + camera copy. Preserve Settings
+    five-tab; do not block Launch.
+- escalate: scrutinous
+- commit: b0e40e8
+- change: |
+    `.mc-perm-modal__title` → Medium 30px / line-height 1.4 / weight 500
+    (live `7:418`); “Allow camera signals?” + denied shared class; Not now /
+    Continue wiring unchanged.
