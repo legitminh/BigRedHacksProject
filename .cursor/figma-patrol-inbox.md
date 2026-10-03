@@ -3473,3 +3473,77 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When mounting lost history, use 20px vertical gaps header→Latest;
     keep Reconnecting pill + Mic composer. Preserve Pause/End.
 - escalate: scrutinous
+
+## done: fp-permission-handoff-camera-live
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  modal `7:415` · title `7:418` · body `7:419` · foot `7:427` ·
+  crop `_verify/tick27-handoff-modal-crop.png`
+- commit: PENDING
+- change: |
+    Handoff modal restored to live tick27 camera copy: title “Allow
+    camera signals?”, browser-asks body, foot “Nothing is recorded…”,
+    badge PERMISSION HANDOFF; Not now · Continue + pad/gap 32/22 kept.
+
+## open: fp-relaunch-body-type
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  body `8:417` · crop `_verify/tick27-relaunch-panel-crop.png`
+- expected: |
+    Live relaunch body (`8:417`, 386×44): Regular **16px** / leading 1.4
+    muted `#645d73`, two lines (“Your {n} earned minutes are safe.” /
+    “Take a breath and start small.”) — not title-weight and not ~14px.
+- actual: |
+    Opens lock body **string** (`fp-relaunch-live-panel-copy`) + title
+    Medium 28 — not body type scale. App has no relaunch card yet.
+- deviation: |
+    Tick27 — relaunch body type tokens vs live `8:417`. Distinct from
+    title-medium-28 / live-panel-copy / panel-stack-gap; under-covered
+    `2:41`.
+- fix_hint: |
+    When mounting relaunch card, set body `font-size: 16px; font-weight:
+    400; line-height: 1.4; color: #645d73`; keep Relaunch / Take a break.
+    Preserve Pause/End on normal active.
+- escalate: scrutinous
+
+## done: fp-session-copilot-kicker-label
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  header `6:1708` · title `6:1710` · also active `2:38`
+- commit: PENDING
+- change: |
+    Session `.session-copilot-kicker` → “✦ Your copilot” (aria-label
+    matched); Copilot page header already used different copy.
+
+## done: fp-welcome-signin-cta-height
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · CTA `5:71` ·
+  crop `_verify/tick27-welcome-card-crop.png`
+- commit: PENDING
+- change: |
+    `.welcome-signin-submit` → `height`/`min-height: 52px`, max-width
+    438px (live `5:71`); solid `#6750a4` kept; Google-only form unchanged.
+
+## open: fp-permissions-choice-scrim
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  scrim `7:414` · modal `7:415` · intro `7:393`
+- expected: |
+    Live YOUR CHOICE hosts handoff under a full-bleed Modal scrim
+    (`7:414`, 1440×960) dimming nav + intro + planet/ship art; modal
+    centered at y≈295. Scrim is page-level, not a free-floating dialog
+    over setup toggles alone.
+- actual: |
+    Opens lock interstitial existence/art/intro-gap/title-size — not the
+    full-frame scrim plane. App `#permission-handoff-modal` backdrop is
+    fixed over whatever view is current (setup/Settings), with no YOUR
+    CHOICE page underneath.
+- deviation: |
+    Tick27 — choice-page scrim geometry vs live `7:414`. Distinct from
+    choice-surface / art / intro-gap + handoff camera-live copy;
+    under-covered YOUR CHOICE.
+- fix_hint: |
+    When adding YOUR CHOICE view, mount full-viewport scrim under the
+    handoff/denied card (keep Lock-in active nav). Preserve Settings
+    five-tab; do not block Launch.
+- escalate: scrutinous

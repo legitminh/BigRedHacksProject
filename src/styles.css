@@ -969,8 +969,14 @@ body:has(.view-home.view-home--guest.active) .grain {
   box-shadow: 0 0 0 3px rgba(107, 76, 255, 0.15);
 }
 
-/* Live 01 Sign in CTA (5:71): solid #6750a4, white Medium 14 */
+/* Live 01 Sign in CTA (5:71): solid #6750a4, white Medium 14, 438×52 */
 .welcome-signin-submit {
+  box-sizing: border-box;
+  align-self: stretch;
+  width: 100%;
+  max-width: 438px;
+  height: 52px;
+  min-height: 52px;
   margin-top: 0;
   border: none;
   border-radius: var(--radius-pill);
@@ -979,7 +985,7 @@ body:has(.view-home.view-home--guest.active) .grain {
   font-size: 0.875rem; /* 14px */
   font-weight: 500;
   line-height: 1.4;
-  padding: 0.85rem 1.25rem;
+  padding: 0 1.25rem;
   box-shadow: none;
 }
 
