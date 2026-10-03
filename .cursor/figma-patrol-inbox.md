@@ -1186,18 +1186,25 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · card `5:58` · fields `5:63`/`5:67` ·
   CTA `5:71` · lead `5:62` · foot `5:77`
+- expected: |
+    Live 01 Sign in card: lead “Sign in to return to your space.”; Email
+    (`you@school.edu`) + Password (`Enter your password`); primary
+    “Sign in →”; “Continue as guest”; foot “Just here to focus? Guest
+    mode has everything you need for your first mission.”
+- actual: |
+    Tick12: CTA solid `#6750a4` Medium 14 + foot muted `#645d73`/13px
+    tokens verified (a947816). Form still Google-only — no Email/Password
+    fields; lead Calendar/Drive sync; CTA label “Sign in with Google →”;
+    foot Google-approval sentence (not live guest sentence).
 - deviation: |
-    EXPECTED (live 01 Sign in card): lead “Sign in to return to your space.”; Email field
-    (placeholder `you@school.edu`) + Password field (`Enter your password`); primary
-    “Sign in →”; “Continue as guest”; foot “Just here to focus? Guest mode has everything
-    you need for your first mission.”
-    ACTUAL (`#welcome-signin-form`): Google-only CTA (“Sign in with Google →”), lead about
-    Calendar/Drive sync, no Email/Password fields, foot “Guest mode stays on this device
-    only — no cloud sync. Accounts always use Google.”
+    Form structure/copy vs live `5:58` (fields + lead + CTA/foot strings).
+    Distinct from verified guest Quiet / title Medium 32 / CTA solid /
+    foot muted tokens.
 - fix_hint: |
-    Match live card chrome/copy (lead, Email/Password placeholders, “Sign in →”, guest foot).
-    Keep Google auth wired — e.g. Sign in → still invokes `sign_in_waypoint_google` if email
-    auth isn’t real yet; do not drop guest path.
+    Match live card chrome/copy (lead, Email/Password placeholders,
+    “Sign in →”, guest foot). Keep Google auth wired — e.g. Sign in →
+    still invokes `sign_in_waypoint_google` if email auth isn’t real yet;
+    do not drop guest path.
 - escalate: scrutinous
 
 ## verified: fp-welcome-signin-kicker-mint
@@ -1661,15 +1668,15 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     “Fly on your own terms.”; sub “Optional signals. Clear controls.
     No recordings.”; left ringed planet + right ship art.
 - actual: |
-    Handoff + denied modals + surface chrome verified (b7ea57b / 69037e0
-    `.mc-perm-modal__card` 580/#fffbff/#c8bfd7/28/33) but still mount as
-    fixed overlays over whatever view is current (setup / Settings).
-    Still no “YOUR CHOICE” / “Fly on your own terms.” interstitial page
-    or art plane under the modals.
+    Tick12: modal shell/copy/surface + title Medium 30 + stack
+    pad 32 / gap 22 verified (b7ea57b / 69037e0 / b0e40e8 / a947816
+    `.mc-perm-modal__card`). Modals still mount as fixed overlays over
+    setup/Settings — no “YOUR CHOICE” / “Fly on your own terms.”
+    interstitial page or art plane under them.
 - deviation: |
     Missing interstitial permissions-choice page that hosts the handoff
     and denied modals in Figma. Distinct from verified modal shell/copy/
-    surface (`fp-permission-handoff-modal-surface`).
+    surface/title-scale/stack-gap.
 - fix_hint: |
     Add a lightweight MC “YOUR CHOICE” view (or setup substate) matching
     live intro + art; show handoff/denied modals over it. Keep five-tab
@@ -3210,3 +3217,82 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     timer-replace rhythm, live `7:415`). Surface/title tokens preserved;
     Not now · Continue + camera copy wiring unchanged.
 - verified: 2026-10-03T19:12:40-04:00
+
+## done: fp-copilot-composer-vertical-gap
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · Conversation `5:232` ·
+  composer `5:248` · chips `5:240`
+- commit: d63cd52
+- change: |
+    `.copilot-composer` → `margin-top: 6.5625rem` (+ `.copilot-main` gap
+    1.25rem ≈ 125px clear under chips, live `5:240`→`5:248`). Mic/Send +
+    chip wiring untouched; title/intro/Mic/hint/foot copy preserved.
+
+## done: fp-copilot-responses-foot-placement
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · foot `5:257` ·
+  composer `5:248`
+- commit: d63cd52
+- change: |
+    `.copilot-shell` stretch + `.copilot-main` `height: 100%`;
+    `.copilot-responses-foot` → `margin-top: auto` so foot pins toward
+    bottom of main (~76px under composer on live stage). Enter/mic hint
+    stays under input; copy string unchanged.
+
+## done: fp-welcome-card-stack-gap
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · card `5:58`
+- commit: d63cd52
+- change: |
+    `.welcome-signin-card` gap → `24px` (live `5:58` rhythm); zeroed
+    title/lead/CTA/foot margin overrides that fought the stack. Google-only
+    form path left open (`fp-welcome-signin-form`); guest Quiet + foot/CTA
+    tokens preserved.
+
+## open: fp-permission-handoff-live-copy
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  title `7:418` · body `7:419` · foot `7:427`
+- expected: |
+    Tick24 live `get_screenshot` + metadata on `2:49`: handoff title
+    “Share an optional input?” (`7:418`); body “Your browser will ask for
+    camera or screen access…” (`7:419`); footer “Design reference: the next
+    step is the browser’s native permission prompt.” (`7:427`). Badge
+    PERMISSION HANDOFF; Not now · Continue. Stack gap/pad after `a947816`
+    still match (~22 / 32–33).
+- actual: |
+    App `#permission-handoff-title` / body / foot still use prior camera-
+    specific strings (“Allow camera signals?” / macOS·Presage body /
+    “Nothing is recorded…”) from verified `fp-permission-handoff-camera-copy`
+    (`b7ea57b`). Live Figma moved off that camera-only copy.
+- deviation: |
+    Tick24 live handoff copy shift vs app (and vs stale camera-copy
+    verified). Distinct from choice-surface / art / title-size / stack-gap
+    done; under-covered YOUR CHOICE + handoff.
+- fix_hint: |
+    Sync handoff title/body/foot to live `7:418`/`7:419`/`7:427` generic
+    browser camera-or-screen wording; keep Not now · Continue wiring.
+    Preserve Settings five-tab; do not block Launch.
+- escalate: scrutinous
+
+## open: fp-connection-lost-panel-stack-gap
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  Latest `6:1719` · Retry `6:1722` · composer `6:1725`
+- expected: |
+    Live 16 Copilot panel stack: Latest card (`6:1719` y=345 h=113) →
+    Retry (`6:1722` y=478) → composer (`6:1725` y=550) with **20px** gaps
+    between blocks (478−345−113=20; 550−478−52=20). Latest type / Retry
+    tonal / composer-hint opens already lock chrome/copy — not this rhythm.
+- actual: |
+    App has no lost Latest/Retry mount yet (`fp-connection-lost-panel` et
+    al.). Risk: fixer stacks them with session chat gaps (~12–14px) or
+    hugs composer.
+- deviation: |
+    Lost-panel vertical stack gap vs live `6:1719`→`6:1722`→`6:1725`.
+    Distinct from latest-type / retry-tonal / composer-hint-copy /
+    composer-stays; under-covered `2:48`.
+- fix_hint: |
+    When mounting lost Latest + Retry above composer, use 20px gaps (match
+    relaunch CTA stack); keep Retry tonal + Mic composer. Preserve Pause/End.
+- escalate: scrutinous
