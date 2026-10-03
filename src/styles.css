@@ -2679,19 +2679,23 @@ button:active {
   background: #ddd0f5;
 }
 
-.view-session .session-companion-talk.is-live {
+.view-session .session-companion-talk.is-live,
+.view-copilot .copilot-mic.is-live {
   background: #6b4cff;
   color: #f7f4ff;
 }
-.view-session .session-companion-talk.is-thinking {
+.view-session .session-companion-talk.is-thinking,
+.view-copilot .copilot-mic.is-thinking {
   background: #3d2a99;
   color: #f7f4ff;
 }
-.view-session .session-companion-talk.is-speaking {
+.view-session .session-companion-talk.is-speaking,
+.view-copilot .copilot-mic.is-speaking {
   background: #2f6b45;
   color: #f4fff7;
 }
-.view-session .session-companion-talk.is-connecting {
+.view-session .session-companion-talk.is-connecting,
+.view-copilot .copilot-mic.is-connecting {
   background: #5c5348;
   color: #f6f0e6;
 }
