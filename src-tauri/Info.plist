@@ -5,6 +5,8 @@
     <key>NSCameraUsageDescription</key>
     <string>Waypoint uses your camera during lock-in so Presage can estimate heart rate, breathing, and stress while you study. Frames stay on your Mac except when sent to Presage and Gemini for that session.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Waypoint can record a short microphone clip to test speech-to-text before Grok Voice is wired in.</string>
+    <string>Waypoint records a short microphone clip so you can dictate to Copilot and run Voice tests in Mission Control.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Waypoint turns your spoken words into text for Copilot and Voice tests using on-device speech recognition when available.</string>
 </dict>
 </plist>

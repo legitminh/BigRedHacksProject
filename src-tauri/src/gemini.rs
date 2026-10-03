@@ -17,17 +17,75 @@ enum CallKind {
     Vision,
 }
 
+/// User-facing copy only — never echo raw HTTP/JSON bodies.
 fn friendly_gemini_error(raw: &str) -> String {
     let lower = raw.to_lowercase();
     if lower.contains("503") || lower.contains("unavailable") || lower.contains("high demand") {
-        "Gemini is busy right now — still watching your screen, retrying shortly.".into()
+        "Cloud coach is busy right now. Trying again shortly.".into()
+    } else if lower.contains("exceeded your current quota")
+        || lower.contains("quota exceeded")
+        || lower.contains("quota_metric")
+        || lower.contains("free_tier")
+    {
+        "Cloud coach hit today’s free limit. Local watching continues — try Copilot again later.".into()
     } else if lower.contains("429") || lower.contains("resource_exhausted") {
-        "Gemini rate limit hit — pausing to stay under quota, then continuing.".into()
+        "Cloud coach is rate-limited. Pausing briefly, then continuing.".into()
+    } else if lower.contains("api_key_invalid")
+        || lower.contains("api key not valid")
+        || lower.contains("api_key_invalid")
+        || (lower.contains("api key") && (lower.contains("invalid") || lower.contains("permission")))
+        || lower.contains("consumer_invalid")
+    {
+        "Cloud coach couldn’t sign in. Check your Gemini key and rebuild the app.".into()
     } else if lower.contains("timed out") || lower.contains("timeout") {
-        "Gemini timed out — trying again on the next tick.".into()
+        "Cloud coach timed out. Trying again shortly.".into()
+    } else if lower.contains("not set") || lower.contains("missing") {
+        "Cloud coach isn’t configured in this build.".into()
     } else {
-        let short: String = raw.chars().take(160).collect();
-        format!("Screen coach hiccup: {short}")
+        "Cloud coach hit a snag. Please try again in a moment.".into()
+    }
+}
+
+/// Live probe for Settings — tiny generateContent so quota/auth match Copilot.
+pub async fn probe_status(cfg: &AppConfig) -> (bool, String) {
+    let Some(api_key) = cfg.gemini_api_key.as_ref().filter(|k| !k.is_empty()) else {
+        return (false, "Cloud coach isn’t configured in this build.".into());
+    };
+    let client = match Client::builder()
+        .timeout(Duration::from_secs(12))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return (false, "Couldn’t reach cloud coach right now.".into()),
+    };
+    let url = format!(
+        "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
+        cfg.gemini_model
+    );
+    let body = json!({
+        "contents": [{ "role": "user", "parts": [{ "text": "ping" }] }],
+        "generationConfig": { "maxOutputTokens": 1, "temperature": 0 }
+    });
+    let res = client
+        .post(&url)
+        .header("X-goog-api-key", api_key)
+        .json(&body)
+        .send()
+        .await;
+    match res {
+        Ok(r) if r.status().is_success() => (
+            true,
+            "Cloud vision + chat ready.".into(),
+        ),
+        Ok(r) => {
+            let status = r.status();
+            let text = r.text().await.unwrap_or_default();
+            (
+                false,
+                friendly_gemini_error(&format!("Gemini error {status}: {text}")),
+            )
+        }
+        Err(_) => (false, "Couldn’t reach cloud coach right now.".into()),
     }
 }
 

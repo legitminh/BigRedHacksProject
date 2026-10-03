@@ -19,6 +19,8 @@ pub fn ensure_overlay(app: &AppHandle) -> Result<(), String> {
     .resizable(false)
     .decorations(false)
     .transparent(true)
+    // macOS draws a rectangular window shadow that reads as a jagged black border.
+    .shadow(false)
     .always_on_top(true)
     .skip_taskbar(true)
     .visible(false)

@@ -158,18 +158,28 @@ fn claim_ephemeral_slot_keyed(cooldown_secs: i64, key: Option<&str>) -> bool {
 
 pub fn spawn_coach_loop(app: AppHandle, session_id: String, use_camera: bool, use_presage: bool) {
     reset_ephemeral_cooldown();
-    push_prompt(
-        &app,
-        "I'm watching apps and tabs against your goals — local checks first, screenshots only rarely.",
-        "watching",
-    );
+    {
+        let greet_app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            let cfg = greet_app.state::<AppState>().config.lock().clone();
+            let goals = greet_app
+                .state::<AppState>()
+                .session
+                .lock()
+                .as_ref()
+                .map(|s| s.goals.clone())
+                .unwrap_or_default();
+            let line =
+                local_judge::compose_coach_line(&cfg, "watching", &goals, "", "", 0).await;
+            push_prompt(&greet_app, &line, "watching");
+        });
+    }
 
     {
         let state = app.state::<AppState>();
         let mut guard = state.session.lock();
         if let Some(session) = guard.as_mut() {
-            session.watching_note =
-                "Watching apps/tabs · checking for local model…".into();
+            session.watching_note = "Watching with you…".into();
             session.status = SessionStatusKind::OnTask;
             let snap = session.clone();
             drop(guard);
@@ -246,20 +256,24 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
     let mut last_ocr_snippet = String::new();
 
     while !stop.load(Ordering::SeqCst) {
-        let (active, remaining, goals) = {
+        let (active, remaining, goals, paused) = {
             let state = app.state::<AppState>();
             let guard = state.session.lock();
             match guard.as_ref() {
                 Some(s) if s.active && s.id == session_id => {
                     last_vitals = s.vitals.clone();
-                    (true, s.remaining_secs(), s.goals.clone())
+                    (true, s.remaining_secs(), s.goals.clone(), s.paused)
                 }
-                _ => (false, 0, String::new()),
+                _ => (false, 0, String::new(), false),
             }
         };
         if !active || remaining <= 0 {
             finish_session(&app).await;
             break;
+        }
+        if paused {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            continue;
         }
 
         let goals_for_scan = goals.clone();
@@ -293,13 +307,24 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                     // Key by label only — detail churn was resetting cooldown and stacking voice.
                     let fp = format!("hard:{}", hit.label);
                     last_fingerprint = fp;
+                    let cfg = app.state::<AppState>().config.lock().clone();
+                    let nag_n = distraction_episode_nags(hit.label).saturating_add(1);
+                    let coach_line = local_judge::compose_coach_line(
+                        &cfg,
+                        "distracted",
+                        &goals,
+                        hit.label,
+                        &hit.detail,
+                        nag_n,
+                    )
+                    .await;
                     let result = CoachVisionResult {
                         on_task: false,
                         objects: vec![hit.label.into(), hit.detail.clone()],
                         distraction: Some(hit.label.into()),
                         needs_help: false,
                         stress_cue: last_vitals.stressed,
-                        coach_line: frontmost::distraction_coach_line(&hit),
+                        coach_line,
                         modality: Some("computer".into()),
                     };
                     apply_coach_tick(&app, &result, &mut last_vitals).await;
@@ -324,11 +349,12 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                         if on_task {
                             if was_distracted && switched {
                                 was_distracted = false;
-                                push_ephemeral(
-                                    &app,
-                                    "This looks study-related — good. Stay with the material.",
-                                    "encourage",
-                                );
+                                let cfg = app.state::<AppState>().config.lock().clone();
+                                let line = local_judge::compose_coach_line(
+                                    &cfg, "encourage", &goals, "", &info.summary(), 0,
+                                )
+                                .await;
+                                push_ephemeral(&app, &line, "encourage");
                             }
                             mark_local_on_task(&app, &info);
                         } else {
@@ -337,13 +363,24 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                                 detail: info.summary(),
                                 focused: true,
                             };
+                            let cfg = app.state::<AppState>().config.lock().clone();
+                            let nag_n = distraction_episode_nags(kind).saturating_add(1);
+                            let coach_line = local_judge::compose_coach_line(
+                                &cfg,
+                                "distracted",
+                                &goals,
+                                kind,
+                                &hit.detail,
+                                nag_n,
+                            )
+                            .await;
                             let result = CoachVisionResult {
                                 on_task: false,
                                 objects: vec![kind.into(), info.window_title.clone()],
                                 distraction: Some(kind.into()),
                                 needs_help: false,
                                 stress_cue: last_vitals.stressed,
-                                coach_line: frontmost::distraction_coach_line(&hit),
+                                coach_line,
                                 modality: Some("computer".into()),
                             };
                             apply_coach_tick(&app, &result, &mut last_vitals).await;
@@ -705,7 +742,7 @@ async fn run_gemini_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBoo
     tokio::time::sleep(Duration::from_secs(3)).await;
 
     while !stop.load(Ordering::SeqCst) {
-        let (active, goals, modality, remaining, already_distracted) = {
+        let (active, goals, modality, remaining, already_distracted, paused) = {
             let state = app.state::<AppState>();
             let guard = state.session.lock();
             match guard.as_ref() {
@@ -717,14 +754,19 @@ async fn run_gemini_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBoo
                         s.modality.clone(),
                         s.remaining_secs(),
                         matches!(s.status, SessionStatusKind::Distracted),
+                        s.paused,
                     )
                 }
-                _ => (false, String::new(), String::new(), 0, false),
+                _ => (false, String::new(), String::new(), 0, false, false),
             }
         };
 
         if !active || remaining <= 0 {
             break;
+        }
+        if paused {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            continue;
         }
 
         // Local loop already nags known distractions — skip vision to protect daily quota.
@@ -835,15 +877,22 @@ async fn run_presage_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBo
     let mut last_stress_prompt = chrono::Utc::now() - chrono::Duration::minutes(10);
 
     while !stop.load(Ordering::SeqCst) {
-        let active = {
+        let (active, paused) = {
             let state = app.state::<AppState>();
             let guard = state.session.lock();
-            guard
-                .as_ref()
-                .is_some_and(|s| s.active && s.id == session_id && s.remaining_secs() > 25)
+            match guard.as_ref() {
+                Some(s) if s.active && s.id == session_id && s.remaining_secs() > 25 => {
+                    (true, s.paused)
+                }
+                _ => (false, false),
+            }
         };
         if !active {
             break;
+        }
+        if paused {
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            continue;
         }
 
         let dir = match capture::temp_session_dir(&session_id) {
@@ -923,8 +972,8 @@ async fn upload_presage(app: &AppHandle, video_path: &std::path::Path) -> Option
     }
     let client = match PresageClient::from_config(&cfg) {
         Ok(c) => c,
-        Err(e) => {
-            let _ = app.emit("coach-error", e);
+        Err(_e) => {
+            let _ = app.emit("coach-error", "Wellness check unavailable right now.");
             return None;
         }
     };
@@ -932,7 +981,7 @@ async fn upload_presage(app: &AppHandle, video_path: &std::path::Path) -> Option
         Ok(id) => id,
         Err(e) => {
             tracing::warn!("presage upload: {e}");
-            let _ = app.emit("coach-error", format!("Presage upload failed: {e}"));
+            let _ = app.emit("coach-error", "Wellness check couldn’t start. Trying again later.");
             return None;
         }
     };
@@ -940,7 +989,7 @@ async fn upload_presage(app: &AppHandle, video_path: &std::path::Path) -> Option
         Ok(data) => Some(PresageClient::vitals_from_result(&data)),
         Err(e) => {
             tracing::warn!("presage retrieve: {e}");
-            let _ = app.emit("coach-error", format!("Presage reading timed out: {e}"));
+            let _ = app.emit("coach-error", "Wellness check timed out. Continuing without it.");
             None
         }
     }
@@ -1078,32 +1127,10 @@ async fn apply_coach_tick(
     };
 
     let mut prompt_text = result.coach_line.clone();
-    if !on_task {
-        if let Some(label) = social.or(distraction.as_deref()).and_then(static_distraction_label) {
-            // Prefer model line when it already named the video/context.
-            if prompt_text.trim().is_empty() || label != "youtube" {
-                prompt_text = frontmost::distraction_coach_line(&frontmost::DistractionHit {
-                    label,
-                    detail: label.to_string(),
-                    focused: true,
-                });
-            }
-        }
-    }
     if has_phone && !has_calc {
-        prompt_text =
-            "Phone out — that’s a distraction. Park it and get back to your lock-in goal.".into();
+        prompt_text.clear(); // force a fresh local line below
     } else if has_calc && on_task && prompt_text.to_lowercase().contains("phone") {
         prompt_text = "Calculator is fair game — keep working the problem.".into();
-    } else if !on_task && prompt_text.trim().is_empty() {
-        prompt_text = "This doesn’t look like your goal — switch back to the work.".into();
-    }
-
-    if (last_vitals.stressed || result.stress_cue)
-        && !prompt_text.to_lowercase().contains("breath")
-    {
-        prompt_text =
-            format!("{prompt_text} If shoulders are tight, take one slow breath, then continue.");
     }
 
     let wants_prompt = !on_task || result.needs_help || last_vitals.stressed || has_phone;
@@ -1120,12 +1147,45 @@ async fn apply_coach_tick(
         EPHEMERAL_FLOOR_SECS
     };
     let prompt = if wants_prompt && claim_ephemeral_slot_keyed(cooldown, Some(nag_key)) {
-        // Vary later reminders so the same Instagram line isn't copy-pasted.
-        let text = match distraction_episode_nags(nag_key) {
-            2 => format!("{prompt_text} Still seeing it — close it and return to your goal."),
-            3 => format!("Last nudge on this: {prompt_text}"),
-            _ => prompt_text,
+        let nag_n = distraction_episode_nags(nag_key).max(1);
+        let cfg = app.state::<AppState>().config.lock().clone();
+        let goals = app
+            .state::<AppState>()
+            .session
+            .lock()
+            .as_ref()
+            .map(|s| s.goals.clone())
+            .unwrap_or_default();
+        let kind = if has_phone && !has_calc {
+            "distracted"
+        } else if result.needs_help {
+            "encourage"
+        } else if on_task {
+            "on_task"
+        } else {
+            "distracted"
         };
+        let label = if has_phone && !has_calc {
+            "phone"
+        } else {
+            distraction.as_deref().or(social).unwrap_or("off-task")
+        };
+        let detail = result.objects.join(" · ");
+        let mut text = local_judge::freshen_coach_line(
+            &cfg,
+            &prompt_text,
+            kind,
+            &goals,
+            label,
+            &detail,
+            nag_n,
+        )
+        .await;
+        if (last_vitals.stressed || result.stress_cue)
+            && !text.to_lowercase().contains("breath")
+        {
+            text = format!("{text} One slow breath, then back to it.");
+        }
         Some(CoachPrompt {
             id: Uuid::new_v4().to_string(),
             at: chrono::Utc::now().to_rfc3339(),
@@ -1200,14 +1260,13 @@ fn push_ephemeral(app: &AppHandle, text: &str, kind: &str) {
 }
 
 fn deliver_ephemeral(app: &AppHandle, prompt: &CoachPrompt) {
-    // Cut any in-flight speech before starting a new line.
-    waypoint_voice::stop_speaking();
-    // Desktop popup only — do not leave a lasting trail in the session feed.
+    // Show the toast first — never wait on TTS teardown before the popup.
     overlay::show_prompt(app, prompt);
     let silent = app.state::<AppState>().silent_mode.load(Ordering::SeqCst);
     if silent {
         return;
     }
+    // `speak` cuts prior `say` processes itself (non-blocking).
     if let Err(e) = waypoint_voice::speak(&prompt.text) {
         tracing::warn!("voice speak: {e}");
     }

@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use parking_lot::Mutex;
 use serde::Serialize;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 use config::AppConfig;
 use gemini::{ChatMessage, GeminiClient};
@@ -31,6 +31,8 @@ pub struct AppState {
     pub chat_history: Mutex<Vec<ChatMessage>>,
     pub coach_stop: Mutex<Option<Arc<AtomicBool>>>,
     pub silent_mode: AtomicBool,
+    /// When the current pause began (UTC), if any.
+    pub pause_started: Mutex<Option<chrono::DateTime<chrono::Utc>>>,
 }
 
 #[derive(Serialize)]
@@ -51,6 +53,8 @@ struct SystemPermissions {
     screen_recording: bool,
     camera: bool,
     accessibility: bool,
+    /// `authorized` | `denied` | `restricted` | `notDetermined` | `unknown`
+    microphone: String,
 }
 
 #[tauri::command]
@@ -69,10 +73,14 @@ async fn get_system_permissions() -> Result<SystemPermissions, String> {
         Ok(Ok(_)) => true,
         _ => false,
     };
+    let microphone = tokio::task::spawn_blocking(waypoint_voice::microphone_permission_status)
+        .await
+        .unwrap_or_else(|_| "unknown".into());
     Ok(SystemPermissions {
         screen_recording,
         camera,
         accessibility,
+        microphone,
     })
 }
 
@@ -96,6 +104,19 @@ fn get_status(state: State<'_, AppState>) -> StatusPayload {
 async fn local_llm_status(state: State<'_, AppState>) -> Result<String, String> {
     let cfg = state.config.lock().clone();
     Ok(local_judge::status_line(&cfg).await)
+}
+
+#[derive(Serialize)]
+struct GeminiLiveStatus {
+    ok: bool,
+    detail: String,
+}
+
+#[tauri::command]
+async fn gemini_status(state: State<'_, AppState>) -> Result<GeminiLiveStatus, String> {
+    let cfg = state.config.lock().clone();
+    let (ok, detail) = gemini::probe_status(&cfg).await;
+    Ok(GeminiLiveStatus { ok, detail })
 }
 
 #[tauri::command]
@@ -237,6 +258,7 @@ async fn start_lock_in(
         return Err("Describe what you want to lock in on.".into());
     }
     coach::stop_coach(&app);
+    *state.pause_started.lock() = None;
     // Overlay is best-effort — never block starting the session.
     if let Err(e) = overlay::ensure_overlay(&app) {
         tracing::warn!("overlay setup: {e}");
@@ -296,8 +318,56 @@ async fn stop_lock_in(
     state: State<'_, AppState>,
 ) -> Result<Option<SessionSummary>, String> {
     coach::stop_coach(&app);
-    let summary = state.session.lock().as_ref().map(|s| s.summarize());
+    *state.pause_started.lock() = None;
+    let summary = {
+        let mut guard = state.session.lock();
+        let summary = guard.as_ref().map(|s| {
+            let mut s = s.clone();
+            s.active = false;
+            s.paused = false;
+            s.summarize()
+        });
+        *guard = None;
+        summary
+    };
     Ok(summary)
+}
+
+#[tauri::command]
+async fn set_lock_in_paused(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    paused: bool,
+) -> Result<LockInSession, String> {
+    let snap = {
+        let mut guard = state.session.lock();
+        let session = guard
+            .as_mut()
+            .filter(|s| s.active)
+            .ok_or_else(|| "No active mission to pause.".to_string())?;
+        if session.paused == paused {
+            return Ok(session.clone());
+        }
+        if paused {
+            session.paused = true;
+            *state.pause_started.lock() = Some(chrono::Utc::now());
+            session.watching_note = "On a break — tap Resume when you’re ready.".into();
+        } else {
+            if let Some(started) = state.pause_started.lock().take() {
+                let paused_secs = (chrono::Utc::now() - started).num_seconds().max(0);
+                if let Ok(ends) = chrono::DateTime::parse_from_rfc3339(&session.ends_at) {
+                    session.ends_at = (ends.with_timezone(&chrono::Utc)
+                        + chrono::Duration::seconds(paused_secs))
+                    .to_rfc3339();
+                }
+            }
+            session.paused = false;
+            session.watching_note = "Back on course — watching with you.".into();
+        }
+        session.clone()
+    };
+    let _ = app.emit("session-update", &snap);
+    Ok(snap)
 }
 
 #[tauri::command]
@@ -326,20 +396,20 @@ fn save_settings(state: State<'_, AppState>, settings: UserSettings) -> Result<(
 }
 
 /// Speak arbitrary text with the local TTS stand-in (macOS `say`).
+/// Waits until speech finishes so Settings “Test speak” can show a real success state.
 #[tauri::command]
 fn voice_speak(text: String) -> Result<(), String> {
-    waypoint_voice::speak(&text).map_err(|e| e.to_string())
+    waypoint_voice::speak_wait(&text).map_err(|e| e.to_string())
 }
 
-/// Record a short mic clip and run the stub STT pipeline (swap for Grok Voice later).
+/// Record a short mic clip and transcribe with macOS Speech (on-device when available).
 #[tauri::command]
 async fn voice_listen_test(
     seconds: Option<u64>,
 ) -> Result<waypoint_voice::Transcript, String> {
     let secs = seconds.unwrap_or(4);
     tokio::task::spawn_blocking(move || {
-        let stub = waypoint_voice::StubTranscriber;
-        waypoint_voice::listen_once(secs, &stub).map_err(|e| e.to_string())
+        waypoint_voice::listen_once_default(secs).map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| format!("voice listen task: {e}"))?
@@ -368,6 +438,7 @@ pub fn run() {
             chat_history: Mutex::new(Vec::new()),
             coach_stop: Mutex::new(None),
             silent_mode: AtomicBool::new(initial_settings.silent_mode),
+            pause_started: Mutex::new(None),
         })
         .setup(|app| {
             // Create overlay in the background so a window glitch can't delay first paint.
@@ -377,12 +448,23 @@ pub fn run() {
                     tracing::warn!("overlay setup: {e}");
                 }
             });
+            // Defer speech-helper compile — eager swiftc on launch starved coach TTS.
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(45)).await;
+                let result = tokio::task::spawn_blocking(waypoint_voice::warm_speech_helper).await;
+                match result {
+                    Ok(Ok(())) => tracing::info!("voice speech helper ready"),
+                    Ok(Err(e)) => tracing::warn!("voice speech helper warm-up: {e}"),
+                    Err(e) => tracing::warn!("voice speech helper warm-up join: {e}"),
+                }
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             get_status,
             get_system_permissions,
             local_llm_status,
+            gemini_status,
             sign_in_waypoint,
             sign_out_waypoint,
             connect_google,
@@ -392,6 +474,7 @@ pub fn run() {
             clear_chat,
             start_lock_in,
             stop_lock_in,
+            set_lock_in_paused,
             get_session,
             get_settings,
             save_settings,
