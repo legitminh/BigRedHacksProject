@@ -990,6 +990,83 @@
           </div>
         </div>
       </div>
+
+      <div
+        id="permission-handoff-modal"
+        class="mc-perm-modal"
+        hidden
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="permission-handoff-title"
+      >
+        <div class="mc-perm-modal__backdrop" data-perm-handoff-dismiss></div>
+        <div class="mc-perm-modal__card">
+          <p class="mc-perm-modal__badge">Permission handoff</p>
+          <h2 id="permission-handoff-title" class="mc-perm-modal__title">Allow camera signals?</h2>
+          <p class="mc-perm-modal__body">
+            Your browser asks to use your camera. Camera signals may inform a gentle check-in; they
+            never prove you’re distracted.
+          </p>
+          <div class="mc-perm-modal__actions">
+            <button
+              id="permission-handoff-not-now"
+              class="mc-perm-modal__btn mc-perm-modal__btn--secondary"
+              type="button"
+              data-perm-handoff-dismiss
+            >
+              Not now
+            </button>
+            <button
+              id="permission-handoff-continue"
+              class="mc-perm-modal__btn mc-perm-modal__btn--primary"
+              type="button"
+            >
+              Continue
+            </button>
+          </div>
+          <p class="mc-perm-modal__foot">
+            Nothing is recorded. You can turn this input off at any time from your mission controls.
+          </p>
+        </div>
+      </div>
+
+      <div
+        id="permission-denied-modal"
+        class="mc-perm-modal"
+        hidden
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="permission-denied-title"
+      >
+        <div class="mc-perm-modal__backdrop" data-perm-denied-dismiss></div>
+        <div class="mc-perm-modal__card">
+          <p class="mc-perm-modal__badge">Input remains off</p>
+          <h2 id="permission-denied-title" class="mc-perm-modal__title">
+            You’re still cleared for launch.
+          </h2>
+          <p class="mc-perm-modal__body">
+            Permission wasn’t granted, so the input stays off. Your mission works just as well
+            without it.
+          </p>
+          <div class="mc-perm-modal__actions">
+            <button
+              id="permission-denied-setup"
+              class="mc-perm-modal__btn mc-perm-modal__btn--primary"
+              type="button"
+            >
+              Back to setup
+            </button>
+            <button
+              id="permission-denied-settings"
+              class="mc-perm-modal__btn mc-perm-modal__btn--secondary"
+              type="button"
+            >
+              View settings
+            </button>
+          </div>
+          <p class="mc-perm-modal__foot">Denied access never blocks starting a mission.</p>
+        </div>
+      </div>
     </div>
   </body>
 </html>

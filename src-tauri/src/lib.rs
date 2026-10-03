@@ -89,6 +89,18 @@ async fn get_system_permissions() -> Result<SystemPermissions, String> {
     })
 }
 
+/// User-initiated camera handoff (Figma 17 Continue) — longer timeout than lock-in probe.
+#[tauri::command]
+async fn request_camera_permission() -> Result<bool, String> {
+    if capture::camera::permission_granted() {
+        return Ok(true);
+    }
+    match capture::camera::request_permission_timeout(std::time::Duration::from_secs(60)).await {
+        Ok(()) => Ok(true),
+        Err(_) => Ok(false),
+    }
+}
+
 #[derive(serde::Deserialize)]
 struct GoogleStatusBody {
     google_connected: bool,
@@ -921,6 +933,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_status,
             get_system_permissions,
+            request_camera_permission,
             local_llm_status,
             gemini_status,
             sign_in_waypoint,

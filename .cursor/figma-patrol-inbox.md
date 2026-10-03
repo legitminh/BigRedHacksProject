@@ -693,7 +693,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     + suggest chip. Do not re-show next-step while listening.
 - escalate: scrutinous
 
-## open: fp-permission-handoff-modal
+## done: fp-permission-handoff-modal
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49`
 - deviation: |
@@ -707,8 +707,14 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When enabling camera/screen from setup or settings, show the Figma handoff modal first;
     Continue proceeds to existing permission request; Not now cancels without prompting OS.
 - escalate: scrutinous
+- commit: PENDING
+- change: |
+    Thin `#permission-handoff-modal` shell before OS camera prompt when enabling
+    `#lockin-camera` / `#setting-camera-signals`; Continue → `request_camera_permission`;
+    Not now cancels. Camera-specific live copy (not stale layer name). YOUR CHOICE page
+    still open (`fp-permissions-choice-surface`).
 
-## open: fp-permission-denied-modal
+## done: fp-permission-denied-modal
 - screen: overlay
 - ref: `.cursor/figma-refs/18-permission-denied.png` · live `2:50`
 - deviation: |
@@ -721,6 +727,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     On camera/screen deny after handoff Continue, present the Figma denied modal; Back to setup →
     `#view-lockin`; View settings → Permissions tab. Do not block Launch.
 - escalate: scrutinous
+- commit: PENDING
+- change: |
+    Thin `#permission-denied-modal` after handoff Continue deny; Back to setup →
+    `#view-lockin`; View settings → Permissions tab; Launch never blocked.
 
 ## verified: fp-session-composer-in-pill
 - screen: active
@@ -1526,7 +1536,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `#session-copilot-suggest` (e.g. `is-session-checkin`); restore on
     dismiss. Keep Pause/End. Pair with panel swap opens.
 - escalate: scrutinous
-- commit: 9fcd851
+- commit: 57c9d92
 - change: |
     `#view-session.is-session-checkin` hides `#session-next-step` +
     `#session-copilot-suggest`; toggled via global `overlay-prompt` /
@@ -1553,7 +1563,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     on Keep working / after End. Keep Pause/End wiring; pair with modal
     opens.
 - escalate: scrutinous
-- commit: 9fcd851
+- commit: 57c9d92
 - change: |
     `#view-session.is-session-ending` hides `#session-next-step` only
     (suggest stays); toggled around native `window.confirm` on `#end-session`
@@ -1599,13 +1609,13 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Settings; do not block Launch.
 - escalate: scrutinous
 
-## open: fp-permission-denied-body-copy
+## done: fp-permission-denied-body-copy
 - screen: overlay
 - ref: `.cursor/figma-refs/18-permission-denied.png` · live `2:50` ·
   body `7:502` · footer `7:510`
 - expected: |
     Live 18 denied modal body: “Permission wasn’t granted, so the input
-    stays off. Your mission will still work without it.” Footer:
+    stays off. Your mission works just as well without it.” Footer:
     “Denied access never blocks starting a mission.” CTAs
     “Back to setup” + “View settings”; badge “INPUT REMAINS OFF”;
     title “You’re still cleared for launch.”
@@ -1620,3 +1630,121 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When building the denied modal, use the live body + footer verbatim;
     Back to setup → `#view-lockin`; View settings → Permissions tab.
 - escalate: scrutinous
+- commit: PENDING
+- change: |
+    Denied modal uses live `7:502` / `7:510` body + footer (works just as
+    well); expected above refreshed off stale “will still work”.
+
+## done: fp-permission-handoff-camera-copy
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  title `7:418` · body `7:419` · footer `7:427`
+- expected: |
+    Live 17 modal (design_context): badge “PERMISSION HANDOFF”; title
+    “Allow camera signals?”; body “Your browser asks to use your camera.
+    Camera signals may inform a gentle check-in; they never prove you’re
+    distracted.”; Not now + Continue; footer “Nothing is recorded. You can
+    turn this input off at any time from your mission controls.”
+    (Layer/frame name still “Share an optional input?” — stale; visible
+    text is camera-specific.)
+- actual: |
+    Open `fp-permission-handoff-modal` still expects generic title “Share
+    an optional input?” + browser camera/screen body + “next step is the
+    native prompt” footer. App has no handoff modal.
+- deviation: |
+    Live 17 copy moved to camera-specific title/body/footer. Distinct from
+    screen-share frame 27 (`fp-screen-share-permission-modal`) and from
+    the YOUR CHOICE page shell (`fp-permissions-choice-surface`).
+- fix_hint: |
+    When building camera handoff, use live `7:418`/`7:419`/`7:427`
+    verbatim (not the stale layer name). Keep Not now / Continue wiring.
+- escalate: scrutinous
+- commit: PENDING
+- change: |
+    Handoff modal uses live camera title/body/footer (`7:418`/`7:419`/
+    `7:427`); badge PERMISSION HANDOFF; Not now · Continue.
+
+## done: fp-permission-denied-works-copy
+- screen: overlay
+- ref: `.cursor/figma-refs/18-permission-denied.png` · live `2:50` ·
+  body `7:502`
+- expected: |
+    Live 18 body (design_context `7:502`): “Permission wasn’t granted, so
+    the input stays off. Your mission works just as well without it.”
+- actual: |
+    Open `fp-permission-denied-body-copy` expected “Your mission will
+    still work without it.” — wrong closer vs live. App has no denied
+    surface yet.
+- deviation: |
+    Exact second sentence is “works just as well”, not “will still work”.
+    Complements shell `fp-permission-denied-modal`; supersedes stale
+    expected in `fp-permission-denied-body-copy`.
+- fix_hint: |
+    Use live `7:502` verbatim when building the denied modal body.
+- escalate: scrutinous
+- commit: PENDING
+- change: |
+    Denied body uses live “works just as well without it.” (`7:502`).
+
+## open: fp-timer-replace-mission-timer-copy
+- screen: active
+- ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` ·
+  body `6:1566`
+- expected: |
+    Live 15 body (design_context): “Your current timer has {m:ss} left.
+    Replace it with a new five-minute timer? Your mission timer keeps
+    running.”
+- actual: |
+    Open `fp-timer-replace-keeps-running` expected closer “Your mission
+    keeps running.” — missing the word “timer”. App has no replace modal
+    (`fp-timer-replace-modal`).
+- deviation: |
+    Exact closer is “Your mission timer keeps running.” Supersedes
+    paraphrase in `fp-timer-replace-keeps-running`; pairs with
+    `fp-timer-replace-body-copy` remaining-time sentence.
+- fix_hint: |
+    Modal body template: remaining-time + replace question + “ Your
+    mission timer keeps running.”
+- escalate: scrutinous
+
+## open: fp-timer-replace-keeps-next-step
+- screen: active
+- ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47`
+- expected: |
+    Live 15 under scrim: flight dashboard height 714 — Secondary timer
+    (“◷  NEXT STEP TIMER” / 04:32) STAYS visible; suggest chip “Set a
+    five-minute timer” STAYS. Mission in progress + Pause/End unchanged.
+- actual: |
+    No replace modal yet. End-confirm / check-in / break / listening /
+    relaunch / connection-lost hide next-step (662 chrome). Risk: fixer
+    copies that hide pattern onto timer-replace.
+- deviation: |
+    Timer-replace must NOT hide `#session-next-step` or suggest (opposite
+    of `fp-end-confirm-hides-next-step` / check-in chrome). Distinct from
+    modal shell/copy opens.
+- fix_hint: |
+    When showing the replace modal, leave next-step + suggest mounted;
+    do not toggle `is-session-ending` / break / check-in hide classes.
+- escalate: scrutinous
+
+## done: fp-permission-denied-cta-primary
+- screen: overlay
+- ref: `.cursor/figma-refs/18-permission-denied.png` · live `2:50` ·
+  CTAs `7:504` / `7:507`
+- expected: |
+    Live 18 actions: LEFT “Back to setup” is filled primary (M3 enabled
+    button); RIGHT “View settings” is tonal/raised lavender secondary.
+- actual: |
+    Open denied shell/body opens list both CTAs but do not lock which is
+    filled. App has no denied modal.
+- deviation: |
+    CTA hierarchy vs live — Back to setup primary, View settings
+    secondary. Complements `fp-permission-denied-modal`.
+- fix_hint: |
+    Style Back to setup as filled purple primary; View settings as
+    lavender secondary. Wire → `#view-lockin` / Permissions tab.
+- escalate: none
+- commit: PENDING
+- change: |
+    Left “Back to setup” filled primary; right “View settings” lavender
+    secondary; wired to setup / Permissions tab.

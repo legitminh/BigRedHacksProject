@@ -568,11 +568,18 @@ async function submitWelcomeGoogle() {
       );
     }
   } catch (e) {
+    const raw =
+      typeof e === "string"
+        ? e
+        : e && typeof e === "object" && "message" in e
+          ? String((e as { message: unknown }).message)
+          : String(e);
+    const nice = raw.replace(/^Error:\s*/i, "").trim() || "Google sign-in failed.";
     if (err) {
       err.hidden = false;
-      err.textContent = String(e);
+      err.textContent = nice;
     } else {
-      alert(String(e));
+      alert(nice);
     }
     if (btn) {
       btn.disabled = false;
@@ -1697,13 +1704,13 @@ function renderSession(session: LockInSession) {
     .catch(() => {});
 }
 
-async function openSettings() {
+async function openSettings(tab = "lockin") {
   if (!appUnlocked) {
     show("view-home");
     return;
   }
   show("view-settings");
-  selectSettingsTab("lockin");
+  selectSettingsTab(tab);
   try {
     const settings = await invoke<UserSettings>("get_settings");
     syncSilentModeInputs(Boolean(settings.silent_mode));
@@ -1717,6 +1724,83 @@ async function openSettings() {
   } catch (err) {
     console.error(err);
   }
+}
+
+type CameraHandoffSource = "setup" | "settings";
+
+function setCameraToggleChecked(on: boolean) {
+  const setup = $("#lockin-camera") as HTMLInputElement | null;
+  const settings = $("#setting-camera-signals") as HTMLInputElement | null;
+  if (setup) setup.checked = on;
+  if (settings) settings.checked = on;
+  writeBoolPref(PREF_CAMERA_SIGNALS, on);
+  syncSessionSignalPills();
+}
+
+function showPermissionHandoffModal(_source: CameraHandoffSource) {
+  const modal = $("#permission-handoff-modal");
+  if (modal) modal.hidden = false;
+}
+
+function hidePermissionHandoffModal() {
+  const modal = $("#permission-handoff-modal");
+  if (modal) modal.hidden = true;
+}
+
+function showPermissionDeniedModal() {
+  const modal = $("#permission-denied-modal");
+  if (modal) modal.hidden = false;
+}
+
+function hidePermissionDeniedModal() {
+  const modal = $("#permission-denied-modal");
+  if (modal) modal.hidden = true;
+}
+
+async function continueCameraHandoff() {
+  const continueBtn = $("#permission-handoff-continue") as HTMLButtonElement | null;
+  if (continueBtn) continueBtn.disabled = true;
+  try {
+    const granted = await invoke<boolean>("request_camera_permission");
+    hidePermissionHandoffModal();
+    if (granted) {
+      setCameraToggleChecked(true);
+      void renderPermissionsStatus();
+    } else {
+      setCameraToggleChecked(false);
+      showPermissionDeniedModal();
+    }
+  } catch (err) {
+    console.error(err);
+    hidePermissionHandoffModal();
+    setCameraToggleChecked(false);
+    showPermissionDeniedModal();
+  } finally {
+    if (continueBtn) continueBtn.disabled = false;
+  }
+}
+
+function cancelCameraHandoff() {
+  hidePermissionHandoffModal();
+  setCameraToggleChecked(false);
+}
+
+function wireCameraPermissionHandoff(inputId: string, source: CameraHandoffSource) {
+  $(`#${inputId}`)?.addEventListener("change", (event) => {
+    const input = event.target as HTMLInputElement;
+    if (!input.checked) {
+      writeBoolPref(PREF_CAMERA_SIGNALS, false);
+      const other =
+        source === "setup"
+          ? ($("#setting-camera-signals") as HTMLInputElement | null)
+          : ($("#lockin-camera") as HTMLInputElement | null);
+      if (other) other.checked = false;
+      return;
+    }
+    // Defer OS prompt until Continue — leave toggle off until granted.
+    input.checked = false;
+    showPermissionHandoffModal(source);
+  });
 }
 
 function selectSettingsTab(tab: string) {
@@ -2579,10 +2663,8 @@ async function bootApp() {
   $("#setting-silent-mode")?.addEventListener("change", () => {
     void persistSilentMode();
   });
-  $("#setting-camera-signals")?.addEventListener("change", (event) => {
-    const input = event.target as HTMLInputElement;
-    writeBoolPref(PREF_CAMERA_SIGNALS, input.checked);
-  });
+  wireCameraPermissionHandoff("lockin-camera", "setup");
+  wireCameraPermissionHandoff("setting-camera-signals", "settings");
   $("#setting-screen-sharing")?.addEventListener("change", (event) => {
     const input = event.target as HTMLInputElement;
     writeBoolPref(PREF_SCREEN_SHARING, input.checked);
@@ -2604,6 +2686,27 @@ async function bootApp() {
   $("#permissions-refresh")?.addEventListener("click", () => {
     void renderPermissionsStatus();
   });
+  $("#permission-handoff-modal")
+    ?.querySelectorAll("[data-perm-handoff-dismiss]")
+    .forEach((el) => {
+      el.addEventListener("click", () => cancelCameraHandoff());
+    });
+  $("#permission-handoff-continue")?.addEventListener("click", () => {
+    void continueCameraHandoff();
+  });
+  $("#permission-denied-setup")?.addEventListener("click", () => {
+    hidePermissionDeniedModal();
+    show("view-lockin");
+  });
+  $("#permission-denied-settings")?.addEventListener("click", () => {
+    hidePermissionDeniedModal();
+    void openSettings("permissions");
+  });
+  $("#permission-denied-modal")
+    ?.querySelectorAll("[data-perm-denied-dismiss]")
+    .forEach((el) => {
+      el.addEventListener("click", () => hidePermissionDeniedModal());
+    });
   const deleteModal = $("#delete-data-modal");
   const deleteResult = $("#delete-data-result");
   const closeDeleteModal = () => {
