@@ -251,19 +251,26 @@ function refreshSummaryCopilotNote(): void {
   );
 }
 
-function updateSummaryCelebration(summary: SessionSummary, firstFlight: boolean): void {
+function updateSummaryCelebration(
+  summary: SessionSummary,
+  firstFlight: boolean,
+  endedEarly = false,
+): void {
   const block = $("#summary-celebration");
   if (!block) return;
   block.classList.remove(
     "mission-celebration--quest",
     "mission-celebration--first-flight",
+    "mission-celebration--flight-logged",
     "mission-celebration--enter",
   );
   void block.offsetWidth;
-  block.classList.add(
-    firstFlight ? "mission-celebration--first-flight" : "mission-celebration--quest",
-    "mission-celebration--enter",
-  );
+  const mode = firstFlight
+    ? "first-flight"
+    : endedEarly
+      ? "flight-logged"
+      : "quest";
+  block.classList.add(`mission-celebration--${mode}`, "mission-celebration--enter");
   const badge = $("#summary-celebration-badge");
   const title = $("#summary-celebration-title");
   const sub = $("#summary-celebration-sub");
@@ -272,6 +279,10 @@ function updateSummaryCelebration(summary: SessionSummary, firstFlight: boolean)
     if (badge) badge.textContent = "✦  FIRST FLIGHT";
     if (title) title.textContent = "One mission. Well done.";
     if (sub) sub.textContent = goalLine || "Your first personal best is on the board.";
+  } else if (endedEarly) {
+    if (badge) badge.textContent = "✦  FLIGHT LOGGED";
+    if (title) title.textContent = "Every flight moves you forward.";
+    if (sub) sub.textContent = goalLine || "Mission ended — your debrief is below.";
   } else {
     if (badge) badge.textContent = "✓  QUEST COMPLETE";
     if (title) title.textContent = "One mission. Well done.";
@@ -279,14 +290,14 @@ function updateSummaryCelebration(summary: SessionSummary, firstFlight: boolean)
   }
 }
 
-function showSummaryWithCelebration(summary: SessionSummary): void {
+function showSummaryWithCelebration(summary: SessionSummary, endedEarly = false): void {
   const firstFlight = onMissionCompleted(summary, summary.duration_secs);
   lastSummaryPersonalBest = recordLongestFlight(flightMinutesFromSecs(summary.duration_secs));
   lastSummaryRelaunches = consumeRelaunchFlag();
   lastSummaryObjective = "finished";
   resetObjectiveButtons();
   renderSummary(summary);
-  updateSummaryCelebration(summary, firstFlight);
+  updateSummaryCelebration(summary, firstFlight, endedEarly);
   show("view-summary");
 }
 
@@ -916,7 +927,7 @@ async function retryChatAssistant(userMessage: string, bubble: HTMLElement) {
 }
 
 function appendSessionChat(
-  role: "user" | "assistant",
+  role: "user" | "assistant" | "system",
   content: string,
   meta?: string,
 ) {
@@ -928,7 +939,12 @@ function appendSessionChat(
   const kicker = document.createElement("p");
   kicker.className = "session-chat-meta";
   kicker.textContent =
-    meta ?? (role === "user" ? "YOU · JUST NOW" : "COPILOT · JUST NOW");
+    meta ??
+    (role === "user"
+      ? "YOU · JUST NOW"
+      : role === "system"
+        ? "AT LAUNCH"
+        : "COPILOT · JUST NOW");
   const bubble = document.createElement("div");
   bubble.className = `bubble ${role}`;
   bubble.textContent = content;
@@ -936,6 +952,29 @@ function appendSessionChat(
   log.appendChild(turn);
   log.scrollTop = log.scrollHeight;
   return bubble;
+}
+
+let seededAtLaunchSessionId: string | null = null;
+
+function formatAtLaunchMissionLine(goals: string, durationSecs: number): string {
+  const goalLine =
+    goals.trim().split("\n")[0]?.trim().replace(/\.$/, "") || "your objective";
+  const missionGoal =
+    goalLine.charAt(0).toLowerCase() + goalLine.slice(1);
+  const mins = Math.max(1, Math.round(durationSecs / 60));
+  return `Your mission is to ${missionGoal}. You have ${mins} minutes.`;
+}
+
+function ensureSessionAtLaunchSeed(session: LockInSession): void {
+  if (seededAtLaunchSessionId === session.id) return;
+  seededAtLaunchSessionId = session.id;
+  const log = $("#session-chat-log");
+  if (log) log.innerHTML = "";
+  appendSessionChat(
+    "system",
+    formatAtLaunchMissionLine(session.goals, session.duration_secs),
+    "AT LAUNCH",
+  );
 }
 
 async function dispatchChatMessage(
@@ -1273,6 +1312,7 @@ function renderSession(session: LockInSession) {
   syncSessionSignalPills();
   renderVitals(session.vitals);
   renderSessionCoachLog(session.prompts);
+  ensureSessionAtLaunchSeed(session);
   onMissionStarted(session.duration_secs);
   refreshSessionFlight();
   updateSessionOrbitPersonalBest();
@@ -1919,7 +1959,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       const summary = await invoke<SessionSummary | null>("stop_lock_in");
       syncPauseControls(false);
       if (summary) {
-        showSummaryWithCelebration(summary);
+        showSummaryWithCelebration(summary, true);
       } else {
         show("view-home");
       }

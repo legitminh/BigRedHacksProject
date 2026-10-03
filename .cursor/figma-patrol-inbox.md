@@ -375,12 +375,14 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: Dropped ✦ / `mc-kicker--star` from first-flight hero kicker; plain “YOUR FIRST MISSION”.
 - verified: 2026-10-03T14:32:29-04:00
 
-## open: fp-session-at-launch-seed
+## done: fp-session-at-launch-seed
 - screen: active
 - ref: `.cursor/figma-refs/06-mission-active.png`
 - deviation: Session copilot log empty state is muted helper copy; Figma seeds an “AT LAUNCH” system message stating the mission objective and time limit before any user chat.
 - fix_hint: Seed an AT LAUNCH row in `#session-chat-log` when a mission starts (reuse goal + duration); keep empty helper for pre-start if needed.
 - escalate: none
+- commit: 597a693
+- change: Seed `#session-chat-log` with AT LAUNCH system row (goal + duration) once per mission via `ensureSessionAtLaunchSeed`.
 
 ## done: fp-welcome-hero-body-plus
 - screen: welcome
@@ -508,7 +510,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     If a next-step timer is active with remaining time, show an MC-styled modal matching Figma 15 before calling `startNextStepTimer(300)`; Keep current dismisses.
 - escalate: none
 
-## open: fp-summary-flight-logged
+## done: fp-summary-flight-logged
 - screen: summary
 - ref: `.cursor/figma-refs/13---Flight-logged.svg` · also `21---Ended-early---reflection.svg`
 - deviation: |
@@ -517,4 +519,6 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - fix_hint: |
     Add a flight-logged celebration branch (badge + title + optional ended-early helper under objective choices) when ending early / not marking quest complete; keep quest-complete + first-flight paths.
 - escalate: none
+- commit: 597a693
+- change: Early End uses ✦ FLIGHT LOGGED / “Every flight moves you forward.”; timer-complete keeps QUEST COMPLETE; first-flight unchanged.
 

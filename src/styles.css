@@ -3337,6 +3337,10 @@ body:has(.view-mission-setup.active) .grain {
   align-items: flex-end;
 }
 
+.session-chat-turn--system {
+  align-items: flex-start;
+}
+
 .session-chat-meta {
   margin: 0;
   font-size: 0.62rem;
@@ -3352,7 +3356,8 @@ body:has(.view-mission-setup.active) .grain {
   font-size: 0.9rem;
 }
 
-.session-copilot-log .bubble.user {
+.session-copilot-log .bubble.user,
+.session-copilot-log .bubble.system {
   background: transparent;
   color: var(--mc-text-primary);
   align-self: stretch;
