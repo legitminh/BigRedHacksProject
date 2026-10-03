@@ -1505,7 +1505,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `fp-connection-lost-body-copy`.
 - escalate: scrutinous
 
-## open: fp-gentle-checkin-hides-session-chrome
+## done: fp-gentle-checkin-hides-session-chrome
 - screen: active
 - ref: `.cursor/figma-refs/08-gentle-check-in.png` · live `2:40`
 - expected: |
@@ -1526,8 +1526,13 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `#session-copilot-suggest` (e.g. `is-session-checkin`); restore on
     dismiss. Keep Pause/End. Pair with panel swap opens.
 - escalate: scrutinous
+- commit: 9fcd851
+- change: |
+    `#view-session.is-session-checkin` hides `#session-next-step` +
+    `#session-copilot-suggest`; toggled via global `overlay-prompt` /
+    `overlay-clear` (+ toast-duration timeout). Caption/Pause/End unchanged.
 
-## open: fp-end-confirm-hides-next-step
+## done: fp-end-confirm-hides-next-step
 - screen: active
 - ref: `.cursor/figma-refs/11-end-confirmation.png` · live `2:43`
 - expected: |
@@ -1548,6 +1553,11 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     on Keep working / after End. Keep Pause/End wiring; pair with modal
     opens.
 - escalate: scrutinous
+- commit: 9fcd851
+- change: |
+    `#view-session.is-session-ending` hides `#session-next-step` only
+    (suggest stays); toggled around native `window.confirm` on `#end-session`
+    until MC end modal lands. Full modal deferred (`fp-end-confirm-figma-modal`).
 
 ## open: fp-timer-replace-keeps-running
 - screen: active

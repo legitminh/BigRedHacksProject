@@ -1537,6 +1537,27 @@ function setSessionListeningUi(listening: boolean) {
   $("#view-session")?.classList.toggle("is-session-listening", listening);
 }
 
+/** Match overlay.ts toast: 6500ms visible + 280ms leave animation. */
+const SESSION_CHECKIN_HIDE_MS = 6780;
+let sessionCheckinHideTimer: number | undefined;
+
+function setSessionCheckinUi(active: boolean) {
+  $("#view-session")?.classList.toggle("is-session-checkin", active);
+  if (sessionCheckinHideTimer) {
+    window.clearTimeout(sessionCheckinHideTimer);
+    sessionCheckinHideTimer = undefined;
+  }
+  if (active) {
+    sessionCheckinHideTimer = window.setTimeout(() => {
+      setSessionCheckinUi(false);
+    }, SESSION_CHECKIN_HIDE_MS);
+  }
+}
+
+function setSessionEndingUi(ending: boolean) {
+  $("#view-session")?.classList.toggle("is-session-ending", ending);
+}
+
 function formatVitals(vitals?: VitalsSnapshot | null): string {
   if (!vitals || (!vitals.raw_summary && vitals.source !== "presage" && vitals.source !== "fallback")) {
     return "Running quietly in the background (not required to lock in)";
@@ -2392,7 +2413,14 @@ async function bootApp() {
   $("#end-session")?.addEventListener("click", async () => {
     const btn = $("#end-session") as HTMLButtonElement | null;
     if (btn?.disabled) return;
-    if (!window.confirm("End this mission? Screen watching will stop.")) {
+    // Native confirm for now — hide next-step to match live 11 underlying chrome.
+    setSessionEndingUi(true);
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+    const confirmed = window.confirm("End this mission? Screen watching will stop.");
+    setSessionEndingUi(false);
+    if (!confirmed) {
       return;
     }
     if (btn) btn.disabled = true;
@@ -2402,6 +2430,7 @@ async function bootApp() {
       stopTimer();
       const summary = await invoke<SessionSummary | null>("stop_lock_in");
       syncPauseControls(false);
+      setSessionCheckinUi(false);
       if (summary) {
         showSummaryWithCelebration(summary, true);
       } else {
@@ -2669,12 +2698,16 @@ async function bootApp() {
     syncMissionTimer(event.payload);
   });
   await listen<VitalsSnapshot>("vitals-update", (event) => renderVitals(event.payload));
+  await listen("overlay-prompt", () => setSessionCheckinUi(true));
+  await listen("overlay-clear", () => setSessionCheckinUi(false));
   await listen<string>("coach-error", (event) => {
     const note = $("#session-watch-note");
     if (note) note.textContent = `Wellness check: ${event.payload}`;
   });
   await listen<SessionSummary>("session-ended", (event) => {
     stopTimer();
+    setSessionCheckinUi(false);
+    setSessionEndingUi(false);
     showSummaryWithCelebration(event.payload);
   });
 

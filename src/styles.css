@@ -3860,11 +3860,14 @@ body:has(.view-session.active) .grain {
 }
 
 #view-session.is-session-listening #session-next-step,
-#view-session.is-session-break #session-next-step {
+#view-session.is-session-break #session-next-step,
+#view-session.is-session-checkin #session-next-step,
+#view-session.is-session-ending #session-next-step {
   display: none;
 }
 
-#view-session.is-session-break #session-copilot-suggest {
+#view-session.is-session-break #session-copilot-suggest,
+#view-session.is-session-checkin #session-copilot-suggest {
   display: none;
 }
 
