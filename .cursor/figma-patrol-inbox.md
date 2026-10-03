@@ -2746,7 +2746,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     wiring (aria can say live voice). Do not use “Talk” on Copilot tab.
     Preserve Send ↑ + chip wiring.
 - escalate: scrutinous
-- commit: PENDING
+- commit: c00ab73
 - change: |
     `#chat-mic` idle/live label → “Mic” (HTML + `applyMicLiveUi(..., "Mic",
     { stickyLabel: true })`); Live start/end wiring kept; session Talk unchanged.
@@ -2772,7 +2772,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     in aria/title or Settings Voice — not this hint. Leave responses-foot
     as its own open.
 - escalate: scrutinous
-- commit: PENDING
+- commit: c00ab73
 - change: |
     `#chat-hint` idle → live `5:256` Enter/mic sentence; temporary Live
     status hints still ok and restore idle copy when Live ends.
@@ -2794,7 +2794,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Restore `.copilot-responses-foot` to live Responses/Audio sentence;
     document Live elsewhere if needed. Keep Mic/Send wiring.
 - escalate: scrutinous
-- commit: PENDING
+- commit: c00ab73
 - change: |
     `.copilot-responses-foot` → live `5:257` “Responses always appear as
     text. Audio is yours to turn on.”
@@ -2821,7 +2821,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     feedback, use presence/hint — not non-Figma mic fills/labels. Keep
     end-Live click wiring.
 - escalate: scrutinous
-- commit: PENDING
+- commit: c00ab73
 - change: |
     Copilot `.copilot-mic.is-*` stays tonal `#e9ddfd` + “Mic”; session
     Talk phase fills kept; listening sets `#chat-input` placeholder to
