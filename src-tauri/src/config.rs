@@ -8,6 +8,9 @@ struct EmbeddedSecrets {
     presage_api_key: String,
     google_client_id: String,
     google_client_secret: String,
+    local_llm_base: String,
+    local_llm_model: String,
+    local_vision_model: String,
 }
 
 fn parse_toml_secrets(raw: &str) -> EmbeddedSecrets {
@@ -32,6 +35,9 @@ fn parse_toml_secrets(raw: &str) -> EmbeddedSecrets {
             "presage_api_key" => out.presage_api_key = value,
             "google_client_id" => out.google_client_id = value,
             "google_client_secret" => out.google_client_secret = value,
+            "local_llm_base" => out.local_llm_base = value,
+            "local_llm_model" => out.local_llm_model = value,
+            "local_vision_model" => out.local_vision_model = value,
             _ => {}
         }
     }
@@ -58,6 +64,12 @@ pub struct AppConfig {
     pub presage_api_key: Option<String>,
     pub google_client_id: Option<String>,
     pub google_client_secret: Option<String>,
+    /// Ollama (or compatible) base URL for on-device on-task judgment.
+    pub local_llm_base: String,
+    pub local_llm_model: String,
+    /// Tiny multimodal model for rare screenshot checks (e.g. moondream).
+    pub local_vision_model: String,
+    pub local_llm_enabled: bool,
     pub data_dir: PathBuf,
 }
 
@@ -92,6 +104,47 @@ impl AppConfig {
                 }
             });
 
+        let local_llm_base = env::var("LOCAL_LLM_BASE")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                if baked.local_llm_base.is_empty() {
+                    None
+                } else {
+                    Some(baked.local_llm_base.clone())
+                }
+            })
+            .unwrap_or_else(|| "http://127.0.0.1:11434".into());
+
+        let local_llm_model = env::var("LOCAL_LLM_MODEL")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                if baked.local_llm_model.is_empty() {
+                    None
+                } else {
+                    Some(baked.local_llm_model.clone())
+                }
+            })
+            .unwrap_or_else(|| "qwen2.5:0.5b".into());
+
+        let local_vision_model = env::var("LOCAL_VISION_MODEL")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                if baked.local_vision_model.is_empty() {
+                    None
+                } else {
+                    Some(baked.local_vision_model.clone())
+                }
+            })
+            .unwrap_or_else(|| "moondream".into());
+
+        let local_llm_enabled = env::var("LOCAL_LLM_ENABLED")
+            .ok()
+            .map(|v| !matches!(v.to_lowercase().as_str(), "0" | "false" | "off" | "no"))
+            .unwrap_or(true);
+
         Self {
             gemini_api_key: first_nonempty(&[
                 env::var("GEMINI_API_KEY").ok(),
@@ -110,6 +163,10 @@ impl AppConfig {
                 env::var("GOOGLE_CLIENT_SECRET").ok(),
                 Some(baked.google_client_secret),
             ]),
+            local_llm_base,
+            local_llm_model,
+            local_vision_model,
+            local_llm_enabled,
             data_dir,
         }
     }

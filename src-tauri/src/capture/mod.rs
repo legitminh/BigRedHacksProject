@@ -1,4 +1,6 @@
 pub mod camera;
+pub mod frontmost;
+pub mod ocr;
 pub mod screen;
 
 use std::path::{Path, PathBuf};
@@ -25,6 +27,7 @@ pub fn temp_session_dir(session_id: &str) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+#[allow(dead_code)]
 pub fn save_jpeg(dir: &Path, label: &str, jpeg: &[u8]) -> Result<PathBuf, String> {
     let ts = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -35,22 +38,31 @@ pub fn save_jpeg(dir: &Path, label: &str, jpeg: &[u8]) -> Result<PathBuf, String
     Ok(path)
 }
 
-/// Encode recent JPEGs into a short mp4 via ffmpeg when available.
-pub fn encode_clip_from_jpegs(jpeg_paths: &[PathBuf], out_mp4: &Path) -> Result<(), String> {
+/// Encode JPEG frames into an mp4 via ffmpeg. Presage wants >10 fps.
+pub fn encode_clip_from_jpegs(
+    jpeg_paths: &[PathBuf],
+    out_mp4: &Path,
+    fps: u32,
+) -> Result<(), String> {
     if jpeg_paths.is_empty() {
         return Err("no frames to encode".into());
     }
+    let fps = fps.max(10);
+    let duration = format!("{:.6}", 1.0 / f64::from(fps));
     let list_path = out_mp4.with_extension("txt");
     let mut list = String::new();
     for p in jpeg_paths {
         list.push_str(&format!(
-            "file '{}'\nduration 0.2\n",
+            "file '{}'\nduration {duration}\n",
             p.to_string_lossy().replace('\'', "'\\''")
         ));
     }
-    // last file needs to be listed again for concat demuxer
+    // concat demuxer needs the last file listed again
     if let Some(last) = jpeg_paths.last() {
-        list.push_str(&format!("file '{}'\n", last.to_string_lossy().replace('\'', "'\\''")));
+        list.push_str(&format!(
+            "file '{}'\n",
+            last.to_string_lossy().replace('\'', "'\\''")
+        ));
     }
     std::fs::write(&list_path, list).map_err(|e| e.to_string())?;
 
@@ -64,13 +76,17 @@ pub fn encode_clip_from_jpegs(jpeg_paths: &[PathBuf], out_mp4: &Path) -> Result<
             "-i",
             list_path.to_str().unwrap_or(""),
             "-vf",
-            "fps=5,scale=640:-2",
+            &format!("fps={fps},scale=640:-2"),
             "-pix_fmt",
             "yuv420p",
             out_mp4.to_str().unwrap_or("clip.mp4"),
         ])
         .status()
-        .map_err(|e| format!("ffmpeg missing or failed to start: {e}"))?;
+        .map_err(|e| {
+            format!(
+                "ffmpeg missing or failed to start ({e}). Install with: brew install ffmpeg"
+            )
+        })?;
 
     if !status.success() {
         return Err("ffmpeg encode failed".into());

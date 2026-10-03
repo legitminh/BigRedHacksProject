@@ -28,11 +28,13 @@
 
       <section id="view-chat" class="view">
         <header class="panel-head">
-          <button class="back" data-back type="button">←</button>
+          <button class="back" data-back type="button" aria-label="Back to home">←</button>
           <p class="brand-inline">Waypoint</p>
           <button id="new-chat" class="ghost chat-reset" type="button">New chat</button>
         </header>
-        <div id="chat-log" class="chat-log" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text"></div>
+        <div id="chat-log" class="chat-log" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text">
+          <div id="chat-empty" class="bubble assistant chat-empty">Ask a question below, try the study shortcuts, or connect Google in Settings for Calendar and Drive — optional.</div>
+        </div>
         <div class="study-actions" role="group" aria-label="Study shortcuts">
           <button class="ghost" type="button" data-study="explain">Explain simply</button>
           <button class="ghost" type="button" data-study="quiz">Quiz me</button>
@@ -47,41 +49,113 @@
 
       <section id="view-lockin" class="view">
         <header class="panel-head">
-          <button class="back" data-back type="button">←</button>
+          <button class="back" data-back type="button" aria-label="Back to home">←</button>
           <p class="brand-inline">Waypoint</p>
         </header>
         <form id="lockin-form" class="lockin-form">
+          <p class="lockin-blurb">
+            Waypoint watches your <strong>screen</strong> against your goals and uses your
+            <strong>webcam + Presage</strong> for short stress / heart-rate checks. Allow Screen Recording
+            (required) and Camera (for wellness). For app/tab coaching, allow
+            <strong>Accessibility</strong> and <strong>Automation</strong> for Waypoint in System Settings.
+          </p>
           <label>
             Minutes
             <input id="duration" type="number" min="1" max="180" value="45" />
           </label>
           <label>
-            Goals
-            <textarea id="goals" rows="4" placeholder="Calc PSet 3 · Q1–3"></textarea>
+            What are you locking in on?
+            <textarea id="goals" rows="4" required placeholder="Calc PSet 3 · Q1–3 on my laptop"></textarea>
           </label>
-          <button type="submit" class="primary wide">Lock in</button>
+          <p id="lockin-wellness" class="composer-hint" aria-live="polite"></p>
+          <p id="lockin-error" class="lockin-error" role="alert" hidden></p>
+          <button id="lockin-start" type="submit" class="primary wide">Start lock-in</button>
         </form>
       </section>
 
       <section id="view-session" class="view view-session">
         <header class="session-head">
           <p class="brand-inline">Waypoint</p>
-          <button id="end-session" class="ghost danger" type="button">End</button>
+          <div class="session-head-actions">
+            <button id="session-mute-voice" class="ghost" type="button" aria-pressed="false">
+              Mute voice
+            </button>
+            <button id="end-session" class="ghost danger" type="button">End</button>
+          </div>
         </header>
         <div class="timer-wrap">
           <p id="session-timer" class="timer">45:00</p>
-          <p id="session-status" class="status-chip">ready</p>
+          <p id="session-status" class="status-chip">watching</p>
         </div>
+        <div
+          id="session-coach-log"
+          class="prompt-feed session-coach-log"
+          role="log"
+          aria-label="Coach messages"
+          aria-live="polite"
+        ></div>
         <p id="session-goals" class="session-goals"></p>
-        <div id="prompt-feed" class="prompt-feed" aria-live="polite"></div>
+        <p id="session-watch-note" class="session-watch-note"></p>
+        <div id="session-vitals" class="vitals-panel" aria-live="polite">
+          <p class="vitals-label">Wellness</p>
+          <p id="vitals-line">Running quietly in the background (not required to lock in)</p>
+        </div>
       </section>
 
       <section id="view-summary" class="view">
         <header class="panel-head">
-          <button class="back" data-back type="button">←</button>
+          <button class="back" data-back type="button" aria-label="Back to home">←</button>
           <p class="brand-inline">Waypoint</p>
         </header>
         <div id="summary-body" class="summary-body"></div>
+        <div class="summary-actions cta-row">
+          <button type="button" class="primary" id="summary-lockin-again">Lock in again</button>
+          <button type="button" class="ghost" id="summary-go-home">Home</button>
+        </div>
+      </section>
+
+      <section id="view-settings" class="view">
+        <header class="panel-head">
+          <button class="back" data-back type="button" aria-label="Back to home">←</button>
+          <p class="brand-inline">Settings</p>
+        </header>
+        <div class="settings-tabs" role="tablist" aria-label="Settings sections">
+          <button class="settings-tab active" type="button" role="tab" aria-selected="true" data-settings-tab="lockin">Lock in</button>
+          <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="general">General</button>
+          <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="account">Account</button>
+        </div>
+        <div class="settings-panels">
+          <div class="settings-panel active" id="settings-lockin" role="tabpanel">
+            <h2 class="settings-heading">Lock in</h2>
+            <p class="settings-copy">Controls how coaching feels during a focus session.</p>
+            <label class="settings-toggle">
+              <input id="setting-silent-mode" type="checkbox" />
+              <span>
+                <strong>Silent mode</strong>
+                <small>Turns off spoken coach lines (macOS speech). Overlay popups still appear. Note: this disables speech output — not speech-to-text listening.</small>
+              </span>
+            </label>
+            <p id="settings-save-status" class="composer-hint" aria-live="polite"></p>
+          </div>
+          <div class="settings-panel" id="settings-general" role="tabpanel" hidden>
+            <h2 class="settings-heading">General</h2>
+            <p class="settings-copy">More app preferences will land here.</p>
+          </div>
+          <div class="settings-panel" id="settings-account" role="tabpanel" hidden>
+            <h2 class="settings-heading">Account</h2>
+            <p class="settings-copy">Waypoint account and optional Google links for Calendar / Drive.</p>
+            <div class="account-block">
+              <p class="account-label">Waypoint</p>
+              <p id="account-waypoint-user" class="account-value">Not signed in</p>
+            </div>
+            <div class="account-block">
+              <p class="account-label">Google (optional)</p>
+              <p id="account-google-status" class="account-value">Not connected</p>
+              <p class="settings-copy tight">Link Google if you want Calendar deadlines and Drive notes in Ask. Lock-in works without it.</p>
+              <div id="account-google-actions" class="cta-row"></div>
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   </body>

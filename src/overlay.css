@@ -1,0 +1,86 @@
+:root {
+  --ink: #0b1c24;
+  --foam: #e8f4ef;
+  --amber: #e2a35a;
+  --glass: rgba(8, 22, 28, 0.88);
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "Manrope", "Segoe UI", sans-serif;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  font-family: var(--font-body);
+  color: var(--foam);
+  user-select: none;
+}
+
+.toast {
+  box-sizing: border-box;
+  width: calc(100% - 16px);
+  margin: 8px;
+  padding: 0.95rem 1.15rem 1.05rem;
+  border-radius: 16px;
+  background: var(--glass);
+  border: 1px solid rgba(226, 163, 90, 0.45);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  animation: popIn 0.35s ease both;
+}
+
+.toast[hidden] {
+  display: none !important;
+}
+
+.toast.leaving {
+  animation: popOut 0.28s ease both;
+}
+
+.toast-brand {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  color: var(--amber);
+}
+
+.toast-text {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.35;
+  font-weight: 500;
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes popOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .toast.leaving {
+    animation: none;
+  }
+}

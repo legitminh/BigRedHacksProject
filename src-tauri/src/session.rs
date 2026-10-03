@@ -11,6 +11,7 @@ pub enum SessionStatusKind {
     Stressed,
     NeedsHelp,
     Idle,
+    Watching,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,6 +38,9 @@ pub struct LockInSession {
     pub on_task_ticks: u32,
     pub total_ticks: u32,
     pub stress_spikes: u32,
+    pub camera_ready: bool,
+    pub presage_ready: bool,
+    pub watching_note: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,16 +49,29 @@ pub struct SessionSummary {
     pub duration_secs: u64,
     pub modality: String,
     pub on_task_ratio: f64,
+    pub screen_checks: u32,
     pub top_distractions: Vec<String>,
     pub stress_spikes: u32,
     pub prompts: Vec<CoachPrompt>,
     pub closing_note: String,
+    pub vitals_summary: String,
 }
 
 impl LockInSession {
-    pub fn start(goals: String, duration_mins: u64, modality: String) -> Self {
+    pub fn start(
+        goals: String,
+        duration_mins: u64,
+        modality: String,
+        camera_ready: bool,
+        presage_ready: bool,
+    ) -> Self {
         let now = chrono::Utc::now();
         let duration_secs = duration_mins.saturating_mul(60).max(60);
+        let watching_note = if camera_ready && presage_ready {
+            "Watching full screen · wellness later in background".into()
+        } else {
+            "Watching full screen".into()
+        };
         Self {
             id: Uuid::new_v4().to_string(),
             goals,
@@ -62,7 +79,7 @@ impl LockInSession {
             started_at: now.to_rfc3339(),
             ends_at: (now + chrono::Duration::seconds(duration_secs as i64)).to_rfc3339(),
             modality,
-            status: SessionStatusKind::Idle,
+            status: SessionStatusKind::Watching,
             active: true,
             prompts: Vec::new(),
             vitals: VitalsSnapshot::default(),
@@ -70,6 +87,9 @@ impl LockInSession {
             on_task_ticks: 0,
             total_ticks: 0,
             stress_spikes: 0,
+            camera_ready,
+            presage_ready,
+            watching_note,
         }
     }
 
@@ -94,8 +114,9 @@ impl LockInSession {
     }
 
     pub fn summarize(&self) -> SessionSummary {
+        // Never treat "no screen checks" as a perfect score.
         let ratio = if self.total_ticks == 0 {
-            1.0
+            0.0
         } else {
             self.on_task_ticks as f64 / self.total_ticks as f64
         };
@@ -107,12 +128,21 @@ impl LockInSession {
             .map(|(k, v)| format!("{k} ×{v}"))
             .collect();
 
-        let closing_note = if ratio > 0.8 {
-            "Strong lock-in. You stayed with the map most of the session.".into()
+        let closing_note = if self.total_ticks == 0 {
+            "Screen checks didn’t land this session (quota limits or capture issues), so focus couldn’t be verified — that wasn’t a perfect lock-in.".into()
+        } else if !top.is_empty() && ratio < 0.6 {
+            format!(
+                "You drifted to {} — next block, keep only the goal app visible.",
+                top[0].split('×').next().unwrap_or("distractions").trim()
+            )
+        } else if ratio > 0.8 && self.stress_spikes <= 1 {
+            "Strong lock-in. You stayed with the work and kept stress mostly steady.".into()
         } else if self.stress_spikes > 2 {
-            "You pushed through some stress spikes — next time, shorter blocks may help.".into()
+            "You pushed through stress spikes — next time try shorter blocks or a quick reset breath.".into()
+        } else if ratio < 0.5 {
+            "Focus drifted often. Tighten the next goal to one concrete task on screen.".into()
         } else {
-            "Decent effort. Review the distractions and tighten the next waypoint.".into()
+            "Solid effort. Review what pulled you off-screen and set a clearer next waypoint.".into()
         };
 
         SessionSummary {
@@ -120,10 +150,16 @@ impl LockInSession {
             duration_secs: self.duration_secs,
             modality: self.modality.clone(),
             on_task_ratio: ratio,
+            screen_checks: self.total_ticks,
             top_distractions: top,
             stress_spikes: self.stress_spikes,
             prompts: self.prompts.clone(),
             closing_note,
+            vitals_summary: if self.vitals.raw_summary.is_empty() {
+                "No wellness reading this session.".into()
+            } else {
+                self.vitals.raw_summary.clone()
+            },
         }
     }
 }

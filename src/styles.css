@@ -103,6 +103,166 @@ body {
   flex-wrap: wrap;
 }
 
+.signin-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: min(100%, 22rem);
+  padding: 1.15rem 1.2rem 1.25rem;
+  border: 1px solid rgba(159, 196, 188, 0.28);
+  background: rgba(12, 32, 40, 0.55);
+  text-align: left;
+}
+
+.signin-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: var(--foam);
+}
+
+.signin-sub {
+  margin: -0.25rem 0 0.15rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.signin-box label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: var(--mist);
+  font-size: 0.85rem;
+}
+
+.signin-box input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(159, 196, 188, 0.3);
+  background: rgba(6, 18, 24, 0.65);
+  color: var(--foam);
+  padding: 0.65rem 0.75rem;
+  border-radius: 0;
+}
+
+.signin-box input:focus {
+  outline: none;
+  border-color: var(--amber);
+}
+
+.signin-error {
+  margin: 0;
+  color: #f0a090;
+  font-size: 0.85rem;
+}
+
+.account-block {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid rgba(159, 196, 188, 0.18);
+}
+
+.account-block:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.account-label {
+  margin: 0 0 0.25rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.account-value {
+  margin: 0 0 0.75rem;
+  color: var(--foam);
+  font-weight: 600;
+}
+
+.settings-copy.tight {
+  margin-bottom: 0.85rem;
+  font-size: 0.9rem;
+}
+
+.settings-tabs {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.settings-tab {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--mist);
+  border: 1px solid rgba(159, 196, 188, 0.25);
+  padding: 0.55rem 0.9rem;
+  font-size: 0.9rem;
+}
+
+.settings-tab.active {
+  color: #1a1208;
+  background: var(--amber);
+  border-color: var(--amber);
+  font-weight: 700;
+}
+
+.settings-panels {
+  max-width: 34rem;
+}
+
+.settings-panel[hidden] {
+  display: none !important;
+}
+
+.settings-heading {
+  margin: 0 0 0.4rem;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.45rem;
+  color: var(--foam);
+}
+
+.settings-copy {
+  margin: 0 0 1.25rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.settings-toggle {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  padding: 1rem;
+  border: 1px solid rgba(159, 196, 188, 0.25);
+  background: rgba(12, 32, 40, 0.45);
+  cursor: pointer;
+}
+
+.settings-toggle input {
+  margin-top: 0.25rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--amber);
+}
+
+.settings-toggle strong {
+  display: block;
+  color: var(--foam);
+  margin-bottom: 0.25rem;
+}
+
+.settings-toggle small {
+  display: block;
+  color: var(--muted);
+  line-height: 1.4;
+  font-size: 0.85rem;
+}
+
 button,
 input,
 textarea {
@@ -162,6 +322,13 @@ button:active {
   justify-content: space-between;
 }
 
+.session-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
 .brand-inline {
   margin: 0;
   font-family: var(--font-display);
@@ -206,6 +373,11 @@ button:active {
   align-self: flex-start;
   background: var(--glass);
   border-left: 2px solid var(--amber);
+}
+
+.bubble.assistant.chat-empty {
+  color: var(--muted);
+  border-left-color: var(--mist);
 }
 
 .chat-form {
@@ -268,12 +440,31 @@ button:focus-visible, a:focus-visible, .table-scroll:focus-visible { outline: 2p
   gap: 1rem;
 }
 
+.lockin-blurb {
+  margin: 0;
+  color: var(--foam);
+  line-height: 1.45;
+  font-size: 0.95rem;
+}
+
+.lockin-blurb strong {
+  color: var(--amber);
+  font-weight: 600;
+}
+
 .lockin-form label {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
   color: var(--mist);
   font-size: 0.9rem;
+}
+
+.lockin-error {
+  margin: 0;
+  color: #efb0a6;
+  font-size: 0.9rem;
+  line-height: 1.35;
 }
 
 .timer-wrap {
@@ -315,12 +506,53 @@ button:focus-visible, a:focus-visible, .table-scroll:focus-visible { outline: 2p
   color: #efb0a6;
 }
 
+.status-chip.watching,
+.status-chip.idle {
+  border-color: rgba(159, 196, 188, 0.55);
+  color: var(--foam);
+}
+
 .session-goals {
   text-align: center;
   color: var(--foam);
   max-width: 30rem;
-  margin: 0 auto 1rem;
+  margin: 0 auto 0.35rem;
   line-height: 1.4;
+}
+
+.session-watch-note {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0 auto 0.9rem;
+}
+
+.vitals-panel {
+  max-width: 28rem;
+  width: 100%;
+  margin: 0 auto 1rem;
+  padding: 0.75rem 0.95rem;
+  background: rgba(12, 32, 40, 0.55);
+  border: 1px solid rgba(159, 196, 188, 0.22);
+}
+
+.vitals-panel.stressed {
+  border-color: rgba(196, 91, 74, 0.55);
+}
+
+.vitals-label {
+  margin: 0 0 0.25rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mist);
+}
+
+#vitals-line {
+  margin: 0;
+  color: var(--foam);
+  font-size: 0.92rem;
+  line-height: 1.35;
 }
 
 .prompt-feed {
@@ -339,6 +571,22 @@ button:focus-visible, a:focus-visible, .table-scroll:focus-visible { outline: 2p
   border-left: 2px solid #1f5c63;
   padding: 0.75rem 0.9rem;
   animation: slideIn 0.35s ease both;
+}
+
+.session-coach-log {
+  max-height: 10rem;
+  margin: 0 auto 1rem;
+  flex: none;
+}
+
+.session-coach-empty {
+  margin: 0;
+  text-align: center;
+}
+
+.summary-actions {
+  max-width: 32rem;
+  margin: 1.25rem 0 0;
 }
 
 .summary-body {

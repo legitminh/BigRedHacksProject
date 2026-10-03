@@ -18,6 +18,7 @@ dist-ssr
 # Build-time secrets (baked into the app; never commit real values)
 src-tauri/secrets.toml
 src-tauri/target
+src-tauri/bin/
 
 # Editor directories and files
 .vscode/*

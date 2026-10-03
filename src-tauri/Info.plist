@@ -3,6 +3,8 @@
 <plist version="1.0">
 <dict>
     <key>NSCameraUsageDescription</key>
-    <string>Waypoint uses your camera during lock-in sessions to provide study and focus prompts.</string>
+    <string>Waypoint uses your camera during lock-in so Presage can estimate heart rate, breathing, and stress while you study. Frames stay on your Mac except when sent to Presage and Gemini for that session.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Waypoint can record a short microphone clip to test speech-to-text before Grok Voice is wired in.</string>
 </dict>
 </plist>
