@@ -80,9 +80,32 @@ interface SessionSummary {
 const $ = <T extends HTMLElement>(sel: string) =>
   document.querySelector(sel) as T | null;
 
+let lastSummaryGoals = "";
+
 function show(view: ViewId) {
   document.querySelectorAll(".view").forEach((el) => el.classList.remove("active"));
   $(`#${view}`)?.classList.add("active");
+  if (view === "view-chat") {
+    requestAnimationFrame(() => {
+      ($("#chat-input") as HTMLTextAreaElement | null)?.focus();
+    });
+  }
+}
+
+function restoreLockinFromLastSession() {
+  const goalsInput = $("#goals") as HTMLTextAreaElement | null;
+  if (goalsInput && lastSummaryGoals) {
+    goalsInput.value = lastSummaryGoals;
+  }
+  try {
+    const mins = sessionStorage.getItem("lockin-last-duration");
+    const durationInput = $("#duration") as HTMLInputElement | null;
+    if (durationInput && mins) {
+      durationInput.value = mins;
+    }
+  } catch {
+    // ignore private mode / quota
+  }
 }
 
 function renderHome(status: StatusPayload) {
@@ -494,6 +517,7 @@ async function toggleSessionMute() {
 }
 
 function renderSummary(summary: SessionSummary) {
+  lastSummaryGoals = summary.goals;
   const body = $("#summary-body");
   if (!body) return;
   const checks = summary.screen_checks ?? 0;
@@ -596,7 +620,10 @@ window.addEventListener("DOMContentLoaded", async () => {
     btn.addEventListener("click", () => show("view-home"));
   });
 
-  $("#summary-lockin-again")?.addEventListener("click", () => show("view-lockin"));
+  $("#summary-lockin-again")?.addEventListener("click", () => {
+    show("view-lockin");
+    restoreLockinFromLastSession();
+  });
   $("#summary-go-home")?.addEventListener("click", () => show("view-home"));
 
   $("#chat-form")?.addEventListener("submit", (e) => {
@@ -718,6 +745,11 @@ window.addEventListener("DOMContentLoaded", async () => {
         goals,
         durationMins: duration,
       });
+      try {
+        sessionStorage.setItem("lockin-last-duration", String(duration));
+      } catch {
+        // ignore
+      }
       renderVitals(null);
       renderSession(session);
       startTimer(session.ends_at);
