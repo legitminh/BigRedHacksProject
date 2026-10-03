@@ -2,8 +2,9 @@
  * Thin Live voice client for Copilot / lock-in.
  * Streams only to Waypoint `/v1/companion/live` — never opens Google sockets.
  *
- * Audio uses the wp1 binary frame protocol (see backend audioProtocol.ts)
- * with a client jitter buffer so playback stays continuous.
+ * Audio uses the wp1 binary frame protocol (see backend audioProtocol.ts).
+ * Downlink plays through a continuous AudioWorklet ring (silence on underrun)
+ * so gaps between network batches never tear the AudioBufferSource chain.
  */
 
 import { invoke } from "@tauri-apps/api/core";
@@ -39,12 +40,8 @@ const AUDIO_PROTOCOL = "wp1";
 const AUDIO_KIND_DOWNLINK = 1;
 const AUDIO_KIND_UPLINK = 2;
 const HEADER_BYTES = 16;
-/** Wait this long before starting playback (smooths network jitter). */
-const PREROLL_SEC = 0.12;
-/** Prefer scheduling chunks of at least this duration. */
-const MIN_CHUNK_SEC = 0.06;
-/** If the playhead falls behind, rebuild with this lead. */
-const RECOVER_LEAD_SEC = 0.08;
+/** Hold this much resampled audio before the worklet starts draining (jitter). */
+const PREROLL_SEC = 0.18;
 
 function encodePcmFrame(
   kind: number,
@@ -90,26 +87,56 @@ function decodePcmFrame(buffer: ArrayBuffer): {
   };
 }
 
+/** Resample s16le mono @ inputRate → Float32 at outputRate (linear). */
+function resampleS16leToF32(
+  pcm: Uint8Array,
+  inputRate: number,
+  outputRate: number,
+): Float32Array {
+  const inCount = pcm.length >> 1;
+  if (inCount === 0) return new Float32Array(0);
+  const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+  if (inputRate === outputRate) {
+    const out = new Float32Array(inCount);
+    for (let i = 0; i < inCount; i += 1) {
+      out[i] = view.getInt16(i * 2, true) / 32768;
+    }
+    return out;
+  }
+  const outCount = Math.max(1, Math.round((inCount * outputRate) / inputRate));
+  const out = new Float32Array(outCount);
+  const ratio = inCount / outCount;
+  for (let i = 0; i < outCount; i += 1) {
+    const src = i * ratio;
+    const i0 = Math.min(inCount - 1, Math.floor(src));
+    const i1 = Math.min(inCount - 1, i0 + 1);
+    const frac = src - i0;
+    const s0 = view.getInt16(i0 * 2, true) / 32768;
+    const s1 = view.getInt16(i1 * 2, true) / 32768;
+    out[i] = s0 + (s1 - s0) * frac;
+  }
+  return out;
+}
+
 export class CompanionLiveSession {
   private socket: WebSocket | null = null;
   private audioCtx: AudioContext | null = null;
   private media: MediaStream | null = null;
-  private worklet: AudioWorkletNode | null = null;
+  private captureWorklet: AudioWorkletNode | null = null;
+  private playbackWorklet: AudioWorkletNode | null = null;
+  private playbackPrimed = false;
+  private pendingPlayback: Float32Array[] = [];
+  private pendingPlaybackSamples = 0;
   private phase: CompanionPhase = "idle";
   private epoch = 1;
-  private playhead = 0;
-  private sources: AudioBufferSourceNode[] = [];
-  private queueRaw = new Uint8Array(0);
   private oddByte: number | null = null;
   private bargeHits = 0;
   private barged = false;
+  private speaking = false;
   private handlers: CompanionLiveHandlers;
   private useBinaryAudio = true;
   private uplinkSeq = 0;
   private downlinkRate = 24000;
-  private startedPlayback = false;
-  private pendingSamples = 0;
-  private pumpTimer: number | undefined;
 
   constructor(handlers: CompanionLiveHandlers = {}) {
     this.handlers = handlers;
@@ -135,29 +162,33 @@ export class CompanionLiveSession {
   }
 
   private stopPlayback() {
-    if (this.pumpTimer != null) {
-      window.clearInterval(this.pumpTimer);
-      this.pumpTimer = undefined;
-    }
-    for (const source of this.sources) {
-      try {
-        source.stop();
-      } catch {
-        /* already stopped */
-      }
-    }
-    this.sources = [];
-    this.playhead = 0;
-    this.queueRaw = new Uint8Array(0);
+    this.pendingPlayback = [];
+    this.pendingPlaybackSamples = 0;
+    this.playbackPrimed = false;
+    this.speaking = false;
     this.oddByte = null;
-    this.pendingSamples = 0;
-    this.startedPlayback = false;
     this.barged = false;
     this.bargeHits = 0;
+    this.playbackWorklet?.port.postMessage({ type: "reset" });
+  }
+
+  private pushToPlayback(samples: Float32Array) {
+    if (!this.playbackWorklet || samples.length === 0) return;
+    // Transfer the underlying buffer when possible to avoid copies.
+    this.playbackWorklet.port.postMessage({ type: "pcm", samples }, [samples.buffer]);
+  }
+
+  private flushPendingPlayback() {
+    if (!this.playbackPrimed || !this.playbackWorklet) return;
+    for (const chunk of this.pendingPlayback) {
+      this.pushToPlayback(chunk);
+    }
+    this.pendingPlayback = [];
+    this.pendingPlaybackSamples = 0;
   }
 
   private appendPcmBytes(bytes: Uint8Array) {
-    if (bytes.length === 0) return;
+    if (bytes.length === 0 || !this.audioCtx || this.barged) return;
     let input = bytes;
     if (this.oddByte != null) {
       const merged = new Uint8Array(1 + bytes.length);
@@ -171,81 +202,23 @@ export class CompanionLiveSession {
       input = input.subarray(0, input.length - 1);
     }
     if (input.length === 0) return;
-    this.queueRaw = this.concatUint8(this.queueRaw, input);
-    this.pendingSamples = this.queueRaw.length >> 1;
-    this.ensurePump();
-  }
 
-  private concatUint8(a: Uint8Array, b: Uint8Array): Uint8Array {
-    if (a.length === 0) return b.slice();
-    if (b.length === 0) return a;
-    const out = new Uint8Array(a.length + b.length);
-    out.set(a, 0);
-    out.set(b, a.length);
-    return out;
-  }
-
-  private ensurePump() {
-    if (this.pumpTimer != null) return;
-    this.pumpTimer = window.setInterval(() => this.pumpPlayback(), 20);
-  }
-
-  private takeSamples(count: number): Float32Array | null {
-    const need = count * 2;
-    if (this.queueRaw.length < need) return null;
-    const slice = this.queueRaw.subarray(0, need);
-    this.queueRaw = this.queueRaw.slice(need);
-    this.pendingSamples = this.queueRaw.length >> 1;
-    const floats = new Float32Array(count);
-    const view = new DataView(slice.buffer, slice.byteOffset, slice.byteLength);
-    for (let i = 0; i < count; i += 1) {
-      floats[i] = view.getInt16(i * 2, true) / 32768;
-    }
-    return floats;
-  }
-
-  private pumpPlayback() {
-    if (!this.audioCtx || this.barged) return;
     const rate = this.downlinkRate > 0 ? this.downlinkRate : 24000;
-    const pendingSec = this.pendingSamples / rate;
+    const floats = resampleS16leToF32(input, rate, this.audioCtx.sampleRate);
+    if (floats.length === 0) return;
 
-    if (!this.startedPlayback) {
-      if (pendingSec < PREROLL_SEC) return;
-      this.startedPlayback = true;
-      const now = this.audioCtx.currentTime;
-      this.playhead = now + RECOVER_LEAD_SEC;
+    this.speaking = true;
+    if (!this.playbackPrimed) {
+      this.pendingPlayback.push(floats);
+      this.pendingPlaybackSamples += floats.length;
+      const need = Math.floor(PREROLL_SEC * this.audioCtx.sampleRate);
+      if (this.pendingPlaybackSamples >= need) {
+        this.playbackPrimed = true;
+        this.flushPendingPlayback();
+      }
+      return;
     }
-
-    const now = this.audioCtx.currentTime;
-    // Heal underruns instead of scheduling in the past (main source of chop).
-    if (this.playhead < now + 0.02) {
-      this.playhead = now + RECOVER_LEAD_SEC;
-    }
-
-    // Keep ~250ms scheduled ahead when possible.
-    const minSamples = Math.floor(MIN_CHUNK_SEC * rate);
-    while (this.playhead - now < 0.25) {
-      if (this.pendingSamples < minSamples) break;
-      const want = Math.min(this.pendingSamples, Math.floor(0.12 * rate));
-      const samples = this.takeSamples(want);
-      if (!samples) break;
-      const buffer = this.audioCtx.createBuffer(1, samples.length, rate);
-      buffer.copyToChannel(samples, 0);
-      const source = this.audioCtx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(this.audioCtx.destination);
-      source.start(this.playhead);
-      this.playhead += buffer.duration;
-      this.sources.push(source);
-      source.onended = () => {
-        this.sources = this.sources.filter((item) => item !== source);
-      };
-    }
-
-    if (this.pendingSamples === 0 && this.sources.length === 0 && this.startedPlayback) {
-      // Idle — allow next utterance to re-preroll.
-      this.startedPlayback = false;
-    }
+    this.pushToPlayback(floats);
   }
 
   private enqueuePcmBase64(base64: string, sampleRate: number, messageEpoch: number) {
@@ -259,11 +232,9 @@ export class CompanionLiveSession {
 
   private onLevel(rms: number) {
     this.handlers.onLevel?.(rms);
-    const playing =
-      this.playhead > (this.audioCtx ? this.audioCtx.currentTime + 0.05 : 0);
-    if (playing && rms > 0.12) this.bargeHits += 1;
+    if (this.speaking && rms > 0.12) this.bargeHits += 1;
     else this.bargeHits = 0;
-    if (playing && this.bargeHits > 5 && !this.barged) {
+    if (this.speaking && this.bargeHits > 5 && !this.barged) {
       this.barged = true;
       this.sendJson({ type: "barge" });
       this.stopPlayback();
@@ -279,7 +250,6 @@ export class CompanionLiveSession {
       this.socket.send(encodePcmFrame(AUDIO_KIND_UPLINK, this.epoch, 16000, seq, pcm));
       return;
     }
-    // Fallback JSON base64
     const bytes = new Uint8Array(pcm);
     let binary = "";
     const stride = 0x8000;
@@ -287,6 +257,13 @@ export class CompanionLiveSession {
       binary += String.fromCharCode(...bytes.subarray(i, i + stride));
     }
     this.sendJson({ type: "audio", pcm: btoa(binary) });
+  }
+
+  private async ensurePlaybackWorklet() {
+    if (!this.audioCtx || this.playbackWorklet) return;
+    await this.audioCtx.audioWorklet.addModule("/pcm-playback-worklet.js");
+    this.playbackWorklet = new AudioWorkletNode(this.audioCtx, "pcm-playback");
+    this.playbackWorklet.connect(this.audioCtx.destination);
   }
 
   private async startMic() {
@@ -302,8 +279,8 @@ export class CompanionLiveSession {
     });
     await this.audioCtx.audioWorklet.addModule("/pcm-worklet.js");
     const source = this.audioCtx.createMediaStreamSource(this.media);
-    this.worklet = new AudioWorkletNode(this.audioCtx, "pcm-capture");
-    this.worklet.port.onmessage = (event: MessageEvent) => {
+    this.captureWorklet = new AudioWorkletNode(this.audioCtx, "pcm-capture");
+    this.captureWorklet.port.onmessage = (event: MessageEvent) => {
       const data = event.data as { pcm?: ArrayBuffer; rms?: number };
       if (typeof data.rms === "number") this.handlers.onLevel?.(data.rms);
       if (data.pcm) {
@@ -311,13 +288,13 @@ export class CompanionLiveSession {
         this.sendUplinkPcm(data.pcm);
       }
     };
-    source.connect(this.worklet);
+    source.connect(this.captureWorklet);
   }
 
   private stopMic() {
-    if (this.worklet) {
-      this.worklet.disconnect();
-      this.worklet = null;
+    if (this.captureWorklet) {
+      this.captureWorklet.disconnect();
+      this.captureWorklet = null;
     }
     if (this.media) {
       for (const track of this.media.getTracks()) track.stop();
@@ -347,7 +324,11 @@ export class CompanionLiveSession {
     }
     if (type === "status" && typeof message.phase === "string") {
       this.setPhase(message.phase as CompanionPhase);
-      if (message.phase === "listening") this.barged = false;
+      if (message.phase === "listening") {
+        this.barged = false;
+        // Next assistant turn re-prerolls once; keep the worklet running.
+        if (!this.speaking) this.playbackPrimed = false;
+      }
       return;
     }
     if (type === "user" && typeof message.text === "string") {
@@ -369,8 +350,12 @@ export class CompanionLiveSession {
     if (type === "audio_end") {
       if (message.epoch === this.epoch) {
         this.barged = false;
-        // Flush any remainder through the pump.
-        this.ensurePump();
+        this.speaking = false;
+        // Drain any leftover preroll if the utterance was shorter than PREROLL_SEC.
+        if (!this.playbackPrimed && this.pendingPlaybackSamples > 0) {
+          this.playbackPrimed = true;
+          this.flushPendingPlayback();
+        }
       }
       return;
     }
@@ -415,6 +400,7 @@ export class CompanionLiveSession {
     const info = await invoke<LiveInfo>("companion_live_info");
     this.audioCtx = new AudioContext({ sampleRate: 48000 });
     if (this.audioCtx.state === "suspended") await this.audioCtx.resume();
+    await this.ensurePlaybackWorklet();
     this.setPhase("connecting");
     this.useBinaryAudio = true;
     this.uplinkSeq = 0;
@@ -468,6 +454,14 @@ export class CompanionLiveSession {
     if (notify) this.sendJson({ type: "stop" });
     this.stopMic();
     this.stopPlayback();
+    if (this.playbackWorklet) {
+      try {
+        this.playbackWorklet.disconnect();
+      } catch {
+        /* ignore */
+      }
+      this.playbackWorklet = null;
+    }
     if (this.socket) {
       this.socket.onclose = null;
       try {

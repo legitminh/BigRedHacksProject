@@ -226,6 +226,8 @@ const LAUNCH_CELEBRATION_MS = 2200;
 
 /** Tracks which account’s local ship/PB data is loaded (null = signed out). */
 let activeShipAccountKey: string | null = null;
+/** Last status used to paint home — reused when navigating home after a mission. */
+let lastHomeStatus: StatusPayload | null = null;
 
 function flightMinutesFromSecs(secs: number): number {
   return Math.max(0, Math.round(secs / 60));
@@ -441,9 +443,21 @@ function syncSummaryCelebrationFromOutcome(): void {
   updateSummaryCelebration(lastSessionSummary, false, !questComplete);
 }
 
+/** Guards against the same mission being credited twice (early End + timer race). */
+let lastCreditedSummaryKey: string | null = null;
+let lastCreditedSummaryAt = 0;
+
 function showSummaryWithCelebration(summary: SessionSummary, endedEarly = false): void {
-  const firstFlight = onMissionCompleted(summary, summary.duration_secs);
+  const key = `${summary.goals}|${summary.modality}|${summary.screen_checks ?? 0}`;
+  const now = Date.now();
+  if (key === lastCreditedSummaryKey && now - lastCreditedSummaryAt < 15_000) {
+    return;
+  }
+  lastCreditedSummaryKey = key;
+  lastCreditedSummaryAt = now;
+  // PB first so it compares against the pre-mission longest, then bump mission count.
   lastSummaryPersonalBest = recordLongestFlight(flightMinutesFromSecs(summary.duration_secs));
+  const firstFlight = onMissionCompleted(summary, summary.duration_secs);
   lastSummaryRelaunches = consumeRelaunchFlag();
   lastSummaryObjective = null;
   lastSummaryEndedEarly = endedEarly;
@@ -489,6 +503,11 @@ function show(view: ViewId) {
   }
   document.querySelectorAll(".view").forEach((el) => el.classList.remove("active"));
   $(`#${view}`)?.classList.add("active");
+  if (view === "view-home" && lastHomeStatus && appUnlocked) {
+    // Re-paint first-flight vs dashboard from current ship progress (mission complete
+    // updates localStorage but used to leave the stale first-flight panel visible).
+    renderHome(lastHomeStatus);
+  }
   if (view === "view-chat") {
     requestAnimationFrame(() => {
       ($("#chat-input") as HTMLTextAreaElement | null)?.focus();
@@ -769,6 +788,7 @@ function renderHomeNav(status: StatusPayload) {
 }
 
 function renderHome(status: StatusPayload) {
+  lastHomeStatus = status;
   const unlocked = isAppUnlocked(status);
   appUnlocked = unlocked;
 

@@ -810,6 +810,39 @@ async fn start_lock_in(
     Ok(session)
 }
 
+/// Append the finished session to study memory and sync it to the account (best effort).
+/// Shared by early end (`stop_lock_in`) and natural expiry (`coach::finish_session`).
+pub(crate) fn persist_session_summary(app: &tauri::AppHandle, summary: &SessionSummary) {
+    use tauri::Manager;
+    let cfg = app.state::<AppState>().config.lock().clone();
+    let summary = summary.clone();
+    tauri::async_runtime::spawn(async move {
+        match study_memory::record_session_end(&cfg, &summary).await {
+            Ok(mem) => {
+                tracing::info!("study memory updated after session");
+                if auth::load_tokens(&cfg).is_some() {
+                    let body = serde_json::json!({
+                        "narrative": mem.narrative,
+                        "stats": mem.stats,
+                        "updated_at": mem.updated_at,
+                    });
+                    if let Err(e) = api::authed_json::<serde_json::Value>(
+                        &cfg,
+                        reqwest::Method::PUT,
+                        "/v1/study-memory",
+                        Some(&body),
+                    )
+                    .await
+                    {
+                        tracing::warn!("study memory sync: {e}");
+                    }
+                }
+            }
+            Err(e) => tracing::warn!("study memory: {e}"),
+        }
+    });
+}
+
 #[tauri::command]
 async fn stop_lock_in(
     app: tauri::AppHandle,
@@ -831,33 +864,7 @@ async fn stop_lock_in(
         summary
     };
     if let Some(ref summary) = summary {
-        let cfg = state.config.lock().clone();
-        let summary = summary.clone();
-        tauri::async_runtime::spawn(async move {
-            match study_memory::record_session_end(&cfg, &summary).await {
-                Ok(mem) => {
-                    tracing::info!("study memory updated after session");
-                    if auth::load_tokens(&cfg).is_some() {
-                        let body = serde_json::json!({
-                            "narrative": mem.narrative,
-                            "stats": mem.stats,
-                            "updated_at": mem.updated_at,
-                        });
-                        if let Err(e) = api::authed_json::<serde_json::Value>(
-                            &cfg,
-                            reqwest::Method::PUT,
-                            "/v1/study-memory",
-                            Some(&body),
-                        )
-                        .await
-                        {
-                            tracing::warn!("study memory sync: {e}");
-                        }
-                    }
-                }
-                Err(e) => tracing::warn!("study memory: {e}"),
-            }
-        });
+        persist_session_summary(&app, summary);
     }
     Ok(summary)
 }

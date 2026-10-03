@@ -191,6 +191,10 @@ pub async fn sign_in_with_google(cfg: &AppConfig) -> Result<WaypointSession, Str
                     user,
                 };
                 save_tokens(cfg, &tokens)?;
+                // Local study_memory.json is a single device-wide cache. Drop whatever the
+                // previous account/guest left behind so another user's longest flight (or a
+                // planned-length leftover) can never be merged into this account and PUT back.
+                clear_local_study_memory(cfg);
                 // Pull cloud study memory onto this device after Google → user.id link.
                 if let Ok(mem) = api::get_json::<serde_json::Value>(
                     cfg,
@@ -218,6 +222,11 @@ pub async fn sign_in_with_google(cfg: &AppConfig) -> Result<WaypointSession, Str
     Err("Google sign-in timed out. Try again.".into())
 }
 
+/// Remove the device-wide study memory cache (cloud copy is the source of truth when signed in).
+pub fn clear_local_study_memory(cfg: &AppConfig) {
+    let _ = fs::remove_file(cfg.data_dir.join("study_memory.json"));
+}
+
 pub async fn sign_out_remote(cfg: &AppConfig) -> Result<(), String> {
     if let Some(tokens) = load_tokens(cfg) {
         let body = json!({ "refresh_token": tokens.refresh_token });
@@ -231,12 +240,14 @@ pub async fn sign_out_remote(cfg: &AppConfig) -> Result<(), String> {
         .await;
     }
     clear_tokens(cfg);
+    clear_local_study_memory(cfg);
     Ok(())
 }
 
 /// Guest local-only session (no backend sync).
 pub fn sign_in_guest(cfg: &AppConfig) -> Result<WaypointSession, String> {
     clear_tokens(cfg);
+    clear_local_study_memory(cfg);
     let session = WaypointSession {
         username: "Guest".into(),
         signed_in_at: chrono::Utc::now().to_rfc3339(),

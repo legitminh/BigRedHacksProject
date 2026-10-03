@@ -36,6 +36,10 @@ const PRESAGE_FPS: u32 = 12;
 const PRESAGE_GAP_SECS: u64 = 70;
 /// Don't touch the camera until coaching has already started.
 const PRESAGE_START_DELAY_SECS: u64 = 90;
+/// Let the student settle before distraction tracking / nags begin.
+const TRACKING_WARMUP_SECS: i64 = 15;
+/// Fixed opener — never LLM/system-prompt text (tiny models regurgitate prompts).
+const SESSION_OPENER: &str = "You're locked in. I'll check in if you drift.";
 
 /// Shared across local watch ticks so OCR/VLM don't re-fire the same nag.
 static LAST_EPHEMERAL_AT: Mutex<Option<chrono::DateTime<chrono::Utc>>> = Mutex::new(None);
@@ -154,17 +158,8 @@ pub fn spawn_coach_loop(app: AppHandle, session_id: String, use_camera: bool, us
     {
         let greet_app = app.clone();
         tauri::async_runtime::spawn(async move {
-            let cfg = greet_app.state::<AppState>().config.lock().clone();
-            let goals = greet_app
-                .state::<AppState>()
-                .session
-                .lock()
-                .as_ref()
-                .map(|s| s.goals.clone())
-                .unwrap_or_default();
-            let line =
-                local_judge::compose_coach_line(&cfg, "watching", &goals, "", "", 0).await;
-            push_prompt(&greet_app, &line, "watching");
+            // Short fixed phrase only — never compose/LLM (avoids reading the prompt aloud).
+            push_prompt(&greet_app, SESSION_OPENER, "watching");
         });
     }
 
@@ -172,7 +167,9 @@ pub fn spawn_coach_loop(app: AppHandle, session_id: String, use_camera: bool, us
         let state = app.state::<AppState>();
         let mut guard = state.session.lock();
         if let Some(session) = guard.as_mut() {
-            session.watching_note = "Watching with you…".into();
+            session.watching_note = format!(
+                "Settling in — tracking starts in {TRACKING_WARMUP_SECS}s…"
+            );
             session.status = SessionStatusKind::OnTask;
             let snap = session.clone();
             drop(guard);
@@ -240,6 +237,8 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
     let mut last_ocr_at = chrono::Utc::now() - chrono::Duration::seconds(OCR_TICK_SECS as i64);
     let mut last_vlm_at = chrono::Utc::now() - chrono::Duration::seconds(LOCAL_VLM_TICK_SECS as i64);
     let mut last_ocr_snippet = String::new();
+    let tracking_ready_at = chrono::Utc::now() + chrono::Duration::seconds(TRACKING_WARMUP_SECS);
+    let mut announced_tracking = false;
 
     while !stop.load(Ordering::SeqCst) {
         let (active, remaining, goals, paused) = {
@@ -254,12 +253,53 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
             }
         };
         if !active || remaining <= 0 {
-            finish_session(&app).await;
+            // Only a natural timer expiry finishes here. A user "End" goes through
+            // `stop_lock_in`, which owns the summary — emitting `session-ended` too would
+            // double-count the mission and could report pre-pause-fold elapsed time.
+            if active && remaining <= 0 && !stop.load(Ordering::SeqCst) {
+                finish_session(&app, &session_id).await;
+            }
             break;
         }
         if paused {
             tokio::time::sleep(Duration::from_millis(500)).await;
             continue;
+        }
+
+        let now = chrono::Utc::now();
+        if now < tracking_ready_at {
+            let left = (tracking_ready_at - now).num_seconds().max(0);
+            {
+                let state = app.state::<AppState>();
+                let mut guard = state.session.lock();
+                if let Some(session) = guard.as_mut() {
+                    session.watching_note = format!("Settling in — tracking in {left}s…");
+                    session.status = SessionStatusKind::OnTask;
+                    let snap = session.clone();
+                    drop(guard);
+                    let _ = app.emit("session-update", &snap);
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            continue;
+        }
+        if !announced_tracking {
+            announced_tracking = true;
+            {
+                let state = app.state::<AppState>();
+                let mut guard = state.session.lock();
+                if let Some(session) = guard.as_mut() {
+                    session.watching_note = "Watching with you…".into();
+                    let snap = session.clone();
+                    drop(guard);
+                    let _ = app.emit("session-update", &snap);
+                }
+            }
+            // Seed fingerprint so the first post-warmup focus doesn't false-nag.
+            if let Ok(Ok(info)) = tokio::task::spawn_blocking(frontmost::frontmost_info).await {
+                last_fingerprint = info.fingerprint();
+                last_judged_fingerprint = last_fingerprint.clone();
+            }
         }
 
         let goals_for_scan = goals.clone();
@@ -335,12 +375,7 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                         if on_task {
                             if was_distracted && switched {
                                 was_distracted = false;
-                                let cfg = app.state::<AppState>().config.lock().clone();
-                                let line = local_judge::compose_coach_line(
-                                    &cfg, "encourage", &goals, "", &info.summary(), 0,
-                                )
-                                .await;
-                                push_ephemeral(&app, &line, "encourage");
+                                play_back_on_task_ding(&app);
                             }
                             mark_local_on_task(&app, &info);
                         } else {
@@ -408,11 +443,7 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                                 if on_task {
                                     if was_distracted {
                                         was_distracted = false;
-                                        push_ephemeral(
-                                            &app,
-                                            "Nice — this fits your lock-in. Keep going.",
-                                            "encourage",
-                                        );
+                                        play_back_on_task_ding(&app);
                                     }
                                 } else {
                                     was_distracted = true;
@@ -449,11 +480,7 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                     last_fingerprint = fp;
                     if was_distracted {
                         was_distracted = false;
-                        push_ephemeral(
-                            &app,
-                            "Nice — you’re back on your lock-in. Good job, keep it up.",
-                            "encourage",
-                        );
+                        play_back_on_task_ding(&app);
                     }
                     mark_local_on_task(&app, &info);
                     // Always show what we think is focused so detection failures are obvious.
@@ -1066,6 +1093,24 @@ fn push_prompt(app: &AppHandle, text: &str, kind: &str) {
     push_ephemeral(app, text, kind);
 }
 
+/// Quiet positive feedback when they return to task — ding only, no toast/TTS.
+fn play_back_on_task_ding(app: &AppHandle) {
+    clear_distraction_episode();
+    if !claim_global_floor() {
+        return;
+    }
+    let silent = app.state::<AppState>().silent_mode.load(Ordering::SeqCst);
+    if silent {
+        return;
+    }
+    tauri::async_runtime::spawn(async move {
+        let play = tokio::task::spawn_blocking(waypoint_voice::play_positive_ding).await;
+        if let Ok(Err(e)) = play {
+            tracing::debug!("back-on-task ding: {e}");
+        }
+    });
+}
+
 fn push_ephemeral(app: &AppHandle, text: &str, kind: &str) {
     // Praise / watching lines share the same single-slot gate — never stack over a nag.
     if !claim_ephemeral_slot_keyed(EPHEMERAL_FLOOR_SECS, Some(kind)) {
@@ -1125,23 +1170,30 @@ async fn speak_heads_up(app: &AppHandle, text: &str) {
     }
 }
 
-async fn finish_session(app: &AppHandle) {
+async fn finish_session(app: &AppHandle, session_id: &str) {
     waypoint_voice::stop_speaking();
     overlay::hide(app);
     let summary = {
         let state = app.state::<AppState>();
         let open_pause = state.pause_started.lock().take();
         let mut guard = state.session.lock();
-        if let Some(session) = guard.as_mut() {
-            session.finalize_open_pause(open_pause);
-            session.active = false;
-            session.paused = false;
-            Some(session.summarize())
-        } else {
-            None
+        match guard.as_mut() {
+            // Never summarize a different (newer) session, or one `stop_lock_in` already took.
+            Some(session) if session.id == session_id && session.active => {
+                session.finalize_open_pause(open_pause);
+                session.active = false;
+                session.paused = false;
+                let summary = session.summarize();
+                // Same lifecycle as `stop_lock_in`: clear the finished session.
+                *guard = None;
+                Some(summary)
+            }
+            _ => None,
         }
     };
     if let Some(summary) = summary {
+        // Natural completions must reach study memory too (stop_lock_in only covers early end).
+        crate::persist_session_summary(app, &summary);
         let _ = app.emit("session-ended", &summary);
     }
 }

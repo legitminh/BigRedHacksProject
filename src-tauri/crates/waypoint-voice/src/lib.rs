@@ -80,6 +80,40 @@ pub fn speak(text: &str) -> Result<()> {
     }
 }
 
+/// Short positive chime when the student returns to task — no speech, no overlay.
+/// Uses a built-in macOS system sound (quiet volume).
+pub fn play_positive_ding() -> Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        // Cut spoken heads-ups only; don't killall afplay (that would race this ding).
+        let _ = Command::new("killall")
+            .args(["-9", "say"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+        const SOUND: &str = "/System/Library/Sounds/Tink.aiff";
+        if !Path::new(SOUND).is_file() {
+            return Err(VoiceError::Message("system ding sound missing".into()));
+        }
+        Command::new("afplay")
+            .args(["-v", "0.4", SOUND])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(|e| VoiceError::Message(format!("ding afplay failed: {e}")))?;
+        return Ok(());
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err(VoiceError::Message(
+            "Positive ding is only wired for macOS right now.".into(),
+        ))
+    }
+}
+
 /// Play raw audio bytes from xAI / Grok TTS (typically MP3). Non-blocking.
 /// Used only by study heads-up / nudge audio — not Settings test speak.
 pub fn play_audio_bytes(bytes: &[u8], extension: &str) -> Result<()> {

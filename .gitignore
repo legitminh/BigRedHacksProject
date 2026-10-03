@@ -33,3 +33,7 @@ preview/
 
 # Bulky full-screen Figma SVG exports (use Space artwork only)
 src/assets/figma/from-export/
+
+# Local agent audit reports (never commit)
+*.local.md
+AUDIT-*.local.md

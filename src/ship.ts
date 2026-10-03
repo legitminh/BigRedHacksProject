@@ -91,15 +91,32 @@ function saveProgress(p: ShipProgress) {
   }
 }
 
-/** Replace local ship stats from server study memory after account switch. */
+/**
+ * Merge server study memory into the current account's local ship stats.
+ * Never wipe a fresher local completion with server zeros (common before sync).
+ */
 export function hydrateShipFromStudyStats(stats: StudyStatsLite | null | undefined) {
-  const p = emptyProgress();
-  if (stats) {
-    p.completedMissions = Math.max(0, Number(stats.total_sessions) || 0);
-    p.onTaskMinutes = Math.max(0, Number(stats.total_on_task_minutes) || 0);
-    p.longestFlightMinutes = Math.max(0, Number(stats.longest_flight_minutes) || 0);
-    p.firstFlightCelebrated = p.completedMissions > 0;
+  const local = loadProgress();
+  if (!stats) {
+    refreshAllShipViews();
+    return;
   }
+  const completed = Math.max(
+    local.completedMissions,
+    Math.max(0, Number(stats.total_sessions) || 0),
+  );
+  const p: ShipProgress = {
+    completedMissions: completed,
+    onTaskMinutes: Math.max(
+      local.onTaskMinutes,
+      Math.max(0, Number(stats.total_on_task_minutes) || 0),
+    ),
+    longestFlightMinutes: Math.max(
+      local.longestFlightMinutes,
+      Math.max(0, Number(stats.longest_flight_minutes) || 0),
+    ),
+    firstFlightCelebrated: local.firstFlightCelebrated || completed > 0,
+  };
   saveProgress(p);
   refreshAllShipViews();
 }
@@ -192,8 +209,8 @@ export function onMissionCompleted(summary: MissionCompleteInput, elapsedSecs: n
   const checks = summary.screen_checks ?? 0;
   const ratio = checks === 0 ? 0.35 : Math.min(1, Math.max(0, summary.on_task_ratio));
   p.onTaskMinutes += mins * ratio;
-  const flightMins = Math.max(0, Math.round(Math.max(0, elapsedSecs) / 60));
-  p.longestFlightMinutes = Math.max(p.longestFlightMinutes || 0, flightMins);
+  // Personal-best minutes are recorded separately via recordLongestFlightMinutes
+  // (must run before this so "new PB" compares against the prior value).
   p.completedMissions += 1;
   saveProgress(p);
 
