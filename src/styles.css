@@ -2500,7 +2500,7 @@ button:active {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.75rem;
+  min-height: 52px;
   background: #e9ddfd;
   border: none;
   color: var(--mc-text-primary);

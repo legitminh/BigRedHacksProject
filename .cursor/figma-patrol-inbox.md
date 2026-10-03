@@ -479,16 +479,24 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: Added `#session-chat-hint` under session composer; session mic feedback targets it instead of empty-state copy.
 - verified: 2026-10-03T14:10:57-04:00
 
-## open: fp-break-session-panel
+## verified: fp-break-session-panel
 - screen: active
-- ref: `.cursor/figma-refs/10---On-a-break.svg`
+- ref: `.cursor/figma-refs/10-on-a-break.png` · live `2:42`
 - deviation: |
     EXPECTED (Figma 10 On a break): progress pill “On a break”; timer caption “REMAINING • TIMER PAUSED”; primary control “Resume mission”; session copilot sidebar replaced by an “ON A BREAK” card (“A little breathing room.” / “Your timer is paused…” / Resume mission / “Your spaceship will continue from right here.”).
     ACTUAL: `updateSessionProgressPill("paused")` sets “On a break” and Pause→“Resume”, but caption stays “REMAINING IN YOUR FLIGHT”, note is visually-hidden, and `.session-copilot-panel` stays the chat composer (no break card).
 - fix_hint: |
     When `session.paused`, swap/overlay `.session-copilot-panel` with a Figma break card; set `.session-timer-caption` to “REMAINING • TIMER PAUSED”; keep existing pause invoke / Resume wiring (do not change End mission).
 - escalate: none
-
+- commit: a79a5ce
+- change: |
+    Compact `#session-break-card` + “Resume mission” + hidden pause note via
+    `is-session-break` (see sibling verified break items). Pill/caption via
+    earlier b7de340 (`Ⅱ  On a break` / `REMAINING · TIMER PAUSED`).
+- verified: 2026-10-03T17:33:30-04:00
+- note: |
+    Live `2:42`/`6:828` match HEAD a79a5ce + b7de340. Stale open claimed no
+    break card / “Resume” only — superseded by verified compact/copy/label items.
 ## open: fp-relaunch-session-panel
 - screen: active
 - ref: `.cursor/figma-refs/09---Reset-&-relaunch.svg`
@@ -652,7 +660,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: `#goals` rows=1; min-height 2.5rem + tighter padding; resize/overflow kept for longer goals.
 - verified: 2026-10-03T15:19:56-04:00
 
-## open: fp-break-live-panel-copy
+## verified: fp-break-live-panel-copy
 - screen: active
 - ref: `.cursor/figma-refs/10-on-a-break.png` · live `2:42` · badge `8:431` ·
   title `8:432` · body `8:433` · CTA `8:435` · foot `8:438`
@@ -671,7 +679,14 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     badge; optionally align Pause→“Resume mission”. Keep End + pause invoke.
     Complements `fp-break-session-panel`.
 - escalate: scrutinous
-
+- commit: a79a5ce
+- change: |
+    `#session-break-card` uses live badge/title/body/divider/Resume/footer;
+    left `#session-pause` → “Resume mission” while paused.
+- verified: 2026-10-03T17:33:30-04:00
+- note: |
+    Live get_screenshot `6:828` / metadata `8:431`–`8:438` + `6:819` match HEAD.
+    Stale ACTUAL (no card / “Resume”) rewritten — now verified with compact siblings.
 ## open: fp-listening-session-ui
 - screen: active
 - ref: `.cursor/figma-refs/14-listening.png` · live `2:46` · presence `6:1373` ·
@@ -1759,7 +1774,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     secondary; wired to setup / Permissions tab.
 - verified: 2026-10-03T17:05:46-04:00
 
-## done: fp-copilot-sidebar-cta-fullwidth
+## verified: fp-copilot-sidebar-cta-fullwidth
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · CTA `5:223`
 - expected: |
@@ -1780,8 +1795,12 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `.copilot-sidebar-cta` now `align-self: stretch` + `width: 100%`
     (full sidebar row); `#copilot-start-mission` → `show("view-lockin")`
     unchanged.
+- verified: 2026-10-03T17:33:30-04:00
+- note: |
+    Live get_screenshot/metadata `5:223` = 262×52 under sidebar `5:217`
+    content column; HEAD `.copilot-sidebar-cta` stretch + width 100% matches.
 
-## done: fp-copilot-composer-surface
+## verified: fp-copilot-composer-surface
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · input `5:249`
 - expected: |
@@ -1801,6 +1820,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     `.view-copilot` / session `.copilot-input-wrap` fill `#f7f2ff`, border
     `#c8bfd7`, 16px radius; Mic/Send/listening wiring unchanged.
+- verified: 2026-10-03T17:33:30-04:00
+- note: |
+    Live get_screenshot `5:249` pale lavender page-bg + light purple border;
+    HEAD `#f7f2ff` / `#c8bfd7` / 1rem radius matches.
 
 ## open: fp-timer-replace-cta-hierarchy
 - screen: active
@@ -1862,7 +1885,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     unlock wiring.
 - escalate: scrutinous
 
-## done: fp-break-extraneous-pause-note
+## verified: fp-break-extraneous-pause-note
 - screen: active
 - ref: `.cursor/figma-refs/10-on-a-break.png` · live `2:42` · tick13
 - expected: |
@@ -1883,8 +1906,12 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     `syncPauseControls` always keeps `#session-pause-note` hidden; CSS
     `display: none` so the coaching-hold line never appears under Pause/End.
+- verified: 2026-10-03T17:33:30-04:00
+- note: |
+    Live metadata `2:42`: after `6:818` controls only `6:825` earned-minutes —
+    no coaching-hold line. HEAD keeps `#session-pause-note` hidden + `display:none`.
 
-## done: fp-break-resume-mission-label
+## verified: fp-break-resume-mission-label
 - screen: active
 - ref: `.cursor/figma-refs/10-on-a-break.png` · live `2:42` · left `6:819`
 - expected: |
@@ -1905,6 +1932,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     Paused `#session-pause` label is “Resume mission”; idle “Pause”.
     Left control stays filled primary while paused; End mission unchanged.
+- verified: 2026-10-03T17:33:30-04:00
+- note: |
+    Live `6:819` “Resume mission” + card `8:435` match HEAD
+    `syncPauseControls` paused label + `#session-break-resume`.
 
 ## open: fp-relaunch-cta-hierarchy
 - screen: active
@@ -1947,7 +1978,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `#session-chat-form` / Mic / Send as idle. Restore suggest on reconnect.
 - escalate: scrutinous
 
-## done: fp-break-panel-compact
+## verified: fp-break-panel-compact
 - screen: active
 - ref: `.cursor/figma-refs/10-on-a-break.png` · live `2:42` · panel `6:828`
 - expected: |
@@ -1971,3 +2002,109 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `#view-session.is-session-break` swaps `.session-copilot-chat` for
     `#session-break-card` (badge/title/body/divider/Resume/footer). Card
     Resume clicks `#session-pause`; chat column restores on resume.
+- verified: 2026-10-03T17:33:30-04:00
+- note: |
+    Live get_screenshot/metadata `6:828` = 434×376 compact card only;
+    HEAD `is-session-break` hides chat stack + shows `#session-break-card`.
+
+## done: fp-copilot-chip-height
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · prompts `5:240` ·
+  chips `5:241`/`5:243`/`5:245`
+- expected: |
+    Live 03 suggested prompts row is 52px tall — Explain simply 210×52,
+    I’m stuck 180×52, Find a next step 230×52 (10px gaps).
+- actual: |
+    `.copilot-chip` uses `min-height: 2.75rem` (~44px) + hug padding — chips
+    read shorter than live 52px pills. Copy/no-+ already verified; CTA width +
+    composer fill done in b1c106a.
+- deviation: |
+    Copilot priority tick14 — chip height vs live `5:240`. Distinct from
+    verified chip-plus removal and done CTA/composer surface.
+- fix_hint: |
+    Set `.copilot-chip` to `min-height: 52px` (and optional min-widths
+    210/180/230); keep plain labels + study wiring.
+- escalate: scrutinous
+- commit: PENDING
+- change: `.copilot-chip` `min-height: 52px` to match live `5:240` suggested-prompt pills; labels + study wiring unchanged.
+
+## done: fp-copilot-placeholder-ellipsis
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · input `5:250` ·
+  also session `6:1727`
+- expected: |
+    Live composer placeholder is “Message your copilot…” with a single
+    unicode ellipsis (U+2026) — same on Copilot 03 and session composers.
+- actual: |
+    `#chat-input` / session placeholder / `CHAT_INPUT_IDLE_PLACEHOLDER` use
+    three ASCII dots (`...`). Composer fill/radius OK after b1c106a.
+- deviation: |
+    Copilot priority composer spot-check — ellipsis glyph vs live `5:250`.
+    Distinct from done surface-token open.
+- fix_hint: |
+    Replace `...` with `…` in Copilot + session idle placeholders (and the
+    TS constant); keep Mic/Send/listening wiring.
+- escalate: scrutinous
+- commit: PENDING
+- change: Idle placeholder “Message your copilot…” uses U+2026 on `#chat-input`, `#session-chat-input`, and `CHAT_INPUT_IDLE_PLACEHOLDER`.
+
+## open: fp-relaunch-next-step-field
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  field `8:419`/`8:421`
+- expected: |
+    Live 09 relaunch card includes a labeled “Next step” stack (`8:419`):
+    label + Editable field 386×64 (`8:421`) above Relaunch / Take a break —
+    not a bare textarea or missing input.
+- actual: |
+    No relaunch surface yet (`fp-relaunch-session-panel` /
+    `fp-relaunch-live-panel-copy`). Those opens mention “Next step field” in
+    copy lists but do not lock label + 64px field chrome.
+- deviation: |
+    Next-step field chrome vs live `8:419`/`8:421`. Complements panel/copy/
+    CTA-hierarchy; under-covered relaunch surface.
+- fix_hint: |
+    When building the relaunch card, mount labeled Next step + 64px MC
+    editable (prefill coach next-step text); keep Relaunch wiring.
+- escalate: scrutinous
+
+## open: fp-connection-lost-keeps-history
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  AT LAUNCH `6:1714` · YOU `6:1717` · Latest `6:1719`
+- expected: |
+    Live 16 keeps prior chat turns (AT LAUNCH seed + YOU · JUST NOW) above
+    the Connection-lost Latest-response card; disconnect does not clear the
+    log.
+- actual: |
+    Opens cover presence/callout/Retry/latest-card/composer-stays/chrome-hide
+    — not that existing session turns must remain mounted when lost UI
+    appears. App has no lost UI yet.
+- deviation: |
+    History stays above lost Latest card. Distinct from
+    `fp-connection-lost-composer-stays` and `fp-connection-lost-latest-card`.
+- fix_hint: |
+    On disconnect: append/show lost Latest card + Retry; do not wipe
+    `#session-chat-log` turns. Restore suggest on reconnect.
+- escalate: scrutinous
+
+## open: fp-welcome-field-height
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · Email `5:65` ·
+  Password `5:69`
+- expected: |
+    Live 01 Email/Password Editable fields are 438×64 each under bold
+    labels (`5:63`/`5:67` stacks) — same 64px field height as setup/relaunch
+    editables.
+- actual: |
+    Open `fp-welcome-signin-form` covers field existence/placeholders; app
+    is still Google-only (no Email/Password). No lock on 64px field height
+    when the card is built. CSS `.welcome-signin-card input` padding hugs
+    shorter than 64.
+- deviation: |
+    Welcome field height vs live `5:65`/`5:69`. Complements form + guest
+    chrome opens; under-covered sign-in surface.
+- fix_hint: |
+    When mounting Email/Password, set inputs to min-height 64px (full card
+    column width); keep Sign in → / guest wiring per sibling opens.
+- escalate: scrutinous

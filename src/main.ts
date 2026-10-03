@@ -2268,7 +2268,7 @@ async function bootApp() {
   }
 
   let chatMicListening = false;
-  const CHAT_INPUT_IDLE_PLACEHOLDER = "Message your copilot...";
+  const CHAT_INPUT_IDLE_PLACEHOLDER = "Message your copilot…";
   const CHAT_LISTENING_COPY = "Listening… click mic to stop";
   $("#chat-mic")?.addEventListener("click", async () => {
     if (chatBusy || chatMicListening) return;
