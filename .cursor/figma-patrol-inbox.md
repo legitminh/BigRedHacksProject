@@ -258,7 +258,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - commit: 232e40d
 - change: Dark `#282237` rounded square + lavender outline-star SVG from Figma 06 path.
 
-## done: fp-copilot-chip-plus
+## verified: fp-copilot-chip-plus
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live Figma `2:35`
 - deviation: |
@@ -266,18 +266,22 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     (including “Find a next step”). Ambient decorative `+` marks belong on page margins, not in chips.
 - fix_hint: Remove all `.copilot-chip-plus` mounts; keep three lavender text chips.
 - escalate: scrutinous
+- commit: ffaa518
 - change: Stripped chip trailing `+` entirely; decorative page-corner `+` marks remain outside chips.
 - note: |
     Earlier 52749cd kept + on Find a next step per older PNG crops; live frame 2:35 (2026-10-03)
     no longer includes that glyph.
+- verified: 2026-10-03T15:06:26-04:00
 
-## done: fp-copilot-chip-plus-glyph
+## verified: fp-copilot-chip-plus-glyph
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live Figma `2:35`
 - deviation: Chip trailing `+` glyph styling superseded — live Figma has no chip plus.
 - fix_hint: n/a — remove mount.
 - escalate: none
+- commit: ffaa518
 - change: `.copilot-chip-plus` unused/hidden; no chip glyph to style.
+- verified: 2026-10-03T15:06:26-04:00
 
 ## verified: fp-summary-decor-moon
 - screen: summary
@@ -506,7 +510,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - commit: 7edce57
 - change: Early End uses ✦ FLIGHT LOGGED / “Every flight moves you forward.”; timer-complete keeps QUEST COMPLETE; first-flight unchanged.
 
-## done: fp-copilot-live-match
+## verified: fp-copilot-live-match
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live Figma `BR1qUqQ2xrpSCJdLgzhKDI` node `2:35`
 - deviation: |
@@ -519,5 +523,119 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     outside lavender input wrap; nav without cream bar chrome.
 - fix_hint: Align `#view-chat` markup + `.view-copilot` CSS to live frame; keep chip/send/mic/nav wiring.
 - escalate: scrutinous
+- commit: ffaa518
 - change: Matched live Figma 03 structure/copy/composer (in-pill Mic+Send), removed kickers/astronaut/chip +, cream nav + sidebar divider + deco pluses.
+- verified: 2026-10-03T15:06:26-04:00
+
+## done: fp-setup-affordance-glyph
+- screen: setup
+- ref: `.cursor/figma-refs/05-mission-setup.png` · live `2:37`
+- deviation: |
+    EXPECTED (live Figma 05 objective field trailing control): small dark-purple concentric target /
+    radio disc (outer ring + solid center dot), not a star glyph.
+    ACTUAL (`#goals-copilot-affordance`): filled purple gradient circle containing a white star glyph.
+- fix_hint: |
+    Restyle `#goals-copilot-affordance` to a concentric target (CSS rings or tiny SVG). Keep Launch
+    wiring / `requestSubmit()` (intentional product: objective control launches — do not reopen as Copilot).
+- escalate: scrutinous
+- commit: 3981aa5
+- change: Replaced star glyph with `#6750A4` concentric target SVG; Launch `requestSubmit()` wiring unchanged.
+
+## done: fp-settings-kicker-period
+- screen: settings
+- ref: `.cursor/figma-refs/04-settings.png` · live `2:36`
+- deviation: |
+    EXPECTED (OCR live 04): intro kicker “MAKE YOURSELF AT HOME.” with a trailing period.
+    ACTUAL (`.settings-kicker`): “Make yourself at home” — CSS uppercases, but no period character.
+- fix_hint: Append `.` to `.settings-kicker` copy in `index.html` (leave five-tab rail alone).
+- escalate: scrutinous
+- commit: 3981aa5
+- change: Appended trailing period to `.settings-kicker` (“Make yourself at home.”).
+
+## open: fp-gentle-checkin-progress-pill
+- screen: active
+- ref: `.cursor/figma-refs/08-gentle-check-in.png` · live `2:40`
+- deviation: |
+    EXPECTED (live 08): while check-in is up, left progress pill becomes “✦ A gentle check-in”
+    (not “Mission in progress”); timer caption stays “REMAINING IN YOUR FLIGHT”; Pause/End remain.
+    ACTUAL: `#session-progress-label` stays “Mission in progress”; check-in only appears as
+    `overlay.html` toast (see also `fp-gentle-checkin-session-panel`).
+- fix_hint: |
+    When a gentle check-in fires, set `#session-progress-label` to “A gentle check-in” (star via
+    existing pill styles); restore “Mission in progress” when check-in dismisses. Keep Pause/End.
+- escalate: scrutinous
+
+## open: fp-end-confirm-modal-spec
+- screen: active
+- ref: `.cursor/figma-refs/11-end-confirmation.png` · live `2:43`
+- deviation: |
+    EXPECTED (live 11 overlay on active session): cream centered card with badge “END MISSION”,
+    title “End this session?”, body “Your {n} earned flight minutes will be saved. You can reflect
+    on your objective next.”, secondary “Keep working”, primary “End session”; dimmed scrim over
+    the still-visible session chrome.
+    ACTUAL (`#end-session` → `window.confirm("End this mission? Screen watching will stop.")`):
+    native dialog, wrong copy, no scrim/card.
+- fix_hint: |
+    Replace `window.confirm` with an MC modal matching live 11 copy/buttons; Keep working dismisses;
+    End session keeps existing end invoke. Complements `fp-end-confirm-figma-modal`.
+- escalate: scrutinous
+
+## open: fp-gentle-checkin-panel-copy
+- screen: active
+- ref: `.cursor/figma-refs/08-gentle-check-in.png` · live `2:40`
+- deviation: |
+    EXPECTED (live 08 right panel): badge “✦ QUICK CHECK-IN”; title “Still working on your mission?”;
+    body “Your flight is still running. What would help right now?”; stacked “On task” (primary) /
+    “Got distracted” / “Take a break”; footer “No answer needed if you're in the flow. This check-in
+    will close on its own.”
+    ACTUAL: `overlay.ts` toast shows coach `prompt.text` + kicker only — no three actions, no footer,
+    not mounted in `.session-copilot-panel`.
+- fix_hint: |
+    Swap/overlay `.session-copilot-panel` with the Figma quick-check-in card + exact copy; wire
+    buttons to existing coach responses; auto-dismiss per footer. Complements
+    `fp-gentle-checkin-session-panel`.
+- escalate: scrutinous
+
+## done: fp-active-next-step-clock
+- screen: active
+- ref: `.cursor/figma-refs/06-mission-active.png` · live `2:38`
+- deviation: |
+    EXPECTED (live 06 next-step chrome): lavender pill leads with a small clock/timer icon, then
+    uppercase “NEXT STEP TIMER”, then the countdown (e.g. 04:32), with “One small step at a time.”
+    beside it.
+    ACTUAL (`.session-next-step-pill`): text kicker + time only — no leading clock icon.
+- fix_hint: |
+    Add a small clock SVG (or unicode) as first child of `.session-next-step-pill` before the kicker;
+    keep existing timer wiring.
+- escalate: scrutinous
+- commit: 3981aa5
+- change: Leading clock SVG in `.session-next-step-pill` before kicker; timer wiring unchanged.
+
+## open: fp-setup-objective-compact
+- screen: setup
+- ref: `.cursor/figma-refs/05-mission-setup.png` · live `2:37`
+- deviation: |
+    EXPECTED (live 05): objective control reads as a single-line compact field (~one text row) with
+    the trailing affordance vertically centered on that row.
+    ACTUAL (`#goals` textarea `rows="3"` + `.mission-field textarea { min-height: 3.25rem }`): tall
+    multi-line box — overshoots Figma field height.
+- fix_hint: |
+    Drop to `rows="1"` (or 2) and lower min-height so the field matches the compact Figma row; keep
+    resize/overflow usable for longer goals.
+- escalate: scrutinous
+
+## open: fp-break-live-panel-copy
+- screen: active
+- ref: `.cursor/figma-refs/10-on-a-break.png` · live `2:42`
+- deviation: |
+    EXPECTED (OCR live 10): progress “On a break”; caption “REMAINING • TIMER PAUSED”; primary
+    “Resume mission”; right card badge “ON A BREAK”, title “A little breathing room.”, body
+    “Your timer is paused. Automatic check-ins are paused too.”, Resume CTA, footer
+    “Your spaceship will continue from right here.”
+    ACTUAL: Pause→Resume label flips, but caption stays “REMAINING IN YOUR FLIGHT”, note is
+    visually-hidden, `.session-copilot-panel` stays chat (see `fp-break-session-panel`).
+- fix_hint: |
+    On pause: set caption + swap copilot panel to the break card with exact live copy; Resume keeps
+    existing pause invoke. Do not change End mission.
+- escalate: scrutinous
 

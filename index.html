@@ -363,7 +363,10 @@
                   aria-label="Launch mission"
                   title="Launch mission"
                 >
-                  <span aria-hidden="true">✦</span>
+                  <svg class="mission-field-affordance-target" viewBox="0 0 20 20" aria-hidden="true">
+                    <circle cx="10" cy="10" r="7.25" fill="none" stroke="currentColor" stroke-width="1.75" />
+                    <circle cx="10" cy="10" r="3.1" fill="currentColor" />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -576,6 +579,10 @@
               <p class="session-flight-minutes-hint">Time in session, excluding breaks and resets.</p>
               <div class="session-next-step" id="session-next-step" aria-live="polite">
                 <div class="session-next-step-pill">
+                  <svg class="session-next-step-clock" viewBox="0 0 16 16" aria-hidden="true">
+                    <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.4" />
+                    <path d="M8 4.5V8l2.25 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
                   <span class="session-next-step-kicker">Next step timer</span>
                   <span id="session-next-step-timer" class="session-next-step-time">05:00</span>
                 </div>
@@ -731,7 +738,7 @@
 
         <div class="settings-page">
           <header class="settings-intro">
-            <p class="settings-kicker">Make yourself at home</p>
+            <p class="settings-kicker">Make yourself at home.</p>
             <h1 class="settings-title">Your space, your settings.</h1>
             <p class="settings-lead">Choose how your copilot joins you. You’re always in control.</p>
           </header>
