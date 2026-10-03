@@ -44,6 +44,8 @@ pub struct AppState {
 struct StatusPayload {
     /// True only after Google OAuth (JWT stored). Guest/legacy alone does not count.
     signed_in: bool,
+    /// Local-only Guest session (legacy file); unlocks app without cloud sync.
+    guest_mode: bool,
     username: Option<String>,
     email: Option<String>,
     user_id: Option<String>,
@@ -127,11 +129,17 @@ async fn get_status(state: State<'_, AppState>) -> Result<StatusPayload, String>
     };
     let tokens = auth::load_tokens(&cfg);
     let signed_in = tokens.is_some();
+    let username_raw = auth::current_username(&cfg);
+    let guest_mode = !signed_in
+        && username_raw
+            .as_ref()
+            .is_some_and(|u| u.eq_ignore_ascii_case("guest"));
     // Gemini is server-side only; ready once the user has a JWT.
     let gemini_ready = signed_in;
     Ok(StatusPayload {
         signed_in,
-        username: auth::current_username(&cfg).filter(|_| signed_in),
+        guest_mode,
+        username: username_raw.filter(|_| signed_in || guest_mode),
         email: tokens.as_ref().and_then(|t| t.user.email.clone()),
         user_id: tokens.as_ref().map(|t| t.user.id.clone()),
         google_connected,

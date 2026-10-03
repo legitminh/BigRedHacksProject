@@ -120,6 +120,8 @@ interface VoiceTranscript {
 interface StatusPayload {
   /** Google OAuth completed (JWT stored). Required to use the app. */
   signed_in: boolean;
+  /** Local-only Guest session — unlocks without cloud sync. */
+  guest_mode?: boolean;
   username?: string | null;
   email?: string | null;
   user_id?: string | null;
@@ -132,9 +134,9 @@ interface StatusPayload {
   session: LockInSession | null;
 }
 
-/** App is unlocked only after Google sign-in (account + Calendar/Drive). */
+/** Unlocked after Google OAuth (+ Calendar/Drive) or local Guest mode. */
 function isAppUnlocked(status: StatusPayload): boolean {
-  return Boolean(status.signed_in && status.google_connected);
+  return Boolean((status.signed_in && status.google_connected) || status.guest_mode);
 }
 
 interface StudySessionSuggestion {
@@ -574,16 +576,56 @@ async function submitWelcomeGoogle() {
   }
 }
 
+async function submitWelcomeGuest() {
+  const err = $("#wp-signin-error");
+  const guestBtn = $("#welcome-continue-guest") as HTMLButtonElement | null;
+  if (err) {
+    err.hidden = true;
+    err.textContent = "";
+  }
+  if (guestBtn) guestBtn.disabled = true;
+  try {
+    await invoke("sign_in_waypoint_guest");
+    await refreshStatus();
+  } catch (e) {
+    const raw =
+      typeof e === "string"
+        ? e
+        : e && typeof e === "object" && "message" in e
+          ? String((e as { message: unknown }).message)
+          : String(e);
+    const nice = raw.replace(/^Error:\s*/i, "").trim() || "Guest sign-in failed.";
+    if (err) {
+      err.hidden = false;
+      err.textContent = nice;
+    } else {
+      alert(nice);
+    }
+  } finally {
+    if (guestBtn) guestBtn.disabled = false;
+  }
+}
+
 function wireWelcomeSignIn() {
   const btn = $("#welcome-google-signin") as HTMLButtonElement | null;
-  if (!btn || btn.dataset.wired === "1") return;
-  btn.dataset.wired = "1";
-  // onclick (not addEventListener) so Vite HMR / double-init cannot stack handlers.
-  btn.onclick = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    void submitWelcomeGoogle();
-  };
+  if (btn && btn.dataset.wired !== "1") {
+    btn.dataset.wired = "1";
+    // onclick (not addEventListener) so Vite HMR / double-init cannot stack handlers.
+    btn.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void submitWelcomeGoogle();
+    };
+  }
+  const guest = $("#welcome-continue-guest") as HTMLButtonElement | null;
+  if (guest && guest.dataset.wired !== "1") {
+    guest.dataset.wired = "1";
+    guest.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void submitWelcomeGuest();
+    };
+  }
 }
 
 function renderGuestNav() {

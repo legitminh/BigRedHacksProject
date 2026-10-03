@@ -529,7 +529,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     On coach/Gemini disconnect during a mission, restyle `.session-copilot-presence` and insert a Figma-styled lost/retry block above the session composer; Retry can re-invoke existing status/connect helpers.
 - escalate: none
 
-## done: fp-timer-replace-modal
+## verified: fp-timer-replace-modal
 - screen: active
 - ref: `.cursor/figma-refs/15---Timer-replacement.svg`
 - deviation: |
@@ -542,6 +542,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     Suggest chip opens `#timer-replace-modal` when a next-step timer is
     already active; Keep current dismisses; Replace timer restarts 05:00.
+- verified: 2026-10-03T18:13:56-04:00
 
 ## verified: fp-summary-flight-logged
 - screen: summary
@@ -1394,7 +1395,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     normal active.
 - escalate: scrutinous
 
-## done: fp-timer-replace-body-copy
+## verified: fp-timer-replace-body-copy
 - screen: active
 - ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` · body `6:1566`
 - expected: |
@@ -1416,6 +1417,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `#timer-replace-modal-body` interpolates live remaining as m:ss
     (“Your current timer has {m:ss} left. Replace it with a new five-minute
     timer? …”).
+- verified: 2026-10-03T18:13:56-04:00
 
 ## verified: fp-session-pb-marker-stack
 - screen: active
@@ -1626,7 +1628,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     until MC end modal lands. Full modal deferred (`fp-end-confirm-figma-modal`).
 - verified: 2026-10-03T17:05:46-04:00
 
-## done: fp-timer-replace-keeps-running
+## verified: fp-timer-replace-keeps-running
 - screen: active
 - ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` · body `6:1566`
 - expected: |
@@ -1643,6 +1645,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Modal body includes mission-timer closer; stale no-“timer” guidance
     retired.
 - escalate: scrutinous
+- verified: 2026-10-03T18:13:56-04:00
 
 ## open: fp-permissions-choice-surface
 - screen: overlay
@@ -1747,7 +1750,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Denied body uses live “works just as well without it.” (`7:502`).
 - verified: 2026-10-03T17:05:46-04:00
 
-## done: fp-timer-replace-mission-timer-copy
+## verified: fp-timer-replace-mission-timer-copy
 - screen: active
 - ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` ·
   body `6:1566`
@@ -1763,8 +1766,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     Inbox closed as superseded — modal body uses mission-timer closer.
 - escalate: scrutinous
+- verified: 2026-10-03T18:13:56-04:00
 
-## done: fp-timer-replace-keeps-next-step
+## verified: fp-timer-replace-keeps-next-step
 - screen: active
 - ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47`
 - expected: |
@@ -1787,6 +1791,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     `openTimerReplaceModal` does not toggle `is-session-ending` / break /
     check-in; `#session-next-step` + suggest stay visible under scrim.
+- verified: 2026-10-03T18:13:56-04:00
 
 ## verified: fp-permission-denied-cta-primary
 - screen: overlay
@@ -1862,7 +1867,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Live get_screenshot `5:249` pale lavender page-bg + light purple border;
     HEAD `#f7f2ff` / `#c8bfd7` / 1rem radius matches.
 
-## done: fp-timer-replace-cta-hierarchy
+## verified: fp-timer-replace-cta-hierarchy
 - screen: active
 - ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` ·
   actions `6:1568` / `6:1571`
@@ -1883,6 +1888,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     LEFT Keep current = lavender secondary dismiss; RIGHT Replace timer =
     filled primary → `startNextStepTimer(300)`.
+- verified: 2026-10-03T18:13:56-04:00
 
 ## open: fp-connection-lost-latest-card
 - screen: active
@@ -2071,7 +2077,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - verified: 2026-10-03T17:52:09-04:00
 
 
-## done: fp-copilot-placeholder-ellipsis
+## verified: fp-copilot-placeholder-ellipsis
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · input `5:250` ·
   also session `6:1011` / `6:1727`
@@ -2096,6 +2102,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - reopen_note: |
     Tick8 live verify: Copilot OK; session placeholder overwritten by 10bb695
     companion Live to “Ask your companion…”.
+- verified: 2026-10-03T18:13:56-04:00
 
 ## open: fp-relaunch-next-step-field
 - screen: active
@@ -2490,3 +2497,106 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     kicker (not mint); keep Lock-in nav + handoff/denied over the page.
     Preserve Settings five-tab; do not block Launch.
 - escalate: scrutinous
+
+## done: fp-copilot-sidebar-title-scale
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · sidebar `5:217` ·
+  title `5:220`
+- expected: |
+    Live 03 sidebar title (`5:220`) is Medium 26px / leading 1.4, two
+    lines (“A sounding board” / “for your next step.”) on raised
+    `#e9ddfd` card — not semibold ~24px.
+- actual: |
+    Copilot priority tick18 spot-check after dones `62162e9` / `ab57008` /
+    `b1c106a` / `adecf0c` (chips/empty-surface/composer/placeholder OK).
+    `.copilot-sidebar-title` is `1.5rem` (~24px) `font-weight: 600`.
+- deviation: |
+    Sidebar title type scale/weight vs live `5:220`. Distinct from
+    verified sidebar-copy / CTA-fullwidth.
+- fix_hint: |
+    Set `.copilot-sidebar-title` to 26px medium (500); keep Start a
+    mission wiring + `#e9ddfd` card fill.
+- escalate: scrutinous
+- commit: PENDING
+- change: `.copilot-sidebar-title` → Medium 26px / line-height 1.4 (`font-weight: 500`, `1.625rem`).
+
+## done: fp-copilot-empty-heading-weight
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · card `5:235` ·
+  heading `5:238`
+- expected: |
+    Live empty-card heading “What are you working on today?” is Regular
+    22px (`font-normal`) on `#fffbff` card with 24px pad / 14px gap.
+- actual: |
+    Tick18 Copilot spot-check: empty surface `#fffbff` OK after `62162e9`;
+    `.copilot-empty-heading` is `1.375rem` (22px) but `font-weight: 500`.
+    Gap `0.85rem` vs live 14px (secondary).
+- deviation: |
+    Empty heading weight vs live `5:238` Regular. Complements done
+    empty-surface; copy strings already match.
+- fix_hint: |
+    Set `.copilot-empty-heading` to `font-weight: 400` (optional gap
+    14px); leave Mic/Send/chip wiring.
+- escalate: scrutinous
+- commit: PENDING
+- change: `.copilot-empty-heading` → Regular (`font-weight: 400`); empty-card gap 14px.
+
+## open: fp-relaunch-next-step-field-fill
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  field `8:421`
+- expected: |
+    Live 09 Next step Editable (`8:421`, 386×64): fill `#f7f2ff`, border
+    `#c8bfd7`, radius 12px, px 18 / py 17 — same MC editable as welcome/
+    setup.
+- actual: |
+    Open `fp-relaunch-next-step-field` locks label + 64px height only.
+    App has no relaunch card yet — no fill/border tokens when built.
+- deviation: |
+    Next-step field surface tokens vs live `8:421`. Complements field
+    chrome / panel-compact / CTA opens; under-covered `2:41`.
+- fix_hint: |
+    When mounting the relaunch Next step input, use `#f7f2ff` / `#c8bfd7`
+    / 12px radius + 64px height; keep Relaunch wiring.
+- escalate: scrutinous
+
+## open: fp-relaunch-progress-pill-mint
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  pill text `6:581` · card badge `8:415`
+- expected: |
+    Live left progress label (`6:581`) is mint `#326c78` “→  Ready to
+    relaunch?”. Right card badge (`8:415`) stays purple `#6750a4`
+    “→  READY TO RELAUNCH?” — two different label colors.
+- actual: |
+    Opens lock → glyph (`fp-relaunch-badge-arrow`) + footer mint
+    (`fp-relaunch-footer-mint`) but not left-pill mint vs card-badge
+    purple. App has no relaunch UI.
+- deviation: |
+    Tick18 live proof — progress pill mint, card badge purple. Distinct
+    from footer mint + badge arrow.
+- fix_hint: |
+    Style left `#session-progress-label` relaunch state mint `#326c78`;
+    card badge purple `#6750a4`; both use →. Pair with panel/copy opens.
+- escalate: scrutinous
+
+## done: fp-welcome-guest-quiet-fill
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · guest `5:74`
+- expected: |
+    Live “Continue as guest” (`5:74`, 438×52) is Quiet state: fill
+    `#fffbff` (surface), not tonal `#e9ddfd` lavender — full-width pill
+    under Sign in →.
+- actual: |
+    Open `fp-welcome-guest-button-chrome` still says “tonal/raised
+    lavender secondary”. Live design_context is Quiet `#fffbff`. App
+    still Google-only (no guest control).
+- deviation: |
+    Tick18 live supersedes lavender guest guidance — Quiet surface fill.
+    Complements guest-button-chrome size/width + signin-form.
+- fix_hint: |
+    When mounting guest CTA: `#fffbff` Quiet pill 438×52 (not `#e9ddfd`);
+    keep guest unlock wiring. Ignore lavender secondary on sibling open.
+- escalate: scrutinous
+- commit: PENDING
+- change: Mounted `#welcome-continue-guest` as full-width Quiet `#fffbff` 52px pill; wired `sign_in_waypoint_guest` + `guest_mode` unlock.
