@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/src/styles.css" />
@@ -263,72 +263,134 @@
         </div>
       </section>
 
-      <section id="view-summary" class="view view-summary">
+      <section id="view-summary" class="view view-summary view-flight-log">
         <header class="panel-head">
           <button class="back" data-back type="button" aria-label="Back to home">←</button>
-          <p class="brand-inline">Waypoint</p>
+          <p class="brand-inline">Flight log</p>
         </header>
-        <div id="summary-celebration" class="mission-celebration" hidden>
-          <div class="mission-celebration__scene" aria-hidden="true">
-            <span class="celebration-planet"></span>
-            <span class="celebration-orbit"></span>
-            <span class="celebration-ship"></span>
-            <span class="celebration-confetti"></span>
+        <div class="flight-log-scroll">
+          <div id="summary-celebration" class="mission-celebration" hidden>
+            <div class="mission-celebration__scene" aria-hidden="true">
+              <span class="celebration-planet"></span>
+              <span class="celebration-orbit"></span>
+              <span class="celebration-ship"></span>
+              <span class="celebration-confetti"></span>
+            </div>
+            <p class="mission-celebration__kicker">Mission complete</p>
+            <h2 id="summary-celebration-title" class="mission-celebration__title">Flight log</h2>
+            <p id="summary-celebration-sub" class="mission-celebration__sub"></p>
           </div>
-          <p class="mission-celebration__kicker">Mission</p>
-          <h2 id="summary-celebration-title" class="mission-celebration__title">Quest complete</h2>
-          <p id="summary-celebration-sub" class="mission-celebration__sub"></p>
+          <div id="summary-ship" class="summary-ship" aria-live="polite"></div>
+          <p id="summary-closing" class="flight-log-closing"></p>
+          <div id="summary-stats" class="flight-log-stats" aria-label="Mission stats"></div>
+          <div id="summary-body" class="summary-body flight-log-details"></div>
         </div>
-        <div id="summary-ship" class="summary-ship" aria-live="polite"></div>
-        <p id="summary-closing" class="flight-log-closing"></p>
-        <div id="summary-stats" class="flight-log-stats"></div>
-        <div id="summary-body" class="summary-body flight-log-details"></div>
-        <div class="summary-actions cta-row">
-          <button type="button" class="primary" id="summary-lockin-again">Lock in again</button>
-          <button type="button" class="ghost" id="summary-go-home">Home</button>
+        <div class="summary-actions cta-row flight-log-actions">
+          <button type="button" class="primary wide" id="summary-lockin-again">Relaunch</button>
+          <button type="button" class="ghost wide" id="summary-go-home">Home</button>
         </div>
       </section>
 
-      <section id="view-settings" class="view">
-        <header class="panel-head">
+      <section id="view-settings" class="view view-mc-settings">
+        <header class="mc-settings-head">
           <button class="back" data-back type="button" aria-label="Back to home">←</button>
-          <p class="brand-inline">Settings</p>
+          <div class="mc-settings-head-copy">
+            <p class="mc-kicker">Waypoint</p>
+            <h1 class="mc-settings-title">Mission Control</h1>
+          </div>
         </header>
-        <div class="settings-tabs" role="tablist" aria-label="Settings sections">
-          <button class="settings-tab active" type="button" role="tab" aria-selected="true" data-settings-tab="lockin">Lock in</button>
-          <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="general" hidden tabindex="-1">General</button>
+        <div class="settings-tabs mc-settings-tabs" role="tablist" aria-label="Mission Control sections">
+          <button class="settings-tab active" type="button" role="tab" aria-selected="true" data-settings-tab="connection">Connection</button>
+          <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="permissions">Permissions</button>
+          <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="coaching">Coaching</button>
           <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="account">Account</button>
         </div>
-        <div class="settings-panels">
-          <div class="settings-panel active" id="settings-lockin" role="tabpanel">
-            <h2 class="settings-heading">Lock in</h2>
-            <p class="settings-copy">Controls how coaching feels during a focus session.</p>
-            <label class="settings-toggle">
-              <input id="setting-silent-mode" type="checkbox" />
-              <span>
-                <strong>Silent mode</strong>
-                <small>Turns off spoken coach lines (macOS speech). Overlay popups still appear. Note: this disables speech output — not speech-to-text listening.</small>
-              </span>
-            </label>
-            <p id="settings-save-status" class="composer-hint" aria-live="polite"></p>
+        <div class="settings-panels mc-settings-panels">
+          <div class="settings-panel active" id="settings-connection" role="tabpanel">
+            <article class="mc-settings-card">
+              <h2 class="settings-heading">Connection status</h2>
+              <p class="settings-copy tight">Cloud and local links Copilot and missions rely on.</p>
+              <ul id="connection-status-list" class="mc-settings-list" aria-live="polite"></ul>
+              <button id="connection-refresh" class="ghost pill" type="button">Refresh status</button>
+            </article>
           </div>
-          <div class="settings-panel" id="settings-general" role="tabpanel" hidden>
-            <h2 class="settings-heading">General</h2>
-            <p class="settings-copy muted">Nothing here yet — more app preferences will land in a future update.</p>
+          <div class="settings-panel" id="settings-permissions" role="tabpanel" hidden>
+            <article class="mc-settings-card">
+              <h2 class="settings-heading">System permissions</h2>
+              <p class="settings-copy tight">
+                Grant these in <strong>System Settings → Privacy &amp; Security</strong>, then quit and reopen Waypoint.
+              </p>
+              <ul class="mc-permissions-list">
+                <li class="mc-perm-row">
+                  <div class="mc-perm-copy">
+                    <strong>Screen Recording</strong>
+                    <span>Required — reads your screen to see if you stay on mission objectives.</span>
+                  </div>
+                  <span id="perm-screen" class="mc-perm-badge" data-state="unknown">Checking…</span>
+                </li>
+                <li class="mc-perm-row">
+                  <div class="mc-perm-copy">
+                    <strong>Camera</strong>
+                    <span>Optional — webcam clips for Presage wellness and stress checks.</span>
+                  </div>
+                  <span id="perm-camera" class="mc-perm-badge" data-state="unknown">Checking…</span>
+                </li>
+                <li class="mc-perm-row">
+                  <div class="mc-perm-copy">
+                    <strong>Accessibility &amp; Automation</strong>
+                    <span>Reads frontmost app, window title, and browser tabs for instant coaching.</span>
+                  </div>
+                  <span id="perm-accessibility" class="mc-perm-badge" data-state="unknown">Checking…</span>
+                </li>
+                <li class="mc-perm-row">
+                  <div class="mc-perm-copy">
+                    <strong>Microphone</strong>
+                    <span>Optional — short clips for voice invoke tests before Grok Voice ships.</span>
+                  </div>
+                  <span id="perm-microphone" class="mc-perm-badge" data-state="optional">Grant when testing voice</span>
+                </li>
+              </ul>
+              <button id="permissions-refresh" class="ghost pill" type="button">Re-check permissions</button>
+            </article>
+          </div>
+          <div class="settings-panel" id="settings-coaching" role="tabpanel" hidden>
+            <article class="mc-settings-card">
+              <h2 class="settings-heading">Coaching</h2>
+              <p class="settings-copy tight">How gentle reminders feel during an active mission.</p>
+              <label class="settings-toggle mc-settings-toggle">
+                <input id="setting-silent-mode" type="checkbox" />
+                <span>
+                  <strong>Silent mode</strong>
+                  <small>Turns off spoken coach lines (macOS speech). Overlay popups still appear. This mutes speech output — not speech-to-text listening.</small>
+                </span>
+              </label>
+              <p id="settings-save-status" class="composer-hint" aria-live="polite"></p>
+            </article>
+            <article class="mc-settings-card mc-settings-card--sub">
+              <h3 class="mc-settings-subhead">Invoke commands</h3>
+              <p class="settings-copy tight">Quick tests for local Tauri voice hooks (same commands the coach uses).</p>
+              <div class="cta-row">
+                <button id="invoke-voice-speak" class="secondary pill" type="button">Test speak</button>
+                <button id="invoke-voice-listen" class="ghost pill" type="button">Test mic (4s)</button>
+              </div>
+              <p id="invoke-voice-result" class="composer-hint" aria-live="polite"></p>
+            </article>
           </div>
           <div class="settings-panel" id="settings-account" role="tabpanel" hidden>
-            <h2 class="settings-heading">Account</h2>
-            <p class="settings-copy">Waypoint account and optional Google links for Calendar / Drive.</p>
-            <div class="account-block">
-              <p class="account-label">Waypoint</p>
-              <p id="account-waypoint-user" class="account-value">Not signed in</p>
-            </div>
-            <div class="account-block">
-              <p class="account-label">Google (optional)</p>
-              <p id="account-google-status" class="account-value">Not connected</p>
-              <p class="settings-copy tight">Link Google if you want Calendar deadlines and Drive notes in Ask. Lock-in works without it.</p>
-              <div id="account-google-actions" class="cta-row"></div>
-            </div>
+            <article class="mc-settings-card">
+              <h2 class="settings-heading">Account</h2>
+              <p class="settings-copy tight">Waypoint sign-in and optional Google for Calendar / Drive in Copilot.</p>
+              <div class="account-block">
+                <p class="account-label">Waypoint</p>
+                <p id="account-waypoint-user" class="account-value">Not signed in</p>
+              </div>
+              <div class="account-block">
+                <p class="account-label">Google (optional)</p>
+                <p id="account-google-status" class="account-value">Not connected</p>
+                <p class="settings-copy tight">Link Google for deadline context and Drive notes. Missions work without it.</p>
+                <div id="account-google-actions" class="cta-row"></div>
+              </div>
+            </article>
           </div>
         </div>
       </section>

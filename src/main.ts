@@ -24,6 +24,12 @@ interface UserSettings {
   silent_mode: boolean;
 }
 
+interface SystemPermissions {
+  screen_recording: boolean;
+  camera: boolean;
+  accessibility: boolean;
+}
+
 interface StatusPayload {
   signed_in: boolean;
   username?: string | null;
@@ -482,6 +488,118 @@ function renderAccountSettings(status: StatusPayload) {
   actions.appendChild(connect);
 }
 
+function setPermissionBadge(
+  id: string,
+  granted: boolean,
+  labels?: { on: string; off: string },
+) {
+  const el = $(`#${id}`);
+  if (!el) return;
+  const on = labels?.on ?? "Enabled";
+  const off = labels?.off ?? "Grant access";
+  el.textContent = granted ? on : off;
+  el.setAttribute("data-state", granted ? "ok" : "needs");
+}
+
+async function renderPermissionsStatus() {
+  ["perm-screen", "perm-camera", "perm-accessibility"].forEach((id) => {
+    const el = $(`#${id}`);
+    if (el) {
+      el.textContent = "Checking…";
+      el.setAttribute("data-state", "unknown");
+    }
+  });
+  try {
+    const perms = await invoke<SystemPermissions>("get_system_permissions");
+    setPermissionBadge("perm-screen", perms.screen_recording, {
+      on: "Enabled",
+      off: "Required — grant access",
+    });
+    setPermissionBadge("perm-camera", perms.camera, {
+      on: "Enabled",
+      off: "Optional — grant for wellness",
+    });
+    setPermissionBadge("perm-accessibility", perms.accessibility, {
+      on: "Enabled",
+      off: "Grant for tab coaching",
+    });
+  } catch (err) {
+    console.error(err);
+    ["perm-screen", "perm-camera", "perm-accessibility"].forEach((id) => {
+      const el = $(`#${id}`);
+      if (el) {
+        el.textContent = "Couldn’t check";
+        el.setAttribute("data-state", "needs");
+      }
+    });
+  }
+}
+
+function connectionRow(label: string, detail: string, ok: boolean): string {
+  const state = ok ? "ok" : "warn";
+  const status = ok ? "Connected" : "Offline";
+  return `<li class="mc-conn-row">
+    <div class="mc-conn-copy">
+      <strong>${escapeHtml(label)}</strong>
+      <span>${escapeHtml(detail)}</span>
+    </div>
+    <span class="mc-conn-dot" data-state="${state}" aria-hidden="true"></span>
+    <span class="mc-conn-status">${status}</span>
+  </li>`;
+}
+
+async function renderConnectionStatus(status: StatusPayload) {
+  const list = $("#connection-status-list");
+  if (!list) return;
+  list.innerHTML = `<li class="mc-conn-row mc-conn-row--loading"><span class="muted">Checking links…</span></li>`;
+
+  let localLine = "Local coach model";
+  if (status.local_llm_enabled !== false) {
+    try {
+      localLine = await invoke<string>("local_llm_status");
+    } catch {
+      localLine = `Local model: ${status.local_llm_model || "qwen2.5:0.5b"} (checking…)`;
+    }
+  } else {
+    localLine = "Local model disabled in config";
+  }
+  const localOk = /ready|online|running/i.test(localLine);
+
+  const googleDetail = status.google_connected
+    ? "Calendar and Drive linked for Copilot"
+    : status.google_oauth_ready
+      ? "Optional — connect for Calendar / Drive context"
+      : "OAuth client not configured in this build";
+
+  list.innerHTML = [
+    connectionRow(
+      "Gemini coach",
+      status.gemini_ready ? "Cloud vision + chat API configured" : "Missing API key",
+      status.gemini_ready,
+    ),
+    connectionRow("Google", googleDetail, status.google_connected),
+    connectionRow(
+      "Presage wellness",
+      status.presage_ready ? "Webcam stress API key present" : "Optional — add Presage key for HR checks",
+      status.presage_ready,
+    ),
+    connectionRow("Local LLM", localLine, localOk),
+    connectionRow(
+      "Waypoint account",
+      status.signed_in
+        ? `Signed in as ${status.username || "you"}`
+        : "Sign in on home for synced Mission Control",
+      status.signed_in,
+    ),
+  ].join("");
+}
+
+async function renderMissionControlSettings(status: StatusPayload) {
+  await renderConnectionStatus(status);
+  await renderPermissionsStatus();
+  renderAccountSettings(status);
+}
+
 function renderChatEmptyState() {
   const log = $("#chat-log");
   if (!log || log.querySelector("#chat-empty")) return;
@@ -612,6 +730,29 @@ function statusLabel(status: string): string {
     .toLowerCase();
 }
 
+function missionElapsedFraction(endsAt: string, durationSecs: number): number {
+  const total = Math.max(1, durationSecs);
+  const remaining = Math.max(0, new Date(endsAt).getTime() - Date.now()) / 1000;
+  return Math.min(1, Math.max(0, (total - remaining) / total));
+}
+
+function updateSessionOrbit(endsAt: string, durationSecs: number) {
+  const frac = missionElapsedFraction(endsAt, durationSecs);
+  const progress = $("#session-orbit-progress");
+  if (progress) {
+    progress.style.strokeDashoffset = `${100 - frac * 100}`;
+  }
+  const shipWrap = $("#session-orbit-ship-wrap");
+  if (shipWrap) {
+    shipWrap.style.setProperty("--orbit-deg", `${frac * 360 - 90}deg`);
+  }
+}
+
+function applySessionOrbitState(label: string) {
+  const orbit = $("#session-orbit");
+  if (orbit) orbit.setAttribute("data-state", label);
+}
+
 function formatVitals(vitals?: VitalsSnapshot | null): string {
   if (!vitals || (!vitals.raw_summary && vitals.source !== "presage" && vitals.source !== "fallback")) {
     return "Running quietly in the background (not required to lock in)";
@@ -662,7 +803,8 @@ function renderSession(session: LockInSession) {
   if (status) {
     const label = statusLabel(session.status);
     status.textContent = label.replace(/_/g, " ");
-    status.className = `status-chip ${label}`;
+    status.className = `status-chip session-status ${label}`;
+    applySessionOrbitState(label);
   }
   if (goals) goals.textContent = session.goals;
   if (note) note.textContent = session.watching_note || "Watching your screen";
@@ -670,6 +812,7 @@ function renderSession(session: LockInSession) {
   renderSessionCoachLog(session.prompts);
   onMissionStarted(session.duration_secs);
   refreshSessionFlight();
+  updateSessionOrbit(session.ends_at, session.duration_secs);
   updateSessionFlight(session.ends_at, session.duration_secs);
   void syncSessionMuteButton();
 }
@@ -682,8 +825,10 @@ async function openSettings() {
     if (silent) silent.checked = Boolean(settings.silent_mode);
     const status = $("#settings-save-status");
     if (status) status.textContent = "";
+    const invokeResult = $("#invoke-voice-result");
+    if (invokeResult) invokeResult.textContent = "";
     const appStatus = await invoke<StatusPayload>("get_status");
-    renderAccountSettings(appStatus);
+    await renderMissionControlSettings(appStatus);
   } catch (err) {
     console.error(err);
   }
@@ -700,6 +845,9 @@ function selectSettingsTab(tab: string) {
     panel.classList.toggle("active", active);
     panel.hidden = !active;
   });
+  if (tab === "permissions") {
+    void renderPermissionsStatus();
+  }
 }
 
 async function persistSilentMode() {
@@ -839,13 +987,14 @@ function startTimer(endsAt: string) {
     const ms = new Date(currentEndsAt).getTime() - Date.now();
     if (el) el.textContent = formatRemaining(currentEndsAt);
     if (currentSessionDurationSecs > 0) {
+      updateSessionOrbit(currentEndsAt, currentSessionDurationSecs);
       updateSessionFlight(currentEndsAt, currentSessionDurationSecs);
     }
     if (ms <= 0) {
       const statusEl = $("#session-status");
       if (statusEl) {
         statusEl.textContent = "Finishing up…";
-        statusEl.className = "status-chip finishing";
+        statusEl.className = "status-chip session-status finishing";
       }
       if (timerHandle) {
         window.clearInterval(timerHandle);
@@ -882,7 +1031,7 @@ async function refreshStatus() {
   renderHome(status);
   await renderLockinHints(status);
   if ($("#view-settings")?.classList.contains("active")) {
-    renderAccountSettings(status);
+    await renderMissionControlSettings(status);
   }
   const session = status.session;
   if (session?.active) {
@@ -1058,7 +1207,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   });
 
   $("#end-session")?.addEventListener("click", async () => {
-    if (!window.confirm("End this lock-in? Screen watching will stop.")) {
+    if (!window.confirm("End this mission? Screen watching will stop.")) {
       return;
     }
     stopTimer();
@@ -1071,10 +1220,59 @@ window.addEventListener("DOMContentLoaded", async () => {
   });
 
   document.querySelectorAll<HTMLButtonElement>("[data-settings-tab]").forEach((button) => {
-    button.addEventListener("click", () => selectSettingsTab(button.dataset.settingsTab || "lockin"));
+    button.addEventListener("click", () =>
+      selectSettingsTab(button.dataset.settingsTab || "connection"),
+    );
   });
   $("#setting-silent-mode")?.addEventListener("change", () => {
     void persistSilentMode();
+  });
+  $("#connection-refresh")?.addEventListener("click", async () => {
+    try {
+      const status = await invoke<StatusPayload>("get_status");
+      await renderConnectionStatus(status);
+    } catch (err) {
+      console.error(err);
+    }
+  });
+  $("#permissions-refresh")?.addEventListener("click", () => {
+    void renderPermissionsStatus();
+  });
+  $("#invoke-voice-speak")?.addEventListener("click", async () => {
+    const out = $("#invoke-voice-result");
+    const btn = $("#invoke-voice-speak") as HTMLButtonElement | null;
+    if (btn) btn.disabled = true;
+    if (out) out.textContent = "Speaking…";
+    try {
+      await invoke("voice_speak", {
+        text: "Waypoint voice invoke test. Coaching audio is online.",
+      });
+      if (out) out.textContent = "Speak command finished.";
+    } catch (err) {
+      if (out) out.textContent = String(err);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  });
+  $("#invoke-voice-listen")?.addEventListener("click", async () => {
+    const out = $("#invoke-voice-result");
+    const btn = $("#invoke-voice-listen") as HTMLButtonElement | null;
+    if (btn) btn.disabled = true;
+    if (out) out.textContent = "Listening for 4 seconds…";
+    try {
+      const transcript = await invoke<VoiceTranscript>("voice_listen_test", {
+        seconds: 4,
+      });
+      if (out) {
+        out.textContent = transcript.text?.trim()
+          ? `Heard: ${transcript.text}`
+          : "Mic test finished (no transcript text).";
+      }
+    } catch (err) {
+      if (out) out.textContent = String(err);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
   });
 
   await listen<LockInSession>("session-update", (event) => {

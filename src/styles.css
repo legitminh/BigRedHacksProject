@@ -755,6 +755,7 @@ body {
   border: 1px solid rgba(159, 196, 188, 0.25);
   padding: 0.55rem 0.9rem;
   font-size: 0.9rem;
+  border-radius: var(--radius-pill);
 }
 
 .settings-tab.active {
