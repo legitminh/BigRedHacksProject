@@ -151,6 +151,12 @@ npm run app:dev
 
 ## Notes
 
+- Chat renders Markdown, including tables and code blocks. Use **Explain simply**, **Quiz me**, or **Make a plan** to draft a study request; edit it before sending. Enter sends, Shift+Enter adds a line, and **New chat** resets the conversation.
+- Chat supports inline LaTeX (`$...$` or `\(...\)`) and display equations (`$$...$$` or `\[...\]`), with bundled KaTeX fonts. Temporary Gemini overloads and rate limits retry the unchanged message up to five times, showing a delay message; persistent failures show a friendly retry notice.
+- Run `npm test` (Node 26+) for Markdown safety and chat interaction checks.
+- If Calendar works but Drive does not, enable **Google Drive API** in the same Google Cloud project as the desktop OAuth client. Adding consent-screen scopes alone does not enable the API. Wait a few minutes after enabling it; reconnect Google if the error instead says permissions are missing.
+- Drive chat reads excerpts from Google Docs, Slides, Sheets (first sheet only), and text files. Other formats currently provide filenames and metadata only. Ask with a specific title or topic for files outside the recent listing.
+- Keep `src-tauri/Info.plist` in the build: it declares why Waypoint needs camera access. Without `NSCameraUsageDescription`, macOS terminates the app when lock-in touches the camera. Reopen the rebuilt `.app` after updating; allow Camera and Screen Recording in System Settings.
 - Rebuild after any change to `src-tauri/secrets.toml` (`npm run app:build` again).
 - Embedded keys can be extracted from a desktop binary — fine for a hackathon demo; rotate keys after the event if the repo/app is shared widely.
 - This Linux cloud environment cannot produce a macOS `.app`. Always build on your Mac.

@@ -20,5 +20,6 @@ fn main() {
     }
     println!("cargo:rerun-if-changed=secrets.toml");
     println!("cargo:rerun-if-changed=secrets.example.toml");
+    println!("cargo:rerun-if-changed=Info.plist");
     tauri_build::build()
 }

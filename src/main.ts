@@ -1,5 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { renderMarkdown } from "./markdown.ts";
+import { retryChat } from "./chat-retry.ts";
 
 type ViewId =
   | "view-home"
@@ -115,6 +118,42 @@ function appendChat(role: "user" | "assistant", content: string) {
   bubble.textContent = content;
   log.appendChild(bubble);
   log.scrollTop = log.scrollHeight;
+  return bubble;
+}
+
+let chatBusy = false;
+let hasChatReply = false;
+
+async function sendChat() {
+  const input = $<HTMLTextAreaElement>("#chat-input");
+  if (chatBusy || !input?.value.trim()) return;
+  const message = input.value;
+  input.value = "";
+  appendChat("user", message);
+  const pending = appendChat("assistant", "Thinking…");
+  chatBusy = true;
+  $("#chat-log")?.setAttribute("aria-busy", "true");
+  document.querySelectorAll<HTMLButtonElement>("#chat-send, [data-study], #new-chat").forEach((button) => button.disabled = true);
+  try {
+    const reply = await retryChat(message,
+      original => invoke<ChatMessage>("chat_send", { message: original }),
+      () => {
+        if (pending) pending.textContent = "Sorry, there’s a slight delay. Still working on your reply…";
+      },
+    );
+    if (pending) renderMarkdown(pending, reply.content);
+    hasChatReply = true;
+  } catch {
+    if (pending) pending.textContent = "Sorry, I couldn’t get a reply right now. Please try again in a moment.";
+    if (!input.value) input.value = message;
+  } finally {
+    chatBusy = false;
+    $("#chat-log")?.setAttribute("aria-busy", "false");
+    document.querySelectorAll<HTMLButtonElement>("#chat-send, [data-study], #new-chat").forEach((button) => button.disabled = false);
+    const log = $("#chat-log");
+    if (log) log.scrollTop = log.scrollHeight;
+    if ($("#view-chat")?.classList.contains("active")) input.focus();
+  }
 }
 
 function formatRemaining(endsAt: string): string {
@@ -193,20 +232,62 @@ window.addEventListener("DOMContentLoaded", async () => {
     btn.addEventListener("click", () => show("view-home"));
   });
 
-  $("#chat-form")?.addEventListener("submit", async (e) => {
+  $("#chat-form")?.addEventListener("submit", (e) => {
     e.preventDefault();
-    const input = $("#chat-input") as HTMLInputElement | null;
-    if (!input || !input.value.trim()) return;
-    const message = input.value.trim();
-    input.value = "";
-    appendChat("user", message);
-    appendChat("assistant", "…");
-    const pending = $("#chat-log")?.lastElementChild as HTMLElement | null;
+    void sendChat();
+  });
+
+  $("#chat-input")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      void sendChat();
+    }
+  });
+
+  const studyPrompts: Record<string, [string, string]> = {
+    explain: ["Explain this topic simply, with a worked example: ", "Explain the topic we’re discussing more simply, with a worked example."],
+    quiz: ["Quiz me on this topic, one question at a time: ", "Quiz me on the topic we’re discussing. Ask one question, wait for my answer, then give feedback."],
+    plan: ["Help me make a short study plan. My goal and available time are: ", "Turn what we’ve discussed into at most three concrete study steps with time estimates. Ask about my available time if needed."],
+  };
+  document.querySelectorAll<HTMLButtonElement>("[data-study]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const input = $<HTMLTextAreaElement>("#chat-input");
+      const prompts = studyPrompts[button.dataset.study || ""];
+      if (!input || !prompts || chatBusy) return;
+      input.value = input.value.trim()
+        ? `${prompts[0]}${input.value.trim()}`
+        : prompts[hasChatReply ? 1 : 0];
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    });
+  });
+
+  $("#new-chat")?.addEventListener("click", async () => {
+    if (chatBusy) return;
+    chatBusy = true;
     try {
-      const reply = await invoke<ChatMessage>("chat_send", { message });
-      if (pending) pending.textContent = reply.content;
+      await invoke("clear_chat");
+      $("#chat-log")?.replaceChildren();
+      const input = $<HTMLTextAreaElement>("#chat-input");
+      if (input) {
+        input.value = "";
+        input.focus();
+      }
+      hasChatReply = false;
     } catch (err) {
-      if (pending) pending.textContent = String(err);
+      alert(String(err));
+    } finally {
+      chatBusy = false;
+    }
+  });
+
+  $("#chat-log")?.addEventListener("click", (event) => {
+    const link = (event.target as Element).closest<HTMLAnchorElement>("a");
+    if (!link) return;
+    event.preventDefault();
+    const href = link.getAttribute("href");
+    if (href && /^https?:\/\//i.test(href)) {
+      void openUrl(href).catch((err) => alert(`Couldn’t open link: ${String(err)}`));
     }
   });
 

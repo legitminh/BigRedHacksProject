@@ -30,12 +30,19 @@
         <header class="panel-head">
           <button class="back" data-back type="button">←</button>
           <p class="brand-inline">Waypoint</p>
+          <button id="new-chat" class="ghost chat-reset" type="button">New chat</button>
         </header>
-        <div id="chat-log" class="chat-log" aria-live="polite"></div>
+        <div id="chat-log" class="chat-log" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text"></div>
+        <div class="study-actions" role="group" aria-label="Study shortcuts">
+          <button class="ghost" type="button" data-study="explain">Explain simply</button>
+          <button class="ghost" type="button" data-study="quiz">Quiz me</button>
+          <button class="ghost" type="button" data-study="plan">Make a plan</button>
+        </div>
         <form id="chat-form" class="chat-form">
-          <input id="chat-input" type="text" placeholder="What’s next…" autocomplete="off" />
-          <button type="submit" class="primary">Send</button>
+          <textarea id="chat-input" rows="2" aria-label="Message Waypoint" aria-describedby="chat-hint" placeholder="Ask a question or paste what you’re working on…"></textarea>
+          <button id="chat-send" type="submit" class="primary">Send</button>
         </form>
+        <p id="chat-hint" class="composer-hint">Enter to send · Shift+Enter for a new line</p>
       </section>
 
       <section id="view-lockin" class="view">

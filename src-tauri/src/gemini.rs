@@ -35,7 +35,9 @@ impl GeminiClient {
             .clone()
             .ok_or_else(|| "GEMINI_API_KEY is not set".to_string())?;
         Ok(Self {
-            http: Client::new(),
+            http: Client::builder()
+                .timeout(std::time::Duration::from_secs(60))
+                .build().map_err(|e| e.to_string())?,
             api_key,
             model: cfg.gemini_model.clone(),
         })

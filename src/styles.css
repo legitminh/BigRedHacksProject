@@ -1,3 +1,8 @@
+@import "katex/dist/katex.min.css";
+
+.bubble.assistant .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.3rem 0; }
+.bubble.assistant .katex { font-size: 1.1em; }
+
 :root {
   --ink: #0b1c24;
   --foam: #d7efe8;
@@ -173,6 +178,7 @@ button:active {
 
 .chat-log {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   display: flex;
   flex-direction: column;
@@ -181,7 +187,9 @@ button:active {
 }
 
 .bubble {
-  max-width: min(34rem, 92%);
+  max-width: min(48rem, 92%);
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding: 0.85rem 1rem;
   line-height: 1.45;
   white-space: pre-wrap;
@@ -194,6 +202,7 @@ button:active {
 }
 
 .bubble.assistant {
+  white-space: normal;
   align-self: flex-start;
   background: var(--glass);
   border-left: 2px solid var(--amber);
@@ -204,7 +213,7 @@ button:active {
   gap: 0.6rem;
 }
 
-.chat-form input,
+.chat-form textarea,
 .lockin-form input,
 .lockin-form textarea {
   width: 100%;
@@ -213,6 +222,43 @@ button:active {
   color: var(--text);
   padding: 0.85rem 0.95rem;
   outline: none;
+}
+
+.chat-form textarea { resize: vertical; min-height: 3.5rem; max-height: 12rem; }
+.chat-form { align-items: flex-end; }
+.chat-form textarea:focus { border-color: var(--amber); }
+.chat-reset { margin-left: auto; }
+.study-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.25rem 0 0.7rem; }
+.study-actions button { font-size: 0.85rem; }
+.composer-hint { margin: 0.4rem 0 0; color: var(--muted); font-size: 0.75rem; }
+button:disabled { opacity: 0.5; cursor: wait; }
+button:focus-visible, a:focus-visible, .table-scroll:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+.bubble.assistant > :first-child { margin-top: 0; }
+.bubble.assistant > :last-child { margin-bottom: 0; }
+.bubble.assistant p { margin: 0.65rem 0; }
+.bubble.assistant h1, .bubble.assistant h2, .bubble.assistant h3,
+.bubble.assistant h4, .bubble.assistant h5, .bubble.assistant h6 {
+  color: var(--foam); line-height: 1.25; margin: 1rem 0 0.5rem;
+  font-family: var(--font-display); font-weight: 500;
+}
+.bubble.assistant h1 { font-size: 1.5rem; }
+.bubble.assistant h2 { font-size: 1.3rem; }
+.bubble.assistant h3, .bubble.assistant h4, .bubble.assistant h5, .bubble.assistant h6 { font-size: 1.1rem; }
+.bubble.assistant ul, .bubble.assistant ol { padding-left: 1.5rem; margin: 0.6rem 0; }
+.bubble.assistant li { margin: 0.3rem 0; }
+.bubble.assistant a { color: var(--amber); text-underline-offset: 3px; }
+.bubble.assistant blockquote { margin: 0.8rem 0; border-left: 3px solid var(--mist); padding-left: 0.8rem; color: var(--muted); }
+.bubble.assistant code { font-family: ui-monospace, monospace; font-size: 0.9em; background: rgba(0, 0, 0, 0.25); padding: 0.1em 0.3em; }
+.bubble.assistant pre { max-width: 100%; overflow: auto; white-space: pre; background: #07141a; padding: 0.85rem; }
+.bubble.assistant pre code { background: none; padding: 0; }
+.table-scroll { max-width: 100%; overflow-x: auto; margin: 0.8rem 0; }
+.bubble.assistant table { border-collapse: collapse; font-size: 0.9rem; }
+.bubble.assistant th, .bubble.assistant td { border: 1px solid rgba(159, 196, 188, 0.3); padding: 0.5rem 0.7rem; text-align: left; }
+.bubble.assistant th { background: rgba(159, 196, 188, 0.12); }
+.bubble.assistant hr { border: 0; border-top: 1px solid rgba(159, 196, 188, 0.3); margin: 1rem 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
 .lockin-form {
