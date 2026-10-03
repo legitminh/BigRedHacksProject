@@ -3479,7 +3479,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   modal `7:415` · title `7:418` · body `7:419` · foot `7:427` ·
   crop `_verify/tick27-handoff-modal-crop.png`
-- commit: PENDING
+- commit: 9681808
 - change: |
     Handoff modal restored to live tick27 camera copy: title “Allow
     camera signals?”, browser-asks body, foot “Nothing is recorded…”,
@@ -3510,7 +3510,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: active
 - ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
   header `6:1708` · title `6:1710` · also active `2:38`
-- commit: PENDING
+- commit: 9681808
 - change: |
     Session `.session-copilot-kicker` → “✦ Your copilot” (aria-label
     matched); Copilot page header already used different copy.
@@ -3519,7 +3519,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · CTA `5:71` ·
   crop `_verify/tick27-welcome-card-crop.png`
-- commit: PENDING
+- commit: 9681808
 - change: |
     `.welcome-signin-submit` → `height`/`min-height: 52px`, max-width
     438px (live `5:71`); solid `#6750a4` kept; Google-only form unchanged.
