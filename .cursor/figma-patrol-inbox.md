@@ -3376,66 +3376,36 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     prove you’re distracted.” Title “Allow camera signals?” + foot
     “Nothing is recorded…” + Not now · Continue unchanged.
 
-## open: fp-permission-handoff-title-live
+## done: fp-permission-handoff-title-live
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   title `7:418` · crop `_verify/tick26-handoff-modal-crop.png`
-- expected: |
-    Tick26 live modal (`7:415` / crop): title text `7:418` is **“Share an
-    optional input?”** (Medium). Badge stays uppercase “PERMISSION HANDOFF”.
-    Visible string matches frame name again — camera-only title is gone.
-- actual: |
-    After `af0dc1d` / verified camera-copy: `#permission-handoff-title` is
-    still “Allow camera signals?”; badge sentence-case “Permission handoff”.
-- deviation: |
-    Tick26 live Figma moved handoff title back to generic Share-an-optional-
-    input. Distinct from done camera-copy / body-browser-copy (tick25);
-    spot-check handoff regression.
-- fix_hint: |
-    Set handoff title to “Share an optional input?”; badge “PERMISSION
-    HANDOFF”. Keep Not now · Continue wiring. Preserve Settings five-tab;
-    do not block Launch.
-- escalate: scrutinous
+- commit: PENDING
+- change: |
+    `#permission-handoff-title` → “Share an optional input?”; badge →
+    “PERMISSION HANDOFF”. Not now · Continue wiring kept; pad/gap 32/22
+    from a947816 unchanged.
 
-## open: fp-permission-handoff-body-live
+## done: fp-permission-handoff-body-live
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   body `7:419` · crop `_verify/tick26-handoff-modal-crop.png`
-- expected: |
-    Tick26 live body (`7:419`): “Your browser will ask for camera or screen
-    access. You can decline and still launch.” — generic camera/screen,
-    not the tick25 camera-signals / distracted sentence.
-- actual: |
-    `af0dc1d` body still: “Your browser asks to use your camera. Camera
-    signals may inform a gentle check-in; they never prove you’re
-    distracted.”
-- deviation: |
-    Tick26 — handoff body vs live `7:419`. Supersedes tick25
-    `fp-permission-handoff-body-browser-copy` expected string; live source
-    of truth changed. Distinct from title-live / foot-live.
-- fix_hint: |
-    Replace handoff body with live `7:419` verbatim; keep Continue
-    → permission request. Preserve Settings five-tab; do not block Launch.
-- escalate: scrutinous
+- commit: PENDING
+- change: |
+    Handoff body → “Your browser will ask for camera or screen access.
+    You can decline and still launch.” Supersedes tick25 camera-signals
+    body; Continue → permission request still wired.
 
-## open: fp-permission-handoff-foot-live
+## done: fp-permission-handoff-foot-live
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   foot `7:427` · crop `_verify/tick26-handoff-modal-crop.png`
-- expected: |
-    Tick26 live foot (`7:427`): “Design reference: the next step is the
-    browser’s native permission UI.” — not the “Nothing is recorded…”
-    mission-controls sentence from tick25 camera crop.
-- actual: |
-    `#permission-handoff` foot still: “Nothing is recorded. You can turn
-    this input off at any time from your mission controls.”
-- deviation: |
-    Tick26 — handoff foot vs live `7:427`. Complements title-live /
-    body-live; spot-check handoff regression after `af0dc1d`.
-- fix_hint: |
-    Set foot to live `7:427` Design-reference sentence; keep modal
-    pad/gap + CTAs. Preserve Settings five-tab; do not block Launch.
-- escalate: scrutinous
+- commit: PENDING
+- change: |
+    Foot → “Design reference: the next step is the browser’s native
+    permission UI.” (inbox/tick26 expected; live crop still showed
+    camera mission-controls line — preferred inbox string). Pad/gap +
+    CTAs preserved.
 
 ## open: fp-copilot-conversation-stack-gap
 - screen: copilot
