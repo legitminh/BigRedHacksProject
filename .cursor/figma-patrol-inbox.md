@@ -671,16 +671,19 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: active
 - ref: `.cursor/figma-refs/14-listening.png` · live `2:46`
 - deviation: |
-    EXPECTED (live 14 Listening): session copilot presence pill becomes “● Listening…”; composer
-    field shows “Listening… click mic to stop”; mic control becomes a stop (■) affordance beside
-    Send inside the cream input pill; stable hint under the field remains.
-    ACTUAL (`#session-chat-mic` handler): presence stays “Here when you need me”; mic text flips to
-    “…” and disables; hint becomes “Listening for 4 seconds… speak now.” — no stop icon, no
-    in-field listening copy.
+    EXPECTED (live 14 Listening screenshot): `.session-copilot-presence` → “● Listening…”;
+    cream composer value/placeholder “Listening… click mic to stop”; in-pill mic becomes
+    a ■ stop control beside Send ↑; footer hint stays
+    “Enter to send · Click the microphone to start or stop a voice turn.”
+    Mid-flight chrome (NEXT STEP TIMER + “Set a five-minute timer”) may remain — not the
+    launch-only suggest swap (`fp-session-at-launch-chrome`).
+    ACTUAL (`#session-chat-mic`): presence stays “Here when you need me”; mic → “…” and
+    `disabled`; hint → “Listening for 4 seconds… speak now.”; `#session-chat-input` never
+    shows listening copy. Verified Copilot `fp-copilot-listening-composer` already has ■ +
+    listening placeholder — session path was not ported.
 - fix_hint: |
-    While `chatMicListening` on session: set `.session-copilot-presence` to “Listening…”, put
-    listening copy in `#session-chat-input` (or overlay), swap mic glyph to ■ stop (toggle to
-    cancel if wired), restore idle presence/placeholder on end. Keep mic invoke.
+    Mirror Copilot listening on session: presence “Listening…”, input listening copy, mic
+    ■ (keep enabled to cancel), restore idle presence/placeholder/hint on end. Keep mic invoke.
 - escalate: scrutinous
 
 ## open: fp-permission-handoff-modal
@@ -835,20 +838,21 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: active
 - ref: `.cursor/figma-refs/36-launch-25-remaining.png` · live `10:1325`
 - deviation: |
-    EXPECTED (live 36 Launch — 25 minutes remaining): at mission start (full timer, 0 flight
-    minutes earned) the next-step timer row is absent; session suggest chip reads
-    “How much time is left?” (not a timer-set CTA). Mid-flight frames (06/33/29) keep
-    “Set a five-minute timer” + NEXT STEP TIMER once a step timer exists.
-    ACTUAL (`#view-session`): `#session-next-step` always mounts with default 05:00;
-    `#session-copilot-suggest` is hard-coded “Set a five-minute timer” from launch.
+    EXPECTED (live 36 Launch — 25 minutes remaining): timer 25:00, “0 of 25 flight minutes
+    earned”, Pause + End mission present; `#session-next-step` row ABSENT; suggest chip
+    “How much time is left?”; AT LAUNCH seed + idle composer (Mic+↑) unchanged. Mid-flight
+    frames (06/33/29/14/20) keep “Set a five-minute timer” + NEXT STEP TIMER once a step
+    timer exists (or after suggest starts one).
+    ACTUAL (`#view-session` / `index.html`): `#session-next-step` always mounts with default
+    05:00; `#session-copilot-suggest` hard-coded “Set a five-minute timer” from launch.
 - fix_hint: |
     At launch / before a next-step timer starts: hide `#session-next-step`; set suggest
-    label to “How much time is left?” (wire to reply with remaining flight time or send
-    that prompt). After `startNextStepTimer`, show next-step row and restore five-minute
-    suggest. Keep Pause/End / mic / send wiring.
+    label to “How much time is left?” (reply with remaining flight time or send that
+    prompt). After `startNextStepTimer`, show next-step row and restore five-minute suggest.
+    Keep Pause/End / mic / send / AT LAUNCH seed wiring.
 - escalate: scrutinous
 
-## done: fp-ended-early-finished-hero
+## verified: fp-ended-early-finished-hero
 - screen: summary
 - ref: `.cursor/figma-refs/22-ended-early-finished.png` · live `8:531`
 - deviation: |
@@ -864,10 +868,11 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     keep flight-logged hero for partly/not-yet. Distinct from verified initial
     flight-logged branch on End.
 - escalate: scrutinous
-- commit: 46b3262
+- commit: ca08f47
 - change: Early-End + Finished upgrades hero to ✓ QUEST COMPLETE / “One mission. Well done.” via `syncSummaryCelebrationFromOutcome`; partly/not-yet keep FLIGHT LOGGED.
+- verified: 2026-10-03T15:41:44-04:00
 
-## done: fp-summary-outcome-note-copy
+## verified: fp-summary-outcome-note-copy
 - screen: summary
 - ref: `.cursor/figma-refs/22-ended-early-finished.png` · `24-ended-early-not-yet.png` · live `8:531` / `8:715`
 - deviation: |
@@ -884,10 +889,11 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     to match live 22/24 sentences (include PB remains / time still counts). Keep
     note-gated visibility from verified `fp-summary-note-gated`.
 - escalate: scrutinous
-- commit: 46b3262
+- commit: ca08f47
 - change: Hid copilot-note kicker; plain muted note; `buildCopilotNote` matches live 22/24 PB-remains / time-still-counts sentences.
+- verified: 2026-10-03T15:41:44-04:00
 
-## done: fp-summary-logged-banner
+## verified: fp-summary-logged-banner
 - screen: summary
 - ref: `.cursor/figma-refs/22-ended-early-finished.png` · `24-ended-early-not-yet.png` · live `8:531` / `8:715`
 - deviation: |
@@ -902,8 +908,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     “{n} minutes logged · your best is still {pb} min” (keep flag SVG for new-PB if Figma
     12 uses it). Distinct from verified flag-only new-PB mount.
 - escalate: none
-- commit: 46b3262
+- commit: ca08f47
 - change: `#summary-pb-banner` always shown — new-longest with flag when PB beaten, else “{n} minutes logged · your best is still {pb} min”.
+- verified: 2026-10-03T15:41:44-04:00
 
 ## open: fp-screen-share-permission-modal
 - screen: overlay
@@ -921,3 +928,90 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     copy before the native picker; Continue → existing screen permission path; Not now
     cancels. Reuse handoff shell from `fp-permission-handoff-modal` with frame-27 strings.
 - escalate: scrutinous
+
+## done: fp-summary-partly-note-copy
+- screen: summary
+- ref: `.cursor/figma-refs/23-ended-early-partly.png` · live `8:623` · note node `8:692`
+- deviation: |
+    EXPECTED (live 23 / design_context `8:692`, Partly selected, relaunch=0): plain muted
+    14px paragraph under the pills — NO ✦ kicker, NO lavender card —
+    “You logged 12 flight minutes and said you partly finished. Your time counts.
+    Choose one small next step when you return.”
+    (template: “You logged {n} flight {minute|minutes} and said you partly finished.
+    Your time counts. Choose one small next step when you return.” — no goal fragment,
+    no “still”, no PB-remains clause).
+    ACTUAL (`buildCopilotNote` partly): “You logged {n} flight minutes and said you
+    partly finished {goal}. Your time still counts, and your personal best remains
+    {pb} minutes.” Wrong closer vs live 23. Do not reopen verified ca08f47 22/24 strings.
+- fix_hint: |
+    Specialize partly branch to the live 23 sentence (drop `{goal}` + PB-remains; use
+    “Your time counts. Choose one small next step when you return.”). Keep
+    `.quest-copilot-kicker` hidden on this zero-relaunch path.
+- escalate: scrutinous
+- commit: 4f72419
+- change: `buildCopilotNote` partly uses live 23 sentence (no goal/PB closer; “Your time counts. Choose one small next step when you return.”).
+
+## open: fp-summary-relaunch-note
+- screen: summary
+- ref: `.cursor/figma-refs/25-flight-logged-not-yet.png` · live `8:817` · card `8:886` ·
+  kicker `8:887` · body `8:888`
+- deviation: |
+    EXPECTED (live 25, Not yet + relaunch≥1): `.quest-copilot-note` becomes lavender
+    bordered “Copilot summary” card (`8:886`) with teal kicker `✦  A NOTE FROM YOUR
+    COPILOT` (`8:887`) and body (`8:888`):
+    “You logged 25 flight minutes and relaunched once. You said your objective is not
+    finished yet. Your time still counts; pick one small step for your next flight.”
+    (pluralize “once” / “N times”). Distinct from plain muted 22/23/24 notes.
+    ACTUAL: `buildCopilotNote` ignores `_relaunches`; kicker stays `hidden`; note has
+    no card chrome (transparent / no border) — always the zero-relaunch plain style.
+- fix_hint: |
+    When relaunches>0 on flight-logged/not-yet (and matching 13): unhide teal kicker,
+    apply card modifier, rewrite note to relaunch sentence. Keep plain muted notes for
+    zero-relaunch 22/23/24. Complements open `fp-summary-relaunch-note-card`.
+- escalate: scrutinous
+
+## done: fp-summary-pb-stat-label
+- screen: summary
+- ref: `.cursor/figma-refs/23-ended-early-partly.png` · live `8:623` · tiles `8:681`–`8:683`
+- deviation: |
+    EXPECTED (live 23 design_context when PB unchanged): peach tile value “20 min”
+    (`8:682`) + label “personal best” (`8:683`). Live 25 new-PB keeps “+5 min” /
+    “new personal best”.
+    ACTUAL (`renderSummary`): non-new label is “longest flight” (value
+    `Math.max(flightMinutes, pb.previous)` OK when pb > flight).
+- fix_hint: |
+    Change non-new third-tile label to “personal best”; keep new-PB “+N min” /
+    “new personal best”. Do not reopen always-on `#summary-pb-banner` (ca08f47).
+- escalate: none
+- commit: 4f72419
+- change: Non-new third-tile label is “personal best”; new-PB “new personal best” unchanged.
+
+## done: fp-active-signal-on-fill
+- screen: active
+- ref: `.cursor/figma-refs/33-active-audio-on.png` · `34-active-camera-on.png` ·
+    `35-active-screen-shared.png` · live `10:852` / `10:1009` / `10:1167`
+- deviation: |
+    EXPECTED (live 33/34/35): the active signal pill (“Audio on” / “Camera on” /
+    “Screen on”) is a solid dark-purple filled pill with white label (~115px);
+    inactive siblings stay cream/lavender outlined (“… off”).
+    ACTUAL (`.session-signal-pill.is-on`): light lavender tint + darker text — reads as
+    soft highlight, not the filled primary-on control in Figma.
+- fix_hint: |
+    Restyle `.session-signal-pill.is-on` to solid purple fill + white text (match Pause
+    primary); keep Camera/Screen/Audio order and existing toggle wiring.
+- escalate: none
+- commit: 4f72419
+- change: `.session-signal-pill.is-on` uses solid `--mc-accent-purple` fill + white text.
+
+## open: fp-summary-relaunch-note-card
+- screen: summary
+- ref: `.cursor/figma-refs/25-flight-logged-not-yet.png` · live `8:817` · node `8:886`
+- deviation: |
+    EXPECTED (live 25 Copilot summary `8:886`): when the relaunch note shows, mount is a
+    lavender raised card with border, 20px padding, gap, teal uppercase kicker, then body.
+    ACTUAL: `.quest-copilot-note` is `background: transparent; border: none; padding: 0`
+    (styled for plain 22/24 notes). Complements `fp-summary-relaunch-note` copy/kicker.
+- fix_hint: |
+    Add a modifier (e.g. `.quest-copilot-note--card`) applied when relaunches>0 that
+    restores lavender card chrome; leave default transparent for plain outcome notes.
+- escalate: none

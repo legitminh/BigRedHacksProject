@@ -247,10 +247,7 @@ function buildCopilotNote(
     return `You logged ${flightMinutes} flight ${unit} and said you finished ${finishedWhat}. Your personal best remains ${best} minutes.`;
   }
   if (outcome === "partly") {
-    const partlyWhat = goalLine
-      ? goalLine.replace(/^(finish|complete)\s+/i, "").trim() || goalLine
-      : "your objective";
-    return `You logged ${flightMinutes} flight ${unit} and said you partly finished ${partlyWhat}. Your time still counts, and your personal best remains ${best} minutes.`;
+    return `You logged ${flightMinutes} flight ${unit} and said you partly finished. Your time counts. Choose one small next step when you return.`;
   }
   return `You logged ${flightMinutes} flight ${unit} and said your objective is not finished yet. Your time still counts, and your personal best remains ${best} minutes.`;
 }
@@ -1724,7 +1721,7 @@ function renderSummary(summary: SessionSummary) {
 
   const pbStatValue =
     pb.isNew && pb.delta > 0 ? `+${pb.delta} min` : `${Math.max(flightMinutes, pb.previous)} min`;
-  const pbStatLabel = pb.isNew && pb.delta > 0 ? "new personal best" : "longest flight";
+  const pbStatLabel = pb.isNew && pb.delta > 0 ? "new personal best" : "personal best";
 
   stats.innerHTML = `
     <article class="quest-stat">

@@ -3226,9 +3226,9 @@ body:has(.view-mission-setup.active) .grain {
 }
 
 .session-signal-pill.is-on {
-  color: var(--mc-text-primary);
-  background: rgba(107, 76, 255, 0.1);
-  border-color: rgba(107, 76, 255, 0.25);
+  color: #fff;
+  background: var(--mc-accent-purple);
+  border-color: var(--mc-accent-purple);
 }
 
 .session-layout {
