@@ -2446,6 +2446,10 @@ button:active {
 
 .copilot-panel:has(#chat-empty) {
   max-height: none;
+  /* Live 03 empty Copilot response card (5:235): surface + border, not cream */
+  background: #fffbff;
+  border-color: #c8bfd7;
+  border-radius: 28px;
 }
 
 .copilot-log.chat-log {
@@ -2485,12 +2489,12 @@ button:active {
 .copilot-prompts-row {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .copilot-shortcuts.study-actions {
-  gap: 0.65rem;
+  gap: 10px;
   margin: 0;
   flex: 1;
   min-width: 0;
@@ -2500,15 +2504,34 @@ button:active {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   min-height: 52px;
+  height: 52px;
   background: #e9ddfd;
   border: none;
   color: var(--mc-text-primary);
-  padding: 0.7rem 1.35rem;
+  padding: 0 1rem;
   border-radius: var(--radius-pill);
   font-size: 0.95rem;
   font-weight: 500;
   transition: background 0.2s ease;
+}
+
+/* Live 03 suggested prompts (5:241 / 5:243 / 5:245) fixed widths */
+.copilot-chip[data-study="explain"] {
+  min-width: 210px;
+  width: 210px;
+}
+
+.copilot-chip[data-study="stuck"] {
+  min-width: 180px;
+  width: 180px;
+}
+
+.copilot-chip[data-study="plan"],
+.copilot-chip--next {
+  min-width: 230px;
+  width: 230px;
 }
 
 .copilot-chip-plus {
@@ -2541,13 +2564,15 @@ button:active {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 12px;
   min-width: 0;
   width: 100%;
-  padding: 0.65rem 0.75rem 0.65rem 1rem;
+  /* Live 03 composer (5:249): 12px py + 52px controls + 1px borders ≈ 78px */
+  padding: 12px 16px;
   border-radius: 1rem;
   border: 1px solid #c8bfd7;
   background: #f7f2ff;
+  box-sizing: border-box;
 }
 
 .copilot-input-wrap {
