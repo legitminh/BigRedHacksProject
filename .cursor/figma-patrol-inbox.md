@@ -1375,24 +1375,27 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 
 ## open: fp-relaunch-live-panel-copy
 - screen: active
-- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41`
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  pill `6:581` · badge `8:415`
 - expected: |
-    Live 09: progress pill “↗ Ready to relaunch?”; caption
-    “REMAINING · TIMER PAUSED”; primary row “Take a break” + “End mission”;
-    right card badge “↗ READY TO RELAUNCH?”, title “Let’s pick one small next
-    step.”, body “Your {n} earned minutes are safe. Take a breath and start
-    small.”, labeled Next step field, Relaunch + Take a break, footer
-    “Same objective. Same flight. A fresh start.”
+    Live 09 (tick9 get_screenshot): progress pill “→  Ready to relaunch?”;
+    caption “REMAINING · TIMER PAUSED”; primary row “Take a break” + “End
+    mission”; right card badge “→  READY TO RELAUNCH?”, title “Let’s pick
+    one small next step.”, body “Your {n} earned minutes are safe. Take a
+    breath and start small.”, labeled Next step field, Relaunch + Take a
+    break, footer “Same objective. Same flight. A fresh start.”
+    Glyph is → (U+2192), not ↗ — layer names may still say ↗.
 - actual: |
     No relaunch session surface (only `RELAUNCH_FLAG_KEY` stats counter).
+    Sibling opens lock → glyph, footer mint, field fill, pill mint.
 - deviation: |
-    Complements open `fp-relaunch-session-panel` with exact live 09 copy + left
-    chrome (↗ pill, TIMER PAUSED caption, Take a break replacing Pause).
+    Complements open `fp-relaunch-session-panel` with exact live 09 copy +
+    left chrome (→ pill, TIMER PAUSED caption, Take a break replacing Pause).
 - fix_hint: |
-    When relaunch state fires: set progress/caption/controls per live 09; swap
-    `.session-copilot-panel` to the relaunch card with Next step + Relaunch.
-    Keep End mission wiring; do not change intentional Pause/End contracts on
-    normal active.
+    When relaunch state fires: set progress/caption/controls per live 09
+    with → glyphs; swap `.session-copilot-panel` to the relaunch card with
+    Next step + Relaunch. Keep End mission wiring; do not change
+    intentional Pause/End contracts on normal active.
 - escalate: scrutinous
 
 ## verified: fp-timer-replace-body-copy
@@ -1917,19 +1920,21 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · guest `5:74`
 - expected: |
-    Live 01 “Continue as guest” is a full-width (438×52) tonal/raised
-    secondary pill under “Sign in →” — same width as the primary, not a
-    plain text link.
+    Live 01 “Continue as guest” is a full-width (438×52) Quiet pill under
+    “Sign in →” — fill `#fffbff` (not tonal `#e9ddfd`), same width as the
+    primary, not a plain text link.
 - actual: |
-    Open `fp-welcome-signin-form` covers guest path/copy existence; app
-    guest UI is absent (Google-only). No lock on guest control chrome.
+    Tick9: `254b24b` mounted `#welcome-continue-guest` Quiet `#fffbff`
+    438×52 pill + guest unlock (verified via `fp-welcome-guest-quiet-fill`).
+    Chrome/fill match live `5:74`. Remaining welcome gap is Email/Password
+    form (`fp-welcome-signin-form` / `fp-welcome-field-height`), not guest CTA.
 - deviation: |
-    Guest control chrome vs live `5:74` (secondary button, not text link).
-    Complements form fields/CTA/foot open.
+    Guest CTA chrome satisfied by 254b24b — open kept only so patrol can
+    retire; no further guest-button work needed. Prefer closing vs form opens.
 - fix_hint: |
-    When matching the sign-in card, render Continue as guest as a
-    full-width lavender secondary button under Sign in →; keep guest
-    unlock wiring.
+    No guest-chrome fix left. Patrol/compliance may promote to verified or
+    drop; focus remaining welcome work on Email/Password card
+    (`fp-welcome-signin-form`).
 - escalate: scrutinous
 
 ## verified: fp-break-extraneous-pause-note
@@ -2282,7 +2287,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - verified: 2026-10-03T17:52:09-04:00
 
 
-## done: fp-copilot-chip-widths
+## verified: fp-copilot-chip-widths
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · prompts `5:240` ·
   chips `5:241`/`5:243`/`5:245`
@@ -2304,8 +2309,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     Per-`data-study` chip widths 210/180/230×52 with 10px gaps; study
     wiring + plain labels kept.
+- verified: 2026-10-03T18:13:56-04:00
 
-## done: fp-copilot-empty-surface
+## verified: fp-copilot-empty-surface
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · card `5:235`
 - expected: |
@@ -2326,8 +2332,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     Empty-state `.copilot-panel:has(#chat-empty)` uses `#fffbff` +
     `#c8bfd7` / 28px radius; cream cards elsewhere unchanged.
+- verified: 2026-10-03T18:13:56-04:00
 
-## done: fp-copilot-composer-height
+## verified: fp-copilot-composer-height
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · input `5:249`
 - expected: |
@@ -2348,8 +2355,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     Copilot + session `.copilot-input-wrap` padding 12×16, gap 12 → ~78px
     with 52px Mic/Send; fill/border/ellipsis preserved.
+- verified: 2026-10-03T18:13:56-04:00
 
-## done: fp-timer-replace-closer-has-timer
+## verified: fp-timer-replace-closer-has-timer
 - screen: active
 - ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` ·
   body `6:1566`
@@ -2373,6 +2381,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     Body closer uses verbatim “Your mission timer keeps running.” (timer
     word included per live `6:1566`).
+- verified: 2026-10-03T18:13:56-04:00
 
 ## open: fp-connection-lost-keeps-chat-chrome
 - screen: active
@@ -2431,7 +2440,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     kickers). Keep copy verbatim; Relaunch wiring unchanged.
 - escalate: scrutinous
 
-## done: fp-welcome-field-fill
+## verified: fp-welcome-field-fill
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · Email `5:65` ·
   Password `5:69`
@@ -2454,8 +2463,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     `.welcome-signin-card input` → fill `#f7f2ff`, border `#c8bfd7`,
     radius 12px, min-height 64px (Google-only form; tokens ready for fields).
+- verified: 2026-10-03T18:13:56-04:00
 
-## done: fp-timer-replace-modal-surface
+## verified: fp-timer-replace-modal-surface
 - screen: active
 - ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` ·
   modal `6:1562`
@@ -2476,6 +2486,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     `.mc-perm-modal__card--timer-replace` uses `#fffbff` / `#c8bfd7` /
     28px radius / 32px pad / 22px gap / max-width 580px.
+- verified: 2026-10-03T18:13:56-04:00
 
 ## open: fp-permissions-choice-title-size
 - screen: overlay
@@ -2498,7 +2509,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Preserve Settings five-tab; do not block Launch.
 - escalate: scrutinous
 
-## done: fp-copilot-sidebar-title-scale
+## verified: fp-copilot-sidebar-title-scale
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · sidebar `5:217` ·
   title `5:220`
@@ -2519,8 +2530,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: scrutinous
 - commit: 254b24b
 - change: `.copilot-sidebar-title` → Medium 26px / line-height 1.4 (`font-weight: 500`, `1.625rem`).
+- verified: 2026-10-03T18:13:56-04:00
 
-## done: fp-copilot-empty-heading-weight
+## verified: fp-copilot-empty-heading-weight
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · card `5:235` ·
   heading `5:238`
@@ -2540,6 +2552,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: scrutinous
 - commit: 254b24b
 - change: `.copilot-empty-heading` → Regular (`font-weight: 400`); empty-card gap 14px.
+- verified: 2026-10-03T18:13:56-04:00
 
 ## open: fp-relaunch-next-step-field-fill
 - screen: active
@@ -2580,7 +2593,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     card badge purple `#6750a4`; both use →. Pair with panel/copy opens.
 - escalate: scrutinous
 
-## done: fp-welcome-guest-quiet-fill
+## verified: fp-welcome-guest-quiet-fill
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · guest `5:74`
 - expected: |
@@ -2600,3 +2613,105 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: scrutinous
 - commit: 254b24b
 - change: Mounted `#welcome-continue-guest` as full-width Quiet `#fffbff` 52px pill; wired `sign_in_waypoint_guest` + `guest_mode` unlock.
+- verified: 2026-10-03T18:13:56-04:00
+
+## done: fp-welcome-card-surface
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · card `5:58`
+- expected: |
+    Live Sign in card (`5:58`, 510×668): surface `#fffbff`, border `#c8bfd7`,
+    radius ~28px, padding 37 — large MC card hosting kicker/title/fields/CTAs.
+- actual: |
+    `#welcome-signin-form` / `.welcome-signin-card` uses cream `#fbf8f3`,
+    mauve `rgba(42,36,64,0.08)` border, `border-radius: 24px`,
+    `width: min(100%, 24rem)` (~384px) — wrong surface + too narrow.
+    Open `fp-welcome-signin-form` locks Email/Password/CTA copy only.
+- deviation: |
+    Tick19 live — welcome card chrome vs live `5:58`. Distinct from form
+    fields (`fp-welcome-field-height`) + verified field-fill / guest Quiet.
+- fix_hint: |
+    Set `.welcome-signin-card` to `#fffbff` / `#c8bfd7` / ~28px radius /
+    ~510px max-width + 37px pad; keep Google/guest wiring per form opens.
+- escalate: scrutinous
+- commit: PENDING
+- change: `.welcome-signin-card` → `#fffbff` / `#c8bfd7` / 28px radius / 37px pad / `min(100%, 510px)`; kicker/fields/guest/Sign in wiring unchanged.
+
+## open: fp-relaunch-title-scale
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` · title `8:416`
+- expected: |
+    Live relaunch card title (`8:416`, 386×78): two-line “Let’s pick one /
+    small next step.” — medium display ~36px (not 1.55rem break-card scale).
+- actual: |
+    Opens lock title string (`fp-relaunch-live-panel-copy` /
+    `fp-relaunch-panel-compact`) but not type scale. App has no relaunch
+    card; break title CSS is `1.55rem` / 700 — risk of under-scaled reuse.
+- deviation: |
+    Title type scale vs live `8:416`. Complements panel/copy/compact opens;
+    under-covered `2:41`.
+- fix_hint: |
+    When mounting relaunch title, use ~36px medium two-line stack (78px
+    box); do not copy `.session-break-title` 1.55rem. Keep Relaunch wiring.
+- escalate: scrutinous
+
+## open: fp-relaunch-card-surface
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` · panel `6:653`
+- expected: |
+    Live relaunch panel (`6:653`, 434×560): cream/surface `#fffbff` card
+    with border `#c8bfd7` + large radius (same MC panel chrome as break /
+    check-in compact cards), pad ~25.
+- actual: |
+    Opens cover compact swap / copy / CTA / field fill — not panel surface
+    tokens. App has no relaunch card yet.
+- deviation: |
+    Relaunch card surface tokens vs live `6:653`. Distinct from
+    `fp-relaunch-panel-compact` (chrome presence) + field-fill.
+- fix_hint: |
+    Style relaunch card `#fffbff` / `#c8bfd7` / MC radius + ~25px pad inside
+    434-wide column; pair with compact swap. Keep End / Take a break.
+- escalate: scrutinous
+
+## open: fp-connection-lost-retry-tonal
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  Retry `6:1722`
+- expected: |
+    Live “Retry connection” (`6:1722`, 386×52) is full-width tonal/raised
+    lavender (`#e9ddfd`) — same suggest-chip slot chrome, NOT filled primary.
+- actual: |
+    Open `fp-connection-lost-latest-card` locks Retry-as-suggest placement
+    only. Risk: fixer styles Retry as filled purple primary. App has no
+    lost Retry yet.
+- deviation: |
+    Retry tonal hierarchy vs live `6:1722`. Complements latest-card /
+    composer-stays / keeps-chat-chrome; under-covered `2:48`.
+- fix_hint: |
+    Style Retry like `#session-copilot-suggest` tonal 52px full-width
+    (`#e9ddfd`); wire reconnect helper. Do not use filled primary.
+- escalate: scrutinous
+
+## done: fp-permission-handoff-modal-surface
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  modal `7:415`
+- expected: |
+    Live handoff dialog (`7:415`, 580×340): surface `#fffbff`, border
+    `#c8bfd7`, radius ~28px, padding ~33 — same MC modal chrome as verified
+    timer-replace (`6:1562`). Sits over YOUR CHOICE page.
+- actual: |
+    `#permission-handoff-modal` `.mc-perm-modal__card` is
+    `width: min(100%, 26.5rem)` (~424px), cream `var(--mc-bg-card)`,
+    `border-radius: 1.35rem`, pad ~1.85rem — narrower + wrong tokens.
+    Copy/badge verified (`b7ea57b`); timer-replace got 580px surface,
+    handoff did not.
+- deviation: |
+    Tick19 live — handoff modal surface vs live `7:415`. Distinct from
+    verified camera copy + open YOUR CHOICE page/title-size.
+- fix_hint: |
+    Apply timer-replace-like surface to handoff card: 580 max-width /
+    `#fffbff` / `#c8bfd7` / 28px / ~33px pad; keep Not now · Continue.
+    Preserve Settings five-tab; do not block Launch.
+- escalate: scrutinous
+- commit: PENDING
+- change: Base `.mc-perm-modal__card` → 580px / `#fffbff` / `#c8bfd7` / 28px / 33px pad (handoff + denied + end-session); Continue/Not now CTAs unchanged.
