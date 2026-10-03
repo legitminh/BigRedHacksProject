@@ -1197,7 +1197,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: `.session-chat-turn--user` left-aligned (`flex-start`).
 - verified: 2026-10-03T16:10:00-04:00
 
-## open: fp-home-footnote-rail
+## done: fp-home-footnote-rail
 - screen: home
 - ref: `.cursor/figma-refs/02-home.png` · live `2:34` · footnote `5:169` · satellite `22:1311`
 - deviation: |
@@ -1212,8 +1212,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `.mc-home-best` (same vertical band as the copilot card). Keep CTA / Open copilot
     wiring. Distinct from dest-card satellite.
 - escalate: none
+- commit: PENDING
+- change: Moved `.mc-home-bottom` into grid col 2 / row 2 under `.mc-home-best` (footnote + satellite).
 
-## open: fp-home-copilot-shortcut-row
+## done: fp-home-copilot-shortcut-row
 - screen: home
 - ref: `.cursor/figma-refs/02-home.png` · live `2:34` · shortcut `5:164` · copy `5:165`
 - deviation: |
@@ -1227,8 +1229,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Restructure `.mc-home-copilot`: title full-width; put Talk-it-through text and
     `#home-copilot-cta` in one flex row matching `5:164`. Keep Open-copilot → show chat.
 - escalate: none
+- commit: PENDING
+- change: Title alone on first row; Talk-it-through + `#home-copilot-cta` in `.mc-home-copilot-shortcut` row (`5:164`). CTA remains “Open copilot  →”.
 
-## done: fp-home-copilot-cta-arrow
+## verified: fp-home-copilot-cta-arrow
 - screen: home
 - ref: `.cursor/figma-refs/02-home.png` · live `2:34` · CTA `5:166`
 - deviation: |
@@ -1240,9 +1244,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `show("view-chat")` wiring. Complements `fp-home-copilot-shortcut-row`.
 - escalate: none
 - commit: 5873ecf
-- change: Home copilot CTA label is “Open copilot  ↗” (northeast arrow).
+- change: Home copilot CTA label matches live `5:166` text “Open copilot  →” (instance name ↗ is stale; characters are →). Tiny proof restored after 5873ecf over-corrected to ↗.
+- verified: 2026-10-03T16:19:28-04:00
 
-## done: fp-home-best-extraneous-moon
+## verified: fp-home-best-extraneous-moon
 - screen: home
 - ref: `.cursor/figma-refs/02-home.png` · live `2:34` · Personal best `5:154`
 - deviation: |
@@ -1257,8 +1262,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: none
 - commit: 5873ecf
 - change: Removed `.mc-home-moon` from personal-best card (+ unused CSS); dest-art moon kept.
+- verified: 2026-10-03T16:19:28-04:00
 
-## done: fp-copilot-responses-footnote
+## verified: fp-copilot-responses-footnote
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · hint `5:256` · foot `5:257`
 - deviation: |
@@ -1275,3 +1281,4 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: none
 - commit: 5873ecf
 - change: `#chat-hint` keeps Enter/mic only; Responses/Audio moved to `.copilot-responses-foot`.
+- verified: 2026-10-03T16:19:28-04:00

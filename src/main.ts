@@ -742,7 +742,7 @@ function renderHome(status: StatusPayload) {
     const copilot = document.createElement("button");
     copilot.className = "mc-home-btn-secondary";
     copilot.type = "button";
-    copilot.textContent = "Open copilot  ↗";
+    copilot.textContent = "Open copilot  →";
     copilot.addEventListener("click", () => show("view-chat"));
     copilotHost.appendChild(copilot);
   }

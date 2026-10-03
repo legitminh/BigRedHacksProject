@@ -119,3 +119,9 @@ Verifier appends pass/fail notes after each 10m check.
 - pass: fp-welcome-signin-kicker-mint, fp-setup-toggle-row-chrome, fp-session-user-turn-align
 - fail: (none)
 - notes: dbc97fc vs live — 5:59 vars mint `#326c78` / raised `#e9ddfd` on WELCOME ABOARD; 8:1159/8:1164 Camera+Screen plain transparent rows (no lavender mini-cards); 2:38 YOU·JUST NOW + user body left-aligned (`flex-start`). Inbox stamped verified (commit hash e18583f→dbc97fc). Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true. No code edits; no push.
+
+## check: 2026-10-03T16:19:28-04:00
+- reviewed: fp-home-copilot-cta-arrow, fp-home-best-extraneous-moon, fp-copilot-responses-footnote
+- pass: fp-home-copilot-cta-arrow, fp-home-best-extraneous-moon, fp-copilot-responses-footnote
+- fail: (none)
+- notes: Live 5:166 text chars are “Open copilot  →” (instance name ↗ stale) — tiny proof restored after 5873ecf over-corrected to ↗; live 5:154 PB cream-only (no moon) + dest moon kept; live 5:256 in composer + 5:257 page foot via `.copilot-responses-foot`. Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true. No push.
