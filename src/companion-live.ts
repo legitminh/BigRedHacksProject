@@ -167,7 +167,8 @@ export class CompanionLiveSession {
     this.playbackPrimed = false;
     this.speaking = false;
     this.oddByte = null;
-    this.barged = false;
+    // Keep `barged` so in-flight downlink frames stay dropped until clear_audio /
+    // listening / audio_end resets it. Clearing here let barge-in leak audio.
     this.bargeHits = 0;
     this.playbackWorklet?.port.postMessage({ type: "reset" });
   }
@@ -362,6 +363,7 @@ export class CompanionLiveSession {
     if (type === "clear_audio" && typeof message.epoch === "number") {
       this.epoch = message.epoch;
       this.uplinkSeq = 0;
+      this.barged = false;
       this.stopPlayback();
       return;
     }
@@ -453,6 +455,7 @@ export class CompanionLiveSession {
   end(notify = true) {
     if (notify) this.sendJson({ type: "stop" });
     this.stopMic();
+    this.barged = false;
     this.stopPlayback();
     if (this.playbackWorklet) {
       try {

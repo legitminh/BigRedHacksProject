@@ -26,6 +26,8 @@ const MAX_CONTEXT_JUDGMENTS_PER_SESSION: u32 = 120;
 const PROMPT_COOLDOWN_SECS: i64 = 14;
 /// Absolute floor between any popup/voice (including praise).
 const EPHEMERAL_FLOOR_SECS: i64 = 8;
+/// Tiny gap between back-on-task dings — does not share the nag/voice floor.
+const DING_COOLDOWN_SECS: i64 = 2;
 /// Max spoken/popup reminders for one continuous distraction (e.g. one Instagram stay).
 const MAX_NAGS_PER_EPISODE: u32 = 3;
 /// Seconds to wait after nag 1 → nag 2, then after nag 2 → nag 3.
@@ -43,6 +45,7 @@ const SESSION_OPENER: &str = "You're locked in. I'll check in if you drift.";
 
 /// Shared across local watch ticks so OCR/VLM don't re-fire the same nag.
 static LAST_EPHEMERAL_AT: Mutex<Option<chrono::DateTime<chrono::Utc>>> = Mutex::new(None);
+static LAST_DING_AT: Mutex<Option<chrono::DateTime<chrono::Utc>>> = Mutex::new(None);
 
 #[derive(Clone)]
 struct DistractionEpisode {
@@ -57,9 +60,26 @@ fn reset_ephemeral_cooldown() {
     if let Ok(mut guard) = LAST_EPHEMERAL_AT.lock() {
         *guard = None;
     }
+    if let Ok(mut guard) = LAST_DING_AT.lock() {
+        *guard = None;
+    }
     if let Ok(mut guard) = DISTRACTION_EPISODE.lock() {
         *guard = None;
     }
+}
+
+fn claim_ding_slot() -> bool {
+    let now = chrono::Utc::now();
+    let Ok(mut guard) = LAST_DING_AT.lock() else {
+        return true;
+    };
+    if let Some(last) = *guard {
+        if now.signed_duration_since(last).num_seconds() < DING_COOLDOWN_SECS {
+            return false;
+        }
+    }
+    *guard = Some(now);
+    true
 }
 
 /// Global floor so voice/overlay never stack, regardless of distraction episode.
@@ -295,10 +315,10 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                     let _ = app.emit("session-update", &snap);
                 }
             }
-            // Seed fingerprint so the first post-warmup focus doesn't false-nag.
+            // Seed switch fingerprint only — leave last_judged empty so an
+            // ambiguous page already open during warmup still gets judged.
             if let Ok(Ok(info)) = tokio::task::spawn_blocking(frontmost::frontmost_info).await {
                 last_fingerprint = info.fingerprint();
-                last_judged_fingerprint = last_fingerprint.clone();
             }
         }
 
@@ -1096,11 +1116,12 @@ fn push_prompt(app: &AppHandle, text: &str, kind: &str) {
 /// Quiet positive feedback when they return to task — ding only, no toast/TTS.
 fn play_back_on_task_ding(app: &AppHandle) {
     clear_distraction_episode();
-    if !claim_global_floor() {
-        return;
-    }
     let silent = app.state::<AppState>().silent_mode.load(Ordering::SeqCst);
     if silent {
+        return;
+    }
+    // Own cooldown — must not share/block the nag voice floor.
+    if !claim_ding_slot() {
         return;
     }
     tauri::async_runtime::spawn(async move {
