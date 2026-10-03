@@ -3432,7 +3432,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   Conversation `5:232` · intro `5:234` · card `5:235` · chips `5:240`
-- commit: PENDING
+- commit: 5aee537
 - change: |
     `.copilot-main` gap → `1.375rem` (22px) for intro→panel→chips per
     live `5:232`; composer `margin-top` → `6.4375rem` so gap+margin
@@ -3556,7 +3556,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
   sidebar `5:217` · title `5:220` · body `5:221` · divider `5:222` ·
   CTA `5:223` · status `5:226` · planet `5:227` ·
   crop `_verify/tick28-copilot-live.png`
-- commit: PENDING
+- commit: 5aee537
 - change: |
     `.copilot-sidebar` gap → `1.25rem` (20px) end-to-end per live
     Session context `5:217`; pad 24 + Start a mission wiring kept.
@@ -3565,7 +3565,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   CTA `5:223` · crop `_verify/tick28-copilot-live.png`
-- commit: PENDING
+- commit: 5aee537
 - change: |
     `.copilot-sidebar-cta` / `.primary` → `min-height: 52px` +
     `box-shadow: none` (flat fill, no `--mc-shadow-glow-purple`);
