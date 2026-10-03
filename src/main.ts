@@ -338,6 +338,25 @@ function renderVitals(vitals?: VitalsSnapshot | null) {
   if (panel) panel.classList.toggle("stressed", Boolean(vitals?.stressed));
 }
 
+const SESSION_COACH_MAX = 8;
+
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function renderSessionCoachLog(prompts: CoachPrompt[]) {
+  const log = $("#session-coach-log");
+  if (!log) return;
+  const recent = prompts.slice(-SESSION_COACH_MAX);
+  if (!recent.length) {
+    log.innerHTML =
+      '<p class="muted session-coach-empty">Coach messages appear here if you miss the overlay.</p>';
+    return;
+  }
+  log.innerHTML = recent.map((p) => `<div class="prompt">${escapeHtml(p.text)}</div>`).join("");
+  log.scrollTop = log.scrollHeight;
+}
+
 function renderSession(session: LockInSession) {
   const timer = $("#session-timer");
   const status = $("#session-status");
@@ -352,6 +371,7 @@ function renderSession(session: LockInSession) {
   if (goals) goals.textContent = session.goals;
   if (note) note.textContent = session.watching_note || "Watching your screen";
   renderVitals(session.vitals);
+  renderSessionCoachLog(session.prompts);
   void syncSessionMuteButton();
 }
 
@@ -428,22 +448,25 @@ function renderSummary(summary: SessionSummary) {
   if (!body) return;
   const checks = summary.screen_checks ?? 0;
   const pct = checks === 0 ? "Unverified" : `${Math.round(summary.on_task_ratio * 100)}%`;
-  const escape = (value: string) =>
-    value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const onTaskHint =
+    checks === 0
+      ? '<p class="muted">No screen checks this session — focus ratio unavailable.</p>'
+      : "";
   body.innerHTML = `
-    <p>${escape(summary.closing_note)}</p>
+    <p>${escapeHtml(summary.closing_note)}</p>
     <h3>Goals</h3>
-    <p>${escape(summary.goals)}</p>
+    <p>${escapeHtml(summary.goals)}</p>
     <h3>On task</h3>
     <p>${pct}</p>
+    ${onTaskHint}
     <h3>Screen checks</h3>
     <p>${checks}</p>
     <h3>Stress spikes</h3>
     <p>${summary.stress_spikes}</p>
     <h3>Wellness</h3>
-    <p>${escape(summary.vitals_summary || "No wellness reading this session.")}</p>
+    <p>${escapeHtml(summary.vitals_summary || "No wellness reading this session.")}</p>
     <h3>Distractions</h3>
-    <p>${summary.top_distractions.length ? escape(summary.top_distractions.join(", ")) : "None"}</p>
+    <p>${summary.top_distractions.length ? escapeHtml(summary.top_distractions.join(", ")) : "None"}</p>
   `;
 }
 
@@ -522,6 +545,9 @@ window.addEventListener("DOMContentLoaded", async () => {
   document.querySelectorAll("[data-back]").forEach((btn) => {
     btn.addEventListener("click", () => show("view-home"));
   });
+
+  $("#summary-lockin-again")?.addEventListener("click", () => show("view-lockin"));
+  $("#summary-go-home")?.addEventListener("click", () => show("view-home"));
 
   $("#chat-form")?.addEventListener("submit", (e) => {
     e.preventDefault();

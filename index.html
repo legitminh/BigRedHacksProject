@@ -87,6 +87,13 @@
           <p id="session-timer" class="timer">45:00</p>
           <p id="session-status" class="status-chip">watching</p>
         </div>
+        <div
+          id="session-coach-log"
+          class="prompt-feed session-coach-log"
+          role="log"
+          aria-label="Coach messages"
+          aria-live="polite"
+        ></div>
         <p id="session-goals" class="session-goals"></p>
         <p id="session-watch-note" class="session-watch-note"></p>
         <div id="session-vitals" class="vitals-panel" aria-live="polite">
@@ -101,6 +108,10 @@
           <p class="brand-inline">Waypoint</p>
         </header>
         <div id="summary-body" class="summary-body"></div>
+        <div class="summary-actions cta-row">
+          <button type="button" class="primary" id="summary-lockin-again">Lock in again</button>
+          <button type="button" class="ghost" id="summary-go-home">Home</button>
+        </div>
       </section>
 
       <section id="view-settings" class="view">

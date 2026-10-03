@@ -573,6 +573,22 @@ button:focus-visible, a:focus-visible, .table-scroll:focus-visible { outline: 2p
   animation: slideIn 0.35s ease both;
 }
 
+.session-coach-log {
+  max-height: 10rem;
+  margin: 0 auto 1rem;
+  flex: none;
+}
+
+.session-coach-empty {
+  margin: 0;
+  text-align: center;
+}
+
+.summary-actions {
+  max-width: 32rem;
+  margin: 1.25rem 0 0;
+}
+
 .summary-body {
   max-width: 32rem;
   line-height: 1.5;
