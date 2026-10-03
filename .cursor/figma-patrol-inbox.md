@@ -2647,17 +2647,19 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` · title `8:416`
 - expected: |
     Live relaunch card title (`8:416`, 386×78): two-line “Let’s pick one /
-    small next step.” — medium display ~36px (not 1.55rem break-card scale).
+    small next step.” — Medium 28px / leading 1.4 (per
+    `fp-relaunch-title-medium-28`; not ~36px, not 1.55rem break-card scale).
 - actual: |
     Opens lock title string (`fp-relaunch-live-panel-copy` /
     `fp-relaunch-panel-compact`) but not type scale. App has no relaunch
-    card; break title CSS is `1.55rem` / 700 — risk of under-scaled reuse.
+    card; break title CSS is `1.55rem` / 700 — risk of wrong-scale reuse.
 - deviation: |
-    Title type scale vs live `8:416`. Complements panel/copy/compact opens;
-    under-covered `2:41`.
+    Title type scale vs live `8:416` Medium 28px. Complements panel/copy/
+    compact opens; under-covered `2:41`.
 - fix_hint: |
-    When mounting relaunch title, use ~36px medium two-line stack (78px
-    box); do not copy `.session-break-title` 1.55rem. Keep Relaunch wiring.
+    When mounting relaunch title, use `font-size: 28px; font-weight: 500;
+    line-height: 1.4` two-line stack (~386×78 box); do not copy
+    `.session-break-title` 1.55rem or ship ~36px. Keep Relaunch wiring.
 - escalate: scrutinous
 
 ## open: fp-relaunch-card-surface
@@ -2827,13 +2829,13 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Talk phase fills kept; listening sets `#chat-input` placeholder to
     “Listening… click mic to stop”.
 
-## open: fp-welcome-title-scale
+## done: fp-welcome-title-scale
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · title `5:61`
 - expected: |
-    Live Sign in title “Your seat is ready.” (`5:61`, 438×45): large
-    display ~36px on `#fffbff` card — not ~28px. String already verified
-    (`fp-welcome-signin-title`).
+    Live Sign in title “Your seat is ready.” (`5:61`, 438×45): Medium
+    32px / leading 1.4 on `#fffbff` card (tick21 token correction; not
+    ~36px). String already verified (`fp-welcome-signin-title`).
 - actual: |
     Tick20 welcome spot-check after `69037e0` card surface (no live
     regression on `#fffbff`/`#c8bfd7`/28px). `.welcome-signin-title` is
@@ -2844,6 +2846,115 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Title type scale vs live `5:61`. Distinct from verified string + card
     surface; under-covered welcome form chrome.
 - fix_hint: |
-    Set `.welcome-signin-title` ~36px (medium/bold per live); keep Google/
-    guest wiring + card surface tokens from `69037e0`.
+    Set `.welcome-signin-title` to 32px / `font-weight: 500` / line-height
+    1.4; keep Google/guest wiring + card surface tokens from `69037e0`.
 - escalate: scrutinous
+- commit: PENDING
+- change: |
+    `.welcome-signin-title` → Medium 32px / line-height 1.4 / weight 500
+    (live `5:61`); string “Your seat is ready.” unchanged.
+
+## open: fp-relaunch-title-medium-28
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` · title `8:416`
+- expected: |
+    Tick21 design_context: relaunch title (`8:416`) is Medium 28px /
+    leading 1.4, two lines (“Let’s pick one” / “small next step.”) —
+    not ~36px display. Box still ~386×78 from line stack.
+- actual: |
+    Open `fp-relaunch-title-scale` expected ~36px medium; that overshoots
+    live tokens. App has no relaunch card yet.
+- deviation: |
+    Tick21 live token correction — title is 28px Medium, not ~36px.
+    Prefer this over `fp-relaunch-title-scale` when mounting. Under-covered
+    `2:41`.
+- fix_hint: |
+    Style relaunch title `font-size: 28px; font-weight: 500; line-height:
+    1.4` two-line; keep Relaunch / Take a break wiring. Ignore ~36px on
+    sibling title-scale open.
+- escalate: scrutinous
+
+## open: fp-relaunch-divider
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  divider `8:418`
+- expected: |
+    Live 09 relaunch card: 1px `#c8bfd7` hairline (`8:418`, 386 wide)
+    between body (“Your 12 earned minutes…”) and the Next step field
+    stack — panel gap ~20px / pad ~24px.
+- actual: |
+    Opens cover panel compact / copy / field / CTA / surface — not the
+    body→field divider. App has no relaunch card.
+- deviation: |
+    Missing divider chrome vs live `8:418`. Distinct from field-fill /
+    panel-compact / title opens; under-covered `2:41`.
+- fix_hint: |
+    When mounting relaunch card, insert `#c8bfd7` 1px rule between body
+    and Next step label; keep End / Relaunch wiring.
+- escalate: scrutinous
+
+## open: fp-connection-lost-presence-pill
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  pill `6:1711` · text `6:1712`
+- expected: |
+    Live 16 presence (`6:1711`): raised `#e9ddfd` pill, purple `#6750a4`
+    Regular 12px “○  Reconnecting…” (hollow ring + ellipsis) — same
+    raised chrome as suggest/progress pills, not plain text.
+- actual: |
+    Open `fp-connection-lost-body-copy` locks presence string “○
+    Reconnecting…” only. App still shows “Here when you need me” with no
+    lost UI (`fp-connection-lost-panel`).
+- deviation: |
+    Presence pill surface/color tokens vs live `6:1711`. Complements
+    string lock + panel/latest-card; under-covered `2:48`.
+- fix_hint: |
+    On disconnect: restyle `.session-copilot-presence` as `#e9ddfd` pill +
+    `#6750a4` “○  Reconnecting…”; restore idle on reconnect. Keep composer.
+- escalate: scrutinous
+
+## open: fp-permissions-choice-art
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  planet `7:397` · ship `7:402`
+- expected: |
+    Live YOUR CHOICE page under handoff scrim: left ringed planet
+    (`7:397`, ~218×218 at y≈456) + right ship (`7:402`, ~160×110 at
+    y≈570) on constellation field — intro at `7:393` above.
+- actual: |
+    Open `fp-permissions-choice-surface` mentions planet+ship art in
+    expected copy but does not lock sizes/placement. App still has no
+    interstitial page under handoff/denied modals.
+- deviation: |
+    Tick21 — art plane geometry for YOUR CHOICE backdrop. Distinct from
+    surface shell + title-size (44px / purple kicker). Under-covered
+    permissions choice.
+- fix_hint: |
+    When adding the YOUR CHOICE view, mount ringed planet left + ship
+    right matching live `7:397`/`7:402`; keep handoff/denied over the
+    page. Preserve Settings five-tab; do not block Launch.
+- escalate: scrutinous
+
+## done: fp-welcome-title-medium-32
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · title `5:61`
+- expected: |
+    Tick21 design_context: Sign in title (`5:61`) is Medium 32px /
+    leading 1.4 (“Your seat is ready.”) on `#fffbff` — not ~36px and not
+    `font-weight: 700`. Height ~45px matches 32×1.4.
+- actual: |
+    Open `fp-welcome-title-scale` expected ~36px; live tokens are 32px
+    Medium. App `.welcome-signin-title` still clamp ~23–28px / 700 after
+    `69037e0` card surface.
+- deviation: |
+    Tick21 live token correction — prefer 32px Medium over sibling ~36px
+    guidance. Distinct NEW from form/field-height; under-covered welcome.
+- fix_hint: |
+    Set `.welcome-signin-title` to 32px / `font-weight: 500` / line-height
+    1.4; keep Google/guest wiring + card surface. Prefer over
+    `fp-welcome-title-scale` ~36px hint.
+- escalate: scrutinous
+- commit: PENDING
+- change: |
+    `.welcome-signin-title` → Medium 32px / line-height 1.4 / weight 500
+    (live `5:61`); string “Your seat is ready.” unchanged.
