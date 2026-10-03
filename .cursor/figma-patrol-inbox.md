@@ -1626,24 +1626,22 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     until MC end modal lands. Full modal deferred (`fp-end-confirm-figma-modal`).
 - verified: 2026-10-03T17:05:46-04:00
 
-## open: fp-timer-replace-keeps-running
+## done: fp-timer-replace-keeps-running
 - screen: active
 - ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` · body `6:1566`
 - expected: |
-    Live 15 modal body (reconfirmed get_screenshot 2:47): “Your current
-    timer has {m:ss} left. Replace it with a new five-minute timer? Your
-    mission keeps running.”
+    Live 15 modal body closer after replace question (design_context /
+    tick16+): “Your mission timer keeps running.”
 - actual: |
-    Open `fp-timer-replace-body-copy` covers the remaining-time sentence
-    only — trailing “Your mission keeps running.” is not specified; app
-    has no modal yet (`fp-timer-replace-modal`).
+    Superseded by `62f7171` `#timer-replace-modal` body (remaining m:ss +
+    “Your mission timer keeps running.”).
 - deviation: |
-    Body must include the “Your mission keeps running.” closer after the
-    replace question (live OCR / frame copy on `2:47`). Sibling open
-    `fp-timer-replace-mission-timer-copy` wrongly added “timer” — ignore.
-- fix_hint: |
-    When building the replace modal body for `fp-timer-replace-modal` /
-    `fp-timer-replace-body-copy`, append “ Your mission keeps running.”
+    Earlier OCR without “timer” conflicted with design_context; shipped
+    closer matches `fp-timer-replace-closer-has-timer`.
+- commit: 62f7171
+- change: |
+    Modal body includes mission-timer closer; stale no-“timer” guidance
+    retired.
 - escalate: scrutinous
 
 ## open: fp-permissions-choice-surface
@@ -1749,24 +1747,21 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Denied body uses live “works just as well without it.” (`7:502`).
 - verified: 2026-10-03T17:05:46-04:00
 
-## open: fp-timer-replace-mission-timer-copy
+## done: fp-timer-replace-mission-timer-copy
 - screen: active
 - ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` ·
   body `6:1566`
 - expected: |
-    Live 15 body (get_screenshot 2:47 OCR): “Your current timer has
-    {m:ss} left. Replace it with a new five-minute timer? Your mission
-    keeps running.” — closer has NO extra “timer” word.
+    Live design_context closer includes the word “timer”: “Your mission
+    timer keeps running.”
 - actual: |
-    Prior patrol claimed “Your mission timer keeps running.” — false vs
-    live frame. Correct closer already tracked in
-    `fp-timer-replace-keeps-running`. App still has no replace modal.
+    Superseded by `62f7171` (same string as `fp-timer-replace-closer-has-timer`).
 - deviation: |
-    Stale “timer” insertion was a false reading. Defer to
-    `fp-timer-replace-keeps-running` + `fp-timer-replace-body-copy`.
-- fix_hint: |
-    No separate string work — use keeps-running closer verbatim when
-    building `fp-timer-replace-modal` body.
+    False OCR path that dropped “timer” retired; shipped modal matches
+    design_context.
+- commit: 62f7171
+- change: |
+    Inbox closed as superseded — modal body uses mission-timer closer.
 - escalate: scrutinous
 
 ## done: fp-timer-replace-keeps-next-step
