@@ -38,6 +38,30 @@ local_vision_model = "moondream"
    - `POST /v1/coach/api/generate`  
    with `Authorization: Bearer <coach_api_token>`. The API proxies to Ollama.
 
+## Friend / teammate clone (both repos)
+
+```bash
+cd ~
+git clone https://github.com/legitminh/BigRedHacksProject.git
+git clone https://github.com/legitminh/BigRedHacksProjectBackend.git
+cd BigRedHacksProject
+git checkout cursor/waypoint-rust-study-nav-bd7b
+npm install
+cp src-tauri/secrets.example.toml src-tauri/secrets.toml
+# fill gemini + coach_api_token (same as backend COACH_API_TOKEN)
+
+cd ~/BigRedHacksProjectBackend
+npm install
+cp .env.example .env
+# fill SESSION_SECRET, COACH_API_TOKEN, OLLAMA_BASE_URL, Google web client…
+npm run dev   # :8787
+
+cd ~/BigRedHacksProject
+npm run app:dev
+```
+
+Shipped `Waypoint.app` users do **not** need local Rust, Node, Ollama, or ffmpeg — only the app, macOS permissions, and network to Gemini + your API host.
+
 ## Open both in Cursor
 
 ```bash

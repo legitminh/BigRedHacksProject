@@ -125,3 +125,9 @@ Verifier appends pass/fail notes after each 10m check.
 - pass: fp-home-copilot-cta-arrow, fp-home-best-extraneous-moon, fp-copilot-responses-footnote
 - fail: (none)
 - notes: Live 5:166 text chars are “Open copilot  →” (instance name ↗ stale) — tiny proof restored after 5873ecf over-corrected to ↗; live 5:154 PB cream-only (no moon) + dest moon kept; live 5:256 in composer + 5:257 page foot via `.copilot-responses-foot`. Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true. No push.
+
+## check: 2026-10-03T16:25:30-04:00
+- reviewed: fp-home-footnote-rail, fp-home-copilot-shortcut-row; spot escalate:scrutinous (fp-session-at-launch-chrome, fp-welcome-signin-form, fp-end-confirm-modal-spec)
+- pass: fp-home-footnote-rail, fp-home-copilot-shortcut-row
+- fail: (none)
+- notes: Live 2:34 metadata — 5:169 at x=969/y=750 + satellite 22:1311 under PB rail; 5:164 horizontal Talk-it-through + CTA. HEAD 43e68a5 `.mc-home-bottom` grid col2/row2 + `.mc-home-copilot-shortcut` row match. Scrutinous opens still accurate (next-step always-on / Google-only sign-in / window.confirm) — no rewrite. Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true, #app padding:0. No code edits; no push.
