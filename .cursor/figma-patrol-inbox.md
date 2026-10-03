@@ -929,7 +929,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     cancels. Reuse handoff shell from `fp-permission-handoff-modal` with frame-27 strings.
 - escalate: scrutinous
 
-## done: fp-summary-partly-note-copy
+## verified: fp-summary-partly-note-copy
 - screen: summary
 - ref: `.cursor/figma-refs/23-ended-early-partly.png` · live `8:623` · note node `8:692`
 - deviation: |
@@ -950,7 +950,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: scrutinous
 - commit: 5f9b96a
 - change: `buildCopilotNote` partly uses live 23 sentence (no goal/PB closer; “Your time counts. Choose one small next step when you return.”).
-- verified: 2026-10-03T15:50:04-04:00
+- verified: 2026-10-03T16:06:11-04:00
 
 ## verified: fp-summary-relaunch-note
 - screen: summary
@@ -974,7 +974,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: Not yet + relaunches>0 uses live 25 relaunch sentence + teal kicker; zero-relaunch 22/23/24 plain notes unchanged.
 - verified: 2026-10-03T15:52:00-04:00
 
-## done: fp-summary-pb-stat-label
+## verified: fp-summary-pb-stat-label
 - screen: summary
 - ref: `.cursor/figma-refs/23-ended-early-partly.png` · live `8:623` · tiles `8:681`–`8:683`
 - deviation: |
@@ -989,9 +989,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: none
 - commit: 5f9b96a
 - change: Non-new third-tile label is “personal best”; new-PB “new personal best” unchanged.
-- verified: 2026-10-03T15:50:04-04:00
+- verified: 2026-10-03T16:06:11-04:00
 
-## done: fp-active-signal-on-fill
+## verified: fp-active-signal-on-fill
 - screen: active
 - ref: `.cursor/figma-refs/33-active-audio-on.png` · `34-active-camera-on.png` ·
     `35-active-screen-shared.png` · live `10:852` / `10:1009` / `10:1167`
@@ -1007,7 +1007,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: none
 - commit: 5f9b96a
 - change: `.session-signal-pill.is-on` uses solid `--mc-accent-purple` fill + white text.
-- verified: 2026-10-03T15:50:04-04:00
+- verified: 2026-10-03T16:06:11-04:00
 
 ## verified: fp-summary-relaunch-note-card
 - screen: summary
@@ -1025,7 +1025,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: `.quest-copilot-note--card` lavender chrome (20px pad, border, gap) when Not yet + relaunches>0; proof-tuned to live 8:886 tokens (#e9ddfd / #c8bfd7 / 28px / 10px gap / mint kicker).
 - verified: 2026-10-03T15:52:00-04:00
 
-## done: fp-summary-partly-relaunch-note
+## verified: fp-summary-partly-relaunch-note
 - screen: summary
 - ref: `.cursor/figma-refs/13-flight-logged.png` · live `2:45` · note `6:1224`/`6:1226`
 - deviation: |
@@ -1041,10 +1041,11 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When partly + relaunches>0, use live 13 sentence + `--card` + teal kicker; keep zero-relaunch
     partly as plain 23. Do not reopen verified 25 not-yet strings.
 - escalate: scrutinous
-- commit: 674f5f7
+- commit: 6ee9efc
 - change: Partly + relaunches>0 uses live 13 sentence + card/kicker; zero-relaunch partly stays plain 23.
+- verified: 2026-10-03T16:01:56-04:00
 
-## done: fp-summary-finished-relaunch-note
+## verified: fp-summary-finished-relaunch-note
 - screen: summary
 - ref: `.cursor/figma-refs/12-quest-complete.png` · live `2:44` · note `6:1123`/`6:1125`
 - deviation: |
@@ -1059,8 +1060,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Specialize Finished+relaunches>0 (optionally when `pb.isNew`) to live 12 sentence + card
     chrome; leave zero-relaunch Finished plain. Complements open partly-relaunch; leave 25 alone.
 - escalate: scrutinous
-- commit: 674f5f7
+- commit: 6ee9efc
 - change: Finished + relaunches>0 + new PB uses live 12 sentence + card/kicker; zero-relaunch Finished stays plain 22.
+- verified: 2026-10-03T16:01:56-04:00
 
 ## verified: fp-quest-complete-badge-mint
 - screen: summary
@@ -1110,3 +1112,84 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - commit: fbe9617
 - change: `.mission-setup-step` color set to mint `#326c78`.
 - verified: 2026-10-03T15:59:00-04:00
+
+## open: fp-welcome-signin-form
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · card `5:58` · fields `5:63`/`5:67` ·
+  CTA `5:71` · lead `5:62` · foot `5:77`
+- deviation: |
+    EXPECTED (live 01 Sign in card): lead “Sign in to return to your space.”; Email field
+    (placeholder `you@school.edu`) + Password field (`Enter your password`); primary
+    “Sign in →”; “Continue as guest”; foot “Just here to focus? Guest mode has everything
+    you need for your first mission.”
+    ACTUAL (`#welcome-signin-form`): Google-only CTA (“Sign in with Google →”), lead about
+    Calendar/Drive sync, no Email/Password fields, foot “Guest mode stays on this device
+    only — no cloud sync. Accounts always use Google.”
+- fix_hint: |
+    Match live card chrome/copy (lead, Email/Password placeholders, “Sign in →”, guest foot).
+    Keep Google auth wired — e.g. Sign in → still invokes `sign_in_waypoint_google` if email
+    auth isn’t real yet; do not drop guest path.
+- escalate: scrutinous
+
+## done: fp-welcome-signin-kicker-mint
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · kicker `5:59`/`5:60`
+- deviation: |
+    EXPECTED (live 01): `✦  WELCOME ABOARD` pill label is mint `#326c78` on lavender
+    `#e9ddfd` fill (same mint token as setup/first-flight kickers).
+    ACTUAL (`.welcome-signin-kicker`): `color: #6b4cff` on translucent purple tint —
+    purple label, not mint. Distinct from verified quest/first-flight/setup mint (fbe9617).
+- fix_hint: |
+    Set `.welcome-signin-kicker` color to `#326c78` and raised fill `#e9ddfd`; leave form
+    wiring / Google path alone (see `fp-welcome-signin-form`).
+- escalate: none
+- commit: e18583f
+- change: `.welcome-signin-kicker` mint `#326c78` on raised `#e9ddfd` fill.
+
+## open: fp-session-latest-response-card
+- screen: active
+- ref: `.cursor/figma-refs/06-mission-active.png` · `29-secondary-timer-replaced.png` ·
+    live `2:38` / `8:1198` · Latest response `6:224` / `8:1320`
+- deviation: |
+    EXPECTED (live 06/29): assistant reply is a lavender raised card with border (`#e9ddfd` /
+    `#c8bfd7`), ~18px padding, title line (18px medium dark) + body (14px muted) — NO
+    “COPILOT · JUST NOW” meta above it (user/system keep their meta kickers).
+    ACTUAL (`appendSessionChat("assistant")`): always mounts `COPILOT · JUST NOW` + a single
+    `.bubble.assistant` block (lavender fill, no border, no title/body split).
+- fix_hint: |
+    For session assistant turns: omit/hide meta kicker; render `.session-latest-response`
+    (or split first sentence → title, rest → body) matching live card tokens. Keep send/mic /
+    AT LAUNCH / Pause/End wiring.
+- escalate: scrutinous
+
+## done: fp-setup-toggle-row-chrome
+- screen: setup
+- ref: `.cursor/figma-refs/28-setup-screen-shared.png` · `05-mission-setup.png` · live
+    `8:1096` / `2:37` · rows `8:1159`/`8:1164`
+- deviation: |
+    EXPECTED (live 05/28): Camera / Screen rows are plain stacked copy + toggle (no per-row
+    fill/border); only the card itself is cream.
+    ACTUAL (`.mission-toggle-row`): each row is a padded lavender mini-card
+    (`background: rgba(240,235,250,0.55)` + border + radius) — heavier than live.
+- fix_hint: |
+    Flatten `.mission-toggle-row` to transparent/no-border list rows; keep toggle wiring and
+    intentional objective ✦ = Launch. Distinct from open screen-permission modal.
+- escalate: none
+- commit: e18583f
+- change: Flattened `.mission-toggle-row` to transparent/no-border list rows.
+
+## done: fp-session-user-turn-align
+- screen: active
+- ref: `.cursor/figma-refs/06-mission-active.png` · `29-secondary-timer-replaced.png` ·
+    live `2:38` / `8:1198` · YOU meta `6:222` / `8:1318`
+- deviation: |
+    EXPECTED (live 06/29): session chat column is left-aligned throughout — “YOU · JUST NOW”
+    and user body sit on the left under AT LAUNCH, same edge as the latest-response card.
+    ACTUAL (`.session-chat-turn--user { align-items: flex-end }`): user meta + body hug the
+    right edge of the copilot panel.
+- fix_hint: |
+    Left-align `.session-chat-turn--user` (remove flex-end); keep transparent user text style
+    and existing chat wiring. Complements `fp-session-latest-response-card`.
+- escalate: none
+- commit: e18583f
+- change: `.session-chat-turn--user` left-aligned (`flex-start`).
