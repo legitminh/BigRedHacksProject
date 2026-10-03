@@ -654,36 +654,43 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 
 ## open: fp-break-live-panel-copy
 - screen: active
-- ref: `.cursor/figma-refs/10-on-a-break.png` · live `2:42`
+- ref: `.cursor/figma-refs/10-on-a-break.png` · live `2:42` · badge `8:431` ·
+  title `8:432` · body `8:433` · CTA `8:435` · foot `8:438`
 - deviation: |
-    EXPECTED (OCR live 10): progress “On a break”; caption “REMAINING • TIMER PAUSED”; primary
-    “Resume mission”; right card badge “ON A BREAK”, title “A little breathing room.”, body
-    “Your timer is paused. Automatic check-ins are paused too.”, Resume CTA, footer
-    “Your spaceship will continue from right here.”
-    ACTUAL: Pause→Resume label flips, but caption stays “REMAINING IN YOUR FLIGHT”, note is
-    visually-hidden, `.session-copilot-panel` stays chat (see `fp-break-session-panel`).
+    EXPECTED (live 10 right card): badge “Ⅱ  ON A BREAK” (`8:431`); title “A little
+    breathing room.”; body “Your timer is paused. Automatic check-ins are paused
+    too.”; primary “Resume mission”; footer “Your spaceship will continue from
+    right here.” Left primary is also “Resume mission” (`6:819`).
+    PARTIAL (b7de340 verified): progress pill already “Ⅱ  On a break”; caption
+    already “REMAINING · TIMER PAUSED”; next-step + suggest hidden
+    (`fp-break-hides-session-chrome`).
+    ACTUAL: `.session-copilot-panel` stays chat — no break card; Pause button
+    label is “Resume” (not “Resume mission”).
 - fix_hint: |
-    On pause: set caption + swap copilot panel to the break card with exact live copy; Resume keeps
-    existing pause invoke. Do not change End mission.
+    Swap `.session-copilot-panel` to the break card with exact live copy + “Ⅱ  ”
+    badge; optionally align Pause→“Resume mission”. Keep End + pause invoke.
+    Complements `fp-break-session-panel`.
 - escalate: scrutinous
 
 ## open: fp-listening-session-ui
 - screen: active
-- ref: `.cursor/figma-refs/14-listening.png` · live `2:46`
+- ref: `.cursor/figma-refs/14-listening.png` · live `2:46` · presence `6:1373` ·
+  composer `6:1388` · stop `6:1389`
 - deviation: |
-    EXPECTED (live 14 Listening screenshot): `.session-copilot-presence` → “● Listening…”;
-    cream composer value/placeholder “Listening… click mic to stop”; in-pill mic becomes
-    a ■ stop control beside Send ↑; footer hint stays
-    “Enter to send · Click the microphone to start or stop a voice turn.”
-    Mid-flight chrome (NEXT STEP TIMER + “Set a five-minute timer”) may remain — not the
-    launch-only suggest swap (`fp-session-at-launch-chrome`).
-    ACTUAL (`#session-chat-mic`): presence stays “Here when you need me”; mic → “…” and
-    `disabled`; hint → “Listening for 4 seconds… speak now.”; `#session-chat-input` never
-    shows listening copy. Verified Copilot `fp-copilot-listening-composer` already has ■ +
-    listening placeholder — session path was not ported.
+    EXPECTED (live 14): presence “●  Listening…”; cream composer
+    “Listening… click mic to stop”; in-pill mic → ■ stop beside Send ↑; footer
+    hint stays “Enter to send · Click the microphone…”. Suggest chip “Set a
+    five-minute timer” stays (`6:1383`). Left NEXT STEP TIMER is absent —
+    already verified via `fp-listening-hides-next-step` (cc11ce5).
+    ACTUAL (`#session-chat-mic`): presence stays “Here when you need me”; mic →
+    “…” and `disabled`; hint → “Listening for 4 seconds… speak now.”;
+    `#session-chat-input` never shows listening copy. Copilot
+    `fp-copilot-listening-composer` already has ■ + listening placeholder —
+    session path not ported.
 - fix_hint: |
-    Mirror Copilot listening on session: presence “Listening…”, input listening copy, mic
-    ■ (keep enabled to cancel), restore idle presence/placeholder/hint on end. Keep mic invoke.
+    Mirror Copilot listening on session: presence “Listening…”, input listening
+    copy, mic ■ (keep enabled to cancel), restore idle on end. Keep mic invoke
+    + suggest chip. Do not re-show next-step while listening.
 - escalate: scrutinous
 
 ## open: fp-permission-handoff-modal
@@ -1285,7 +1292,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: `#chat-hint` keeps Enter/mic only; Responses/Audio moved to `.copilot-responses-foot`.
 - verified: 2026-10-03T16:19:28-04:00
 
-## done: fp-welcome-signin-title
+## verified: fp-welcome-signin-title
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · title `5:61`
 - expected: |
@@ -1303,6 +1310,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: scrutinous
 - commit: cc11ce5
 - change: `.welcome-signin-title` → “Your seat is ready.” (live `5:61`); form/Google path untouched.
+- verified: 2026-10-03T16:45:50-04:00
 
 ## open: fp-relaunch-live-panel-copy
 - screen: active
@@ -1344,7 +1352,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     template using current `#session-next-step-timer` value.
 - escalate: scrutinous
 
-## done: fp-session-pb-marker-stack
+## verified: fp-session-pb-marker-stack
 - screen: active
 - ref: `.cursor/figma-refs/06-mission-active.png` · live `2:38` · marker `6:191`–
     `6:193`
@@ -1364,8 +1372,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: none
 - commit: cc11ce5
 - change: PB callout stacks flag+“Personal best” then `{n} min`; `updateSessionOrbitPersonalBest` sets minutes only.
+- verified: 2026-10-03T16:45:50-04:00
 
-## done: fp-listening-hides-next-step
+## verified: fp-listening-hides-next-step
 - screen: active
 - ref: `.cursor/figma-refs/14-listening.png` · live `2:46`
 - expected: |
@@ -1387,8 +1396,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: scrutinous
 - commit: cc11ce5
 - change: `#view-session.is-session-listening` hides `#session-next-step`; toggled via `setSessionListeningUi` on session mic start/end.
+- verified: 2026-10-03T16:45:50-04:00
 
-## done: fp-break-ii-glyph
+## verified: fp-break-ii-glyph
 - screen: active
 - ref: `.cursor/figma-refs/10-on-a-break.png` · live `2:42` · pill `6:760` · badge `8:431`
 - expected: |
@@ -1411,8 +1421,12 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Progress pill → “Ⅱ  On a break”; `#session-timer-caption` → “REMAINING · TIMER PAUSED”
     while paused (restored on resume). Break-card badge deferred — no panel shell yet
     (`fp-break-session-panel`).
+- verified: 2026-10-03T16:45:50-04:00
+- note: |
+    Live `6:760`/`6:817` match HEAD. Badge `8:431` “Ⅱ  ON A BREAK” remains with open
+    panel work (`fp-break-live-panel-copy` / `fp-break-session-panel`).
 
-## done: fp-break-hides-session-chrome
+## verified: fp-break-hides-session-chrome
 - screen: active
 - ref: `.cursor/figma-refs/10-on-a-break.png` · live `2:42`
 - expected: |
@@ -1433,6 +1447,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     `#view-session.is-session-break` (via `syncPauseControls`) hides
     `#session-next-step` + `#session-copilot-suggest`; cleared on resume.
+- verified: 2026-10-03T16:45:50-04:00
 
 ## open: fp-relaunch-hides-session-chrome
 - screen: active
@@ -1488,4 +1503,110 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     On coach/Gemini disconnect during a mission, hide next-step + suggest;
     restore when reconnected. Pair with `fp-connection-lost-panel` /
     `fp-connection-lost-body-copy`.
+- escalate: scrutinous
+
+## open: fp-gentle-checkin-hides-session-chrome
+- screen: active
+- ref: `.cursor/figma-refs/08-gentle-check-in.png` · live `2:40`
+- expected: |
+    Live 08 Gentle check-in: left flight dashboard height 662 — NO
+    `#session-next-step` / NEXT STEP TIMER row (ends at earned-minutes);
+    right panel is the check-in card — NO “Set a five-minute timer”
+    suggest. Pause/End remain; caption stays “REMAINING IN YOUR FLIGHT”.
+- actual: |
+    Mid-flight next-step + suggest stay mounted; check-in only appears as
+    overlay toast (see panel/progress opens). Break/listening already hide
+    via `is-session-break` / `is-session-listening` — no check-in class.
+- deviation: |
+    Check-in must strip secondary-timer + suggest chrome (metadata: no
+    Secondary timer on `2:40`). Complements `fp-gentle-checkin-session-panel`
+    / `fp-gentle-checkin-progress-pill` / `fp-gentle-checkin-panel-copy`.
+- fix_hint: |
+    When gentle check-in is showing: hide `#session-next-step` +
+    `#session-copilot-suggest` (e.g. `is-session-checkin`); restore on
+    dismiss. Keep Pause/End. Pair with panel swap opens.
+- escalate: scrutinous
+
+## open: fp-end-confirm-hides-next-step
+- screen: active
+- ref: `.cursor/figma-refs/11-end-confirmation.png` · live `2:43`
+- expected: |
+    Live 11 End confirmation: under the scrim, left flight card has NO
+    NEXT STEP TIMER (dashboard 662, ends at earned-minutes). Right still
+    shows chat + “Set a five-minute timer” + composer (dimmed). Modal
+    “END MISSION” / “End this session?” / Keep working · End session.
+- actual: |
+    No MC end modal yet (`fp-end-confirm-figma-modal` /
+    `fp-end-confirm-modal-spec`); mid-flight `#session-next-step` stays
+    mounted whenever a step timer is running.
+- deviation: |
+    When End confirmation is up, hide left `#session-next-step` to match
+    live `2:43` underlying chrome. Distinct from modal shell/copy opens;
+    suggest may remain under scrim.
+- fix_hint: |
+    While end-confirm modal is open: hide `#session-next-step`; restore
+    on Keep working / after End. Keep Pause/End wiring; pair with modal
+    opens.
+- escalate: scrutinous
+
+## open: fp-timer-replace-keeps-running
+- screen: active
+- ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` · body `6:1566`
+- expected: |
+    Live 15 modal body is two beats: “Your current timer has {m:ss} left.
+    Replace it with a new five-minute timer? Your mission keeps running.”
+- actual: |
+    Open `fp-timer-replace-body-copy` covers the remaining-time sentence
+    only — trailing “Your mission keeps running.” is not specified; app
+    has no modal yet (`fp-timer-replace-modal`).
+- deviation: |
+    Body must include the “Your mission keeps running.” closer after the
+    replace question (live OCR / frame copy on `2:47`).
+- fix_hint: |
+    When building the replace modal body for `fp-timer-replace-modal` /
+    `fp-timer-replace-body-copy`, append “ Your mission keeps running.”
+- escalate: scrutinous
+
+## open: fp-permissions-choice-surface
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` ·
+  `18-permission-denied.png` · live `2:49` / `2:50` · intro `7:393`/`7:476`
+- expected: |
+    Live 17/18 modals sit over a full MC page (not setup toggles alone):
+    cream top nav Lock-in active; kicker “YOUR CHOICE”; title
+    “Fly on your own terms.”; sub “Optional signals. Clear controls.
+    No recordings.”; left ringed planet + right ship art.
+- actual: |
+    No “YOUR CHOICE” surface in app HTML/CSS/TS. Camera/screen paths go
+    from setup toggles or Settings → Permissions straight to OS prompts
+    (see `fp-permission-handoff-modal` / denied / screen-share opens).
+- deviation: |
+    Missing interstitial permissions-choice page that hosts the handoff
+    and denied modals in Figma. Distinct from modal-only opens.
+- fix_hint: |
+    Add a lightweight MC “YOUR CHOICE” view (or setup substate) matching
+    live intro + art; show handoff/denied modals over it. Keep five-tab
+    Settings; do not block Launch.
+- escalate: scrutinous
+
+## open: fp-permission-denied-body-copy
+- screen: overlay
+- ref: `.cursor/figma-refs/18-permission-denied.png` · live `2:50` ·
+  body `7:502` · footer `7:510`
+- expected: |
+    Live 18 denied modal body: “Permission wasn’t granted, so the input
+    stays off. Your mission will still work without it.” Footer:
+    “Denied access never blocks starting a mission.” CTAs
+    “Back to setup” + “View settings”; badge “INPUT REMAINS OFF”;
+    title “You’re still cleared for launch.”
+- actual: |
+    Open `fp-permission-denied-modal` paraphrases body (“permission
+    wasn’t granted / mission works without it”) — exact two-sentence
+    body + footer string not locked; app has no denied surface yet.
+- deviation: |
+    Exact denied body/footer copy vs live `7:502` / `7:510`. Complements
+    shell open `fp-permission-denied-modal`.
+- fix_hint: |
+    When building the denied modal, use the live body + footer verbatim;
+    Back to setup → `#view-lockin`; View settings → Permissions tab.
 - escalate: scrutinous

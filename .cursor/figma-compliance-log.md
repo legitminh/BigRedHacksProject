@@ -131,3 +131,9 @@ Verifier appends pass/fail notes after each 10m check.
 - pass: fp-home-footnote-rail, fp-home-copilot-shortcut-row
 - fail: (none)
 - notes: Live 2:34 metadata — 5:169 at x=969/y=750 + satellite 22:1311 under PB rail; 5:164 horizontal Talk-it-through + CTA. HEAD 43e68a5 `.mc-home-bottom` grid col2/row2 + `.mc-home-copilot-shortcut` row match. Scrutinous opens still accurate (next-step always-on / Google-only sign-in / window.confirm) — no rewrite. Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true, #app padding:0. No code edits; no push.
+
+## check: 2026-10-03T16:45:50-04:00
+- reviewed: fp-welcome-signin-title, fp-session-pb-marker-stack, fp-listening-hides-next-step, fp-break-ii-glyph, fp-break-hides-session-chrome; spot escalate:scrutinous (fp-break-live-panel-copy, fp-listening-session-ui)
+- pass: fp-welcome-signin-title, fp-session-pb-marker-stack, fp-listening-hides-next-step, fp-break-ii-glyph, fp-break-hides-session-chrome
+- fail: (none)
+- notes: Live get_screenshot 2:33/2:38/2:46/2:42 — cc11ce5 title `5:61` + PB stack `6:191`/`6:812` + listening hide next-step (dash 662, no Secondary timer); b7de340 pill `6:760` “Ⅱ  On a break” + caption `6:817` · + break hide next-step/suggest. Rewrote stale scrutinous opens fp-break-live-panel-copy (panel/badge remain) + fp-listening-session-ui (presence/composer remain; next-step hide verified). Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true, #app padding:0. No code edits; no push.
