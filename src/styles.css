@@ -501,6 +501,12 @@ body:has(.view-home.view-home--guest.active) .grain {
   margin-right: 0.35rem;
 }
 
+.mc-home-tag-flag {
+  flex-shrink: 0;
+  margin-right: 0.3rem;
+  color: var(--mc-accent-purple);
+}
+
 .mc-home-title {
   margin: 0 0 0.55rem;
   font-family: var(--font-display);

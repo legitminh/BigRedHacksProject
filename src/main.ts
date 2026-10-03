@@ -361,7 +361,7 @@ function restoreLockinFromLastSession() {
 }
 
 function missionLaunchLabel(loading: boolean) {
-  return loading ? "Launching…" : "Launch mission ↗";
+  return loading ? "Launching…" : "Launch mission →";
 }
 
 function setMissionLaunchButton(loading: boolean) {
