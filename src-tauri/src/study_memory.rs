@@ -87,7 +87,8 @@ fn bump_distraction(totals: &mut Vec<(String, u32)>, label: &str, n: u32) {
 }
 
 fn update_stats(stats: &mut StudyStats, summary: &SessionSummary) {
-    let flight_mins = ((summary.duration_secs as f64) / 60.0).round().max(1.0) as u32;
+    // duration_secs is already active (non-paused) flight time from summarize().
+    let flight_mins = ((summary.duration_secs as f64) / 60.0).round() as u32;
     let on_task_mins = flight_mins as f64 * summary.on_task_ratio.clamp(0.0, 1.0);
 
     let prev_n = stats.total_sessions;

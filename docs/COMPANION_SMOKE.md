@@ -25,8 +25,9 @@ Architecture: **Frontend ↔ Waypoint API `/v1/companion/live` ↔ Gemini Live**
 4. **Type a follow-up** in the session field while Live is open → Enter.
    - Same Live socket (`type: "text"`), multi-turn context preserved.
 5. **Barge-in**: while companion is speaking, talk over it — playback should clear and Listening returns.
-6. **End Live** with Talk/Live again, or **End mission** — mic tracks stop, WebSocket closes, no leftover audio.
-7. Open **Copilot** (main chat): prior Copilot history still works; companion turns must not have polluted it.
+6. **Screencap**: ask something that needs the screen (“what’s on my screen?” / “look at this error”). The companion should request a capture via the API; the desktop grabs JPEG and streams it back through `/v1/companion/live` (not directly to Google).
+7. **End Live** with Talk/Live again, or **End mission** — mic tracks stop, WebSocket closes, no leftover audio.
+8. Open **Copilot** (main chat): prior Copilot history still works; companion turns must not have polluted it.
 
 ## Typed-only fallback
 

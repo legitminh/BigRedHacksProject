@@ -1,12 +1,15 @@
 //! In-mission study companion — thin client helpers only.
 //! Live voice goes Frontend → Waypoint API `/v1/companion/live` → Gemini Live.
 //! Typed fallback uses `POST /v1/companion/chat`. Gemini keys never leave the API host.
+//! Screencaps for Live are captured locally and streamed to the API (never to Google from the app).
 
+use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use crate::api;
 use crate::auth;
+use crate::capture;
 use crate::gemini::ChatMessage;
 use crate::AppState;
 
@@ -176,4 +179,18 @@ pub fn companion_live_info(state: State<'_, AppState>) -> Result<CompanionLiveIn
 #[tauri::command]
 pub fn voice_stop() {
     waypoint_voice::stop_speaking();
+}
+
+/// Capture a desktop JPEG for the Live companion. Base64 stays on the device until
+/// the thin client posts it to Waypoint API `/v1/companion/live` (API → Gemini).
+#[tauri::command]
+pub async fn companion_grab_screencap() -> Result<String, String> {
+    let jpeg = tokio::task::spawn_blocking(capture::screen::grab_desktop_jpeg)
+        .await
+        .map_err(|e| format!("Screen capture task failed: {e}"))?
+        .map_err(|e| e)?;
+    if jpeg.len() > 2_500_000 {
+        return Err("Screenshot too large to send.".into());
+    }
+    Ok(B64.encode(jpeg))
 }

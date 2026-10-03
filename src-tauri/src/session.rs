@@ -33,6 +33,8 @@ pub struct LockInSession {
     pub status: SessionStatusKind,
     pub active: bool,
     pub paused: bool,
+    /// Cumulative seconds spent paused (breaks). Open pause is folded in at end.
+    pub paused_accum_secs: u64,
     pub prompts: Vec<CoachPrompt>,
     pub vitals: VitalsSnapshot,
     pub distraction_counts: Vec<(String, u32)>,
@@ -83,6 +85,7 @@ impl LockInSession {
             status: SessionStatusKind::Watching,
             active: true,
             paused: false,
+            paused_accum_secs: 0,
             prompts: Vec::new(),
             vitals: VitalsSnapshot::default(),
             distraction_counts: Vec::new(),
@@ -101,6 +104,36 @@ impl LockInSession {
         } else {
             0
         }
+    }
+
+    /// Fold an open pause into `paused_accum_secs` and extend `ends_at` so remaining
+    /// time does not keep burning while the student is on a break.
+    pub fn finalize_open_pause(&mut self, pause_started: Option<chrono::DateTime<chrono::Utc>>) {
+        let Some(started) = pause_started else {
+            return;
+        };
+        let paused_secs = (chrono::Utc::now() - started).num_seconds().max(0) as u64;
+        if paused_secs == 0 {
+            return;
+        }
+        self.paused_accum_secs = self.paused_accum_secs.saturating_add(paused_secs);
+        if let Ok(ends) = chrono::DateTime::parse_from_rfc3339(&self.ends_at) {
+            self.ends_at = (ends.with_timezone(&chrono::Utc)
+                + chrono::Duration::seconds(paused_secs as i64))
+            .to_rfc3339();
+        }
+    }
+
+    /// Active flight time: wall clock since start minus breaks, capped at planned duration.
+    pub fn active_elapsed_secs(&self) -> u64 {
+        let Ok(started) = chrono::DateTime::parse_from_rfc3339(&self.started_at) else {
+            return 0;
+        };
+        let wall = (chrono::Utc::now() - started.with_timezone(&chrono::Utc))
+            .num_seconds()
+            .max(0) as u64;
+        wall.saturating_sub(self.paused_accum_secs)
+            .min(self.duration_secs)
     }
 
     pub fn bump_distraction(&mut self, label: &str) {
@@ -149,7 +182,8 @@ impl LockInSession {
 
         SessionSummary {
             goals: self.goals.clone(),
-            duration_secs: self.duration_secs,
+            // Earned flight time — not the planned block length.
+            duration_secs: self.active_elapsed_secs(),
             modality: self.modality.clone(),
             on_task_ratio: ratio,
             screen_checks: self.total_ticks,
@@ -163,5 +197,33 @@ impl LockInSession {
                 self.vitals.raw_summary.clone()
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn summary_uses_active_elapsed_not_planned_duration() {
+        let mut session = LockInSession::start(
+            "code".into(),
+            25,
+            "coding".into(),
+            false,
+            false,
+        );
+        // Simulate ~90s of work with 10 minutes of break already accounted.
+        session.paused_accum_secs = 600;
+        let started = chrono::Utc::now() - chrono::Duration::seconds(690);
+        session.started_at = started.to_rfc3339();
+        let summary = session.summarize();
+        assert!(
+            summary.duration_secs <= 120,
+            "expected ~90s earned, got {}",
+            summary.duration_secs
+        );
+        assert!(summary.duration_secs >= 60);
+        assert_ne!(summary.duration_secs, session.duration_secs);
     }
 }

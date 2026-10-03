@@ -214,9 +214,33 @@ export class CompanionLiveSession {
       this.stopPlayback();
       return;
     }
+    if (type === "screencap_request" && typeof message.id === "string") {
+      void this.handleScreencapRequest(message.id);
+      return;
+    }
     if (type === "error" && typeof message.message === "string") {
       this.handlers.onError?.(message.message);
       this.end(false);
+    }
+  }
+
+  private async handleScreencapRequest(id: string) {
+    this.setPhase("thinking");
+    try {
+      const jpeg_base64 = await invoke<string>("companion_grab_screencap");
+      this.sendJson({
+        type: "screencap",
+        id,
+        ok: true,
+        jpeg_base64,
+      });
+    } catch (err) {
+      this.sendJson({
+        type: "screencap",
+        id,
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 

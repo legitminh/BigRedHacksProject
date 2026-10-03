@@ -784,11 +784,11 @@ async fn stop_lock_in(
     coach::stop_coach(&app);
     companion::clear_history(&state);
     waypoint_voice::stop_speaking();
-    *state.pause_started.lock() = None;
+    let open_pause = state.pause_started.lock().take();
     let summary = {
         let mut guard = state.session.lock();
-        let summary = guard.as_ref().map(|s| {
-            let mut s = s.clone();
+        let summary = guard.as_mut().map(|s| {
+            s.finalize_open_pause(open_pause);
             s.active = false;
             s.paused = false;
             s.summarize()
@@ -898,14 +898,8 @@ async fn set_lock_in_paused(
             *state.pause_started.lock() = Some(chrono::Utc::now());
             session.watching_note = "On a break — tap Resume when you’re ready.".into();
         } else {
-            if let Some(started) = state.pause_started.lock().take() {
-                let paused_secs = (chrono::Utc::now() - started).num_seconds().max(0);
-                if let Ok(ends) = chrono::DateTime::parse_from_rfc3339(&session.ends_at) {
-                    session.ends_at = (ends.with_timezone(&chrono::Utc)
-                        + chrono::Duration::seconds(paused_secs))
-                    .to_rfc3339();
-                }
-            }
+            let started = state.pause_started.lock().take();
+            session.finalize_open_pause(started);
             session.paused = false;
             session.watching_note = "Back on course — watching with you.".into();
         }
@@ -1019,6 +1013,7 @@ pub fn run() {
             companion::companion_send,
             companion::companion_clear,
             companion::companion_live_info,
+            companion::companion_grab_screencap,
             companion::voice_stop,
             start_lock_in,
             stop_lock_in,

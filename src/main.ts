@@ -496,17 +496,11 @@ function missionLaunchLabel(loading: boolean) {
   return loading ? "Launching…" : "Launch mission →";
 }
 
-const GOALS_IDLE_PLACEHOLDER = "Finish calculus problems 1–5.";
-const GOALS_LISTENING_COPY = "Listening… tell me your objective.";
 const SETUP_FOOT_EMPTY =
-  "Type or speak an objective to enable launch.<br />Both optional inputs are off.";
-const SETUP_FOOT_LISTENING =
-  "Click the microphone again to stop.<br />Your transcript appears here for you to edit.";
+  "Type an objective to enable launch.<br />Both optional inputs are off.";
 const SETUP_FOOT_READY =
   "You can fly with both inputs off. Nothing starts capturing until you give permission.";
 
-let setupGoalsListening = false;
-let setupListenAbort: AbortController | null = null;
 let missionLaunchLoading = false;
 
 function goalsHasObjective(): boolean {
@@ -518,29 +512,14 @@ function syncMissionSetupLaunchUi(): void {
   const startBtn = $("#lockin-start") as HTMLButtonElement | null;
   const labelEl = startBtn?.querySelector(".mission-launch-label");
   const foot = $("#mission-setup-foot");
-  const affordance = $("#goals-copilot-affordance") as HTMLButtonElement | null;
-  const canLaunch = goalsHasObjective() && !setupGoalsListening && !missionLaunchLoading;
+  const canLaunch = goalsHasObjective() && !missionLaunchLoading;
 
   if (labelEl) labelEl.textContent = missionLaunchLabel(missionLaunchLoading);
   if (startBtn) startBtn.disabled = !canLaunch;
 
   if (foot) {
-    if (setupGoalsListening) foot.innerHTML = SETUP_FOOT_LISTENING;
-    else if (goalsHasObjective()) foot.textContent = SETUP_FOOT_READY;
+    if (goalsHasObjective()) foot.textContent = SETUP_FOOT_READY;
     else foot.innerHTML = SETUP_FOOT_EMPTY;
-  }
-
-  if (affordance) {
-    if (setupGoalsListening) {
-      affordance.setAttribute("aria-label", "Stop listening");
-      affordance.title = "Stop listening";
-    } else if (canLaunch) {
-      affordance.setAttribute("aria-label", "Launch mission");
-      affordance.title = "Launch mission";
-    } else {
-      affordance.setAttribute("aria-label", "Dictate objective");
-      affordance.title = "Dictate objective";
-    }
   }
 }
 
@@ -2614,7 +2593,7 @@ async function bootApp() {
 
   $("#lockin-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (setupGoalsListening || missionLaunchLoading) return;
+    if (missionLaunchLoading) return;
     const goalsInput = $("#goals") as HTMLTextAreaElement | null;
     const goals = goalsInput?.value.trim() ?? "";
     if (!goals) {
@@ -2804,64 +2783,11 @@ async function bootApp() {
       else show("view-home");
     });
   });
-  async function startSetupObjectiveListen(): Promise<void> {
-    if (setupGoalsListening || missionLaunchLoading) return;
-    const input = $("#goals") as HTMLTextAreaElement | null;
-    const priorValue = input?.value ?? "";
-    setupListenAbort = new AbortController();
-    setupGoalsListening = true;
-    if (input) {
-      input.value = GOALS_LISTENING_COPY;
-      input.placeholder = GOALS_LISTENING_COPY;
-      input.setAttribute("aria-label", GOALS_LISTENING_COPY);
-      input.readOnly = true;
-    }
-    syncMissionSetupLaunchUi();
-    try {
-      const transcript = await listenForTranscript(8, setupListenAbort.signal);
-      if (setupListenAbort.signal.aborted) {
-        if (input) input.value = priorValue;
-        return;
-      }
-      const text = transcript.text?.trim();
-      if (text && input) {
-        input.value = text;
-        input.focus();
-      } else if (input) {
-        input.value = priorValue;
-      }
-    } catch (err) {
-      console.error(err);
-      if (input) input.value = priorValue;
-    } finally {
-      setupGoalsListening = false;
-      setupListenAbort = null;
-      if (input) {
-        input.placeholder = GOALS_IDLE_PLACEHOLDER;
-        input.setAttribute("aria-label", "What do you want to finish?");
-        input.readOnly = false;
-      }
-      syncMissionSetupLaunchUi();
-    }
-  }
-
   $("#goals")?.addEventListener("input", () => {
-    if (!setupGoalsListening) syncMissionSetupLaunchUi();
+    syncMissionSetupLaunchUi();
   });
   syncMissionSetupLaunchUi();
 
-  $("#goals-copilot-affordance")?.addEventListener("click", () => {
-    if (setupGoalsListening) {
-      setupListenAbort?.abort();
-      return;
-    }
-    if (goalsHasObjective()) {
-      const form = $("#lockin-form") as HTMLFormElement | null;
-      form?.requestSubmit();
-      return;
-    }
-    void startSetupObjectiveListen();
-  });
   $("#session-chat-form")?.addEventListener("submit", (e) => {
     e.preventDefault();
     void sendSessionChat();

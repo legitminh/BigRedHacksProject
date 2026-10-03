@@ -3104,36 +3104,6 @@ body:has(.view-mission-setup.active) .grain {
 .view-mission-setup .mission-field-input-wrap textarea {
   width: 100%;
   box-sizing: border-box;
-  padding-right: 3.1rem;
-}
-
-.mission-field-affordance {
-  position: absolute;
-  right: 0.65rem;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 2rem;
-  height: 2rem;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #6750a4;
-  background: transparent;
-  box-shadow: none;
-  cursor: pointer;
-}
-
-.mission-field-affordance-target {
-  width: 1.15rem;
-  height: 1.15rem;
-  display: block;
-}
-
-.mission-field-affordance:hover {
-  color: #524189;
 }
 
 .view-mission-setup .mission-field textarea {

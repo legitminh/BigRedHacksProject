@@ -1130,9 +1130,12 @@ async fn finish_session(app: &AppHandle) {
     overlay::hide(app);
     let summary = {
         let state = app.state::<AppState>();
+        let open_pause = state.pause_started.lock().take();
         let mut guard = state.session.lock();
         if let Some(session) = guard.as_mut() {
+            session.finalize_open_pause(open_pause);
             session.active = false;
+            session.paused = false;
             Some(session.summarize())
         } else {
             None
