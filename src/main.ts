@@ -1565,6 +1565,59 @@ function startNextStepTimer(durationSecs = NEXT_STEP_DEFAULT_SECS) {
   startNextStepTicker();
 }
 
+function nextStepRemainingSecsLive(): number {
+  if (nextStepEndsAtMs != null && !nextStepPaused) {
+    return Math.max(0, Math.ceil((nextStepEndsAtMs - Date.now()) / 1000));
+  }
+  return Math.max(0, Math.ceil(nextStepRemainingMs / 1000));
+}
+
+/** True while a five-minute next-step countdown is in flight (or paused mid-timer). */
+function isNextStepTimerActive(): boolean {
+  if (nextStepEndsAtMs != null && !nextStepPaused) {
+    return nextStepEndsAtMs > Date.now();
+  }
+  return nextStepPaused && nextStepRemainingMs > 0;
+}
+
+/** Body label: m:ss without zero-padded minutes (live 15 sample “4:32”). */
+function formatNextStepRemainLabel(totalSecs: number): string {
+  const total = Math.max(0, Math.floor(totalSecs));
+  const m = Math.floor(total / 60);
+  const s = (total % 60).toString().padStart(2, "0");
+  return `${m}:${s}`;
+}
+
+function openTimerReplaceModal() {
+  const modal = $("#timer-replace-modal");
+  const body = $("#timer-replace-modal-body");
+  if (body) {
+    const remain = formatNextStepRemainLabel(nextStepRemainingSecsLive());
+    body.textContent =
+      `Your current timer has ${remain} left. Replace it with a new five-minute timer? ` +
+      `Your mission timer keeps running.`;
+  }
+  // Do not toggle is-session-ending — next-step + suggest must stay visible under scrim.
+  if (modal) modal.hidden = false;
+}
+
+function closeTimerReplaceModal() {
+  const modal = $("#timer-replace-modal");
+  if (modal) modal.hidden = true;
+}
+
+function requestOrStartNextStepTimer() {
+  if (isNextStepTimerActive()) {
+    openTimerReplaceModal();
+    return;
+  }
+  startNextStepTimer(NEXT_STEP_DEFAULT_SECS);
+  const hint = $("#session-chat-hint");
+  if (hint) {
+    hint.textContent = "Five-minute next-step timer started. One small step at a time.";
+  }
+}
+
 function pauseNextStepTimer() {
   if (nextStepPaused) return;
   if (nextStepEndsAtMs != null) {
@@ -2814,6 +2867,17 @@ async function bootApp() {
     void sendSessionChat();
   });
   $("#session-copilot-suggest")?.addEventListener("click", () => {
+    requestOrStartNextStepTimer();
+  });
+
+  $("#timer-replace-modal")
+    ?.querySelectorAll("[data-timer-replace-dismiss]")
+    .forEach((el) => {
+      el.addEventListener("click", () => closeTimerReplaceModal());
+    });
+
+  $("#timer-replace-confirm")?.addEventListener("click", () => {
+    closeTimerReplaceModal();
     startNextStepTimer(NEXT_STEP_DEFAULT_SECS);
     const hint = $("#session-chat-hint");
     if (hint) {

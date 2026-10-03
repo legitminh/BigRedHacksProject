@@ -1032,6 +1032,44 @@
       </div>
 
       <div
+        id="timer-replace-modal"
+        class="mc-perm-modal"
+        hidden
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="timer-replace-modal-title"
+      >
+        <div class="mc-perm-modal__backdrop" data-timer-replace-dismiss></div>
+        <div class="mc-perm-modal__card mc-perm-modal__card--timer-replace">
+          <p class="mc-perm-modal__badge">One timer at a time</p>
+          <h2 id="timer-replace-modal-title" class="mc-perm-modal__title">
+            Replace your step timer?
+          </h2>
+          <p id="timer-replace-modal-body" class="mc-perm-modal__body">
+            Your current timer has 5:00 left. Replace it with a new five-minute timer? Your mission
+            timer keeps running.
+          </p>
+          <div class="mc-perm-modal__actions">
+            <button
+              id="timer-replace-keep"
+              type="button"
+              class="mc-perm-modal__btn mc-perm-modal__btn--secondary"
+              data-timer-replace-dismiss
+            >
+              Keep current
+            </button>
+            <button
+              id="timer-replace-confirm"
+              type="button"
+              class="mc-perm-modal__btn mc-perm-modal__btn--primary"
+            >
+              Replace timer
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
         id="end-session-modal"
         class="mc-perm-modal"
         hidden

@@ -952,11 +952,12 @@ body:has(.view-home.view-home--guest.active) .grain {
 .welcome-signin-card input {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid rgba(42, 36, 64, 0.12);
-  background: #f3eef9;
+  min-height: 64px;
+  border: 1px solid #c8bfd7;
+  background: #f7f2ff;
   color: #2a2440;
   padding: 0.72rem 0.85rem;
-  border-radius: 14px;
+  border-radius: 12px;
   font: inherit;
 }
 
@@ -1457,6 +1458,16 @@ body:has(.view-home.view-home--guest.active) .grain {
   box-shadow: 0 28px 56px rgba(42, 36, 64, 0.22);
   display: grid;
   gap: 0.85rem;
+}
+
+/* Live 15 timer-replace dialog (6:1562): 580×301 surface tokens */
+.mc-perm-modal__card--timer-replace {
+  width: min(100%, 580px);
+  padding: 32px;
+  border-radius: 28px;
+  background: #fffbff;
+  border: 1px solid #c8bfd7;
+  gap: 22px;
 }
 
 .mc-perm-modal__badge {

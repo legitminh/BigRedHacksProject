@@ -529,7 +529,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     On coach/Gemini disconnect during a mission, restyle `.session-copilot-presence` and insert a Figma-styled lost/retry block above the session composer; Retry can re-invoke existing status/connect helpers.
 - escalate: none
 
-## open: fp-timer-replace-modal
+## done: fp-timer-replace-modal
 - screen: active
 - ref: `.cursor/figma-refs/15---Timer-replacement.svg`
 - deviation: |
@@ -538,6 +538,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - fix_hint: |
     If a next-step timer is active with remaining time, show an MC-styled modal matching Figma 15 before calling `startNextStepTimer(300)`; Keep current dismisses.
 - escalate: none
+- commit: PENDING
+- change: |
+    Suggest chip opens `#timer-replace-modal` when a next-step timer is
+    already active; Keep current dismisses; Replace timer restarts 05:00.
 
 ## verified: fp-summary-flight-logged
 - screen: summary
@@ -1390,7 +1394,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     normal active.
 - escalate: scrutinous
 
-## open: fp-timer-replace-body-copy
+## done: fp-timer-replace-body-copy
 - screen: active
 - ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` · body `6:1566`
 - expected: |
@@ -1407,6 +1411,11 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     In the MC modal for `fp-timer-replace-modal`, set body from live `6:1566`
     template using current `#session-next-step-timer` value.
 - escalate: scrutinous
+- commit: PENDING
+- change: |
+    `#timer-replace-modal-body` interpolates live remaining as m:ss
+    (“Your current timer has {m:ss} left. Replace it with a new five-minute
+    timer? …”).
 
 ## verified: fp-session-pb-marker-stack
 - screen: active
@@ -1760,7 +1769,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     building `fp-timer-replace-modal` body.
 - escalate: scrutinous
 
-## open: fp-timer-replace-keeps-next-step
+## done: fp-timer-replace-keeps-next-step
 - screen: active
 - ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47`
 - expected: |
@@ -1779,6 +1788,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When showing the replace modal, leave next-step + suggest mounted;
     do not toggle `is-session-ending` / break / check-in hide classes.
 - escalate: scrutinous
+- commit: PENDING
+- change: |
+    `openTimerReplaceModal` does not toggle `is-session-ending` / break /
+    check-in; `#session-next-step` + suggest stay visible under scrim.
 
 ## verified: fp-permission-denied-cta-primary
 - screen: overlay
@@ -1854,7 +1867,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Live get_screenshot `5:249` pale lavender page-bg + light purple border;
     HEAD `#f7f2ff` / `#c8bfd7` / 1rem radius matches.
 
-## open: fp-timer-replace-cta-hierarchy
+## done: fp-timer-replace-cta-hierarchy
 - screen: active
 - ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` ·
   actions `6:1568` / `6:1571`
@@ -1871,6 +1884,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When building the replace modal, style Keep current lavender secondary
     (dismiss) and Replace timer filled primary → `startNextStepTimer(300)`.
 - escalate: scrutinous
+- commit: PENDING
+- change: |
+    LEFT Keep current = lavender secondary dismiss; RIGHT Replace timer =
+    filled primary → `startNextStepTimer(300)`.
 
 ## open: fp-connection-lost-latest-card
 - screen: active
@@ -2330,7 +2347,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Copilot + session `.copilot-input-wrap` padding 12×16, gap 12 → ~78px
     with 52px Mic/Send; fill/border/ellipsis preserved.
 
-## open: fp-timer-replace-closer-has-timer
+## done: fp-timer-replace-closer-has-timer
 - screen: active
 - ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` ·
   body `6:1566`
@@ -2350,6 +2367,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     “…five-minute timer? Your mission timer keeps running.” Ignore the
     no-timer guidance on the sibling opens.
 - escalate: scrutinous
+- commit: PENDING
+- change: |
+    Body closer uses verbatim “Your mission timer keeps running.” (timer
+    word included per live `6:1566`).
 
 ## open: fp-connection-lost-keeps-chat-chrome
 - screen: active
@@ -2370,4 +2391,107 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     On disconnect: keep `.session-copilot` header + log; only swap presence,
     append Latest lost card, suggest→Retry. Do not apply
     `is-session-break` / check-in compact swap.
+- escalate: scrutinous
+
+## open: fp-relaunch-badge-arrow
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  pill `6:581` · badge `8:415`
+- expected: |
+    Live design_context characters are right-arrow → (not ↗): left progress
+    “→  Ready to relaunch?”; card badge “→  READY TO RELAUNCH?”. Layer names
+    still say ↗ — stale (same trap as verified home “Open copilot →”).
+- actual: |
+    Opens `fp-relaunch-live-panel-copy` / `fp-relaunch-panel-compact` still
+    instruct ↗. App has no relaunch UI yet.
+- deviation: |
+    Tick17 live proof — badge/pill glyph is →. Supersedes ↗ guidance on
+    sibling relaunch opens when building the surface.
+- fix_hint: |
+    Use → (U+2192) for progress pill + card badge; ignore ↗ layer names.
+    Pair with panel/copy/compact opens. Keep End + Take a break wiring.
+- escalate: scrutinous
+
+## open: fp-relaunch-footer-mint
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  footer `8:429`
+- expected: |
+    Live relaunch card footer “Same objective. Same flight. A fresh start.”
+    is mint `#326c78` at 13px — not muted gray (`#645d73`).
+- actual: |
+    Opens lock footer string only (`fp-relaunch-live-panel-copy` /
+    `fp-relaunch-session-panel`). No color token. App has no relaunch card.
+- deviation: |
+    Footer mint token vs live `8:429`. Distinct from copy/CTA/field opens.
+- fix_hint: |
+    Style relaunch footer with mint `#326c78` (same token as welcome/setup
+    kickers). Keep copy verbatim; Relaunch wiring unchanged.
+- escalate: scrutinous
+
+## done: fp-welcome-field-fill
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · Email `5:65` ·
+  Password `5:69`
+- expected: |
+    Live Email/Password Editables: fill `#f7f2ff`, border `#c8bfd7`,
+    radius 12px, 438×64 (same MC editable as relaunch/setup).
+- actual: |
+    Open `fp-welcome-field-height` locks 64px only. Existing CSS
+    `.welcome-signin-card input` uses `#f3eef9` fill, mauve
+    `rgba(42,36,64,0.12)` border, 14px radius — wrong tokens even before
+    Email/Password mount (Google-only form).
+- deviation: |
+    Welcome field fill/border/radius vs live `5:65`/`5:69`. Complements
+    form + field-height + guest-chrome opens.
+- fix_hint: |
+    Set welcome inputs to `#f7f2ff` / `#c8bfd7` / 12px radius + min-height
+    64px; keep Sign in → / guest path per sibling opens.
+- escalate: scrutinous
+- commit: PENDING
+- change: |
+    `.welcome-signin-card input` → fill `#f7f2ff`, border `#c8bfd7`,
+    radius 12px, min-height 64px (Google-only form; tokens ready for fields).
+
+## done: fp-timer-replace-modal-surface
+- screen: active
+- ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` ·
+  modal `6:1562`
+- expected: |
+    Live replace dialog (`6:1562`, 580×301): surface `#fffbff`, border
+    `#c8bfd7`, radius 28px, padding 32px, gap 22px — same MC modal chrome
+    as permission/end dialogs. Badge ONE TIMER AT A TIME on `#e9ddfd`.
+- actual: |
+    Opens cover shell/body/CTA/keeps-next-step/closer-has-timer — not
+    surface tokens. App still silently overwrites (`fp-timer-replace-modal`).
+- deviation: |
+    Modal surface tokens vs live `6:1562`. Under-covered `2:47` chrome.
+- fix_hint: |
+    When building the replace modal, use `#fffbff` / `#c8bfd7` / 28px /
+    32px pad; Keep current tonal + Replace timer filled per CTA open.
+- escalate: scrutinous
+- commit: PENDING
+- change: |
+    `.mc-perm-modal__card--timer-replace` uses `#fffbff` / `#c8bfd7` /
+    28px radius / 32px pad / 22px gap / max-width 580px.
+
+## open: fp-permissions-choice-title-size
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  intro `7:393` · title `7:395`
+- expected: |
+    Live YOUR CHOICE intro: kicker “YOUR CHOICE” purple `#6750a4` bold
+    12px; title “Fly on your own terms.” medium 44px dark; sub
+    “Optional signals. Clear controls. No recordings.” muted 16px.
+- actual: |
+    Open `fp-permissions-choice-surface` locks page existence + copy
+    strings but not title type scale (44px) or kicker purple (not mint).
+    App still has no interstitial under handoff/denied modals.
+- deviation: |
+    Intro type/color tokens vs live `7:394`/`7:395`/`7:396`. Complements
+    choice-surface shell; under-covered YOUR CHOICE.
+- fix_hint: |
+    When adding the YOUR CHOICE view, set title ~44px medium + purple
+    kicker (not mint); keep Lock-in nav + handoff/denied over the page.
+    Preserve Settings five-tab; do not block Launch.
 - escalate: scrutinous
