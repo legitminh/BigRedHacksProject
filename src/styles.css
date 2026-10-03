@@ -931,21 +931,25 @@ body:has(.view-home.view-home--guest.active) .grain {
   line-height: 1.4;
 }
 
+/* Live 01 labeled stacks (5:63 / 5:67): 94px = 20 label + 10 gap + 64 field */
 .welcome-field {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 10px;
+  min-height: 94px;
 }
 
 .welcome-field-label {
   font-size: 0.82rem;
   font-weight: 600;
+  line-height: 20px;
   color: #2a2440;
 }
 
 .welcome-signin-card input {
   width: 100%;
   box-sizing: border-box;
+  height: 64px;
   min-height: 64px;
   border: 1px solid #c8bfd7;
   background: #f7f2ff;
