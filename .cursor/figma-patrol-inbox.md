@@ -217,7 +217,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: none
 - note: Skipped this tick — user requested objective ✦ remain Launch; do not revert.
 
-## done: fp-active-waypoint-sublabels-uppercase
+## verified: fp-active-waypoint-sublabels-uppercase
 - screen: active
 - ref: `.cursor/figma-refs/06-mission-active.png` · live `2:38` · nodes `6:189`/`6:190`
 - deviation: |
@@ -234,6 +234,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - reopened: true
 - commit: 44f3b0e
 - change: Removed `.session-flight-waypoint-sub` Earth/Kepler spans + CSS; Launch/Destination only; route kicker “EARTH → KEPLER” kept.
+- verified: 2026-10-03T15:32:34-04:00
 
 
 ## open: fp-end-confirm-figma-modal
@@ -742,7 +743,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     live copy; optional next-step subline from coach/suggest. Keep Pause/End wiring.
 - escalate: scrutinous
 
-## done: fp-setup-empty-launch-disabled
+## verified: fp-setup-empty-launch-disabled
 - screen: setup
 - ref: `.cursor/figma-refs/32-objective-empty-disabled.png` · live `10:752`
 - deviation: |
@@ -758,8 +759,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     swap lead/foot/label to live 32 copy when empty; restore filled Launch + permission foot
     when objective present (live 05/26). Keep objective ✦ Launch wiring; do not reopen as Copilot.
 - escalate: scrutinous
+- proof: e9a210e — empty gates muted Launch + live 32 lead/label/foot; filled restores Launch + permission foot.
 
-## done: fp-setup-objective-listening
+## verified: fp-setup-objective-listening
 - screen: setup
 - ref: `.cursor/figma-refs/30-objective-listening.png` · live `10:565`
 - deviation: |
@@ -774,6 +776,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     listening, then writes transcript into `#goals`. Keep product ✦ = Launch on click if that
     stays intentional (e.g. separate long-press / secondary mic), or document the dictate entry.
 - escalate: scrutinous
+- proof: e9a210e — dictate path sets live 30 field/foot; Launch muted while listening; affordance Launch/`requestSubmit` when objective present.
 
 ## verified: fp-copilot-listening-composer
 - screen: copilot
@@ -827,3 +830,94 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: Summary starts unanswered (no pill selected); `.quest-copilot-note` hidden until Finished/Partly/Not yet; then `refreshSummaryCopilotNote` reveals it.
 - verified: 2026-10-03T15:27:27-04:00
 
+
+## open: fp-session-at-launch-chrome
+- screen: active
+- ref: `.cursor/figma-refs/36-launch-25-remaining.png` · live `10:1325`
+- deviation: |
+    EXPECTED (live 36 Launch — 25 minutes remaining): at mission start (full timer, 0 flight
+    minutes earned) the next-step timer row is absent; session suggest chip reads
+    “How much time is left?” (not a timer-set CTA). Mid-flight frames (06/33/29) keep
+    “Set a five-minute timer” + NEXT STEP TIMER once a step timer exists.
+    ACTUAL (`#view-session`): `#session-next-step` always mounts with default 05:00;
+    `#session-copilot-suggest` is hard-coded “Set a five-minute timer” from launch.
+- fix_hint: |
+    At launch / before a next-step timer starts: hide `#session-next-step`; set suggest
+    label to “How much time is left?” (wire to reply with remaining flight time or send
+    that prompt). After `startNextStepTimer`, show next-step row and restore five-minute
+    suggest. Keep Pause/End / mic / send wiring.
+- escalate: scrutinous
+
+## done: fp-ended-early-finished-hero
+- screen: summary
+- ref: `.cursor/figma-refs/22-ended-early-finished.png` · live `8:531`
+- deviation: |
+    EXPECTED (live 22 Ended early — finished): after early End + selecting Finished, hero
+    becomes ✓ QUEST COMPLETE / “One mission. Well done.” (layer name still “FLIGHT LOGGED”
+    but visible text is quest-complete). Not-yet/partly keep ✦ FLIGHT LOGGED /
+    “Every flight moves you forward.” (live 24).
+    ACTUAL: `updateSummaryCelebration(..., endedEarly=true)` locks FLIGHT LOGGED /
+    “Every flight…” for the whole summary; picking Finished never upgrades the badge/title.
+- fix_hint: |
+    When `lastSummaryObjective === "finished"`, restyle celebration to quest-complete
+    (✓ QUEST COMPLETE + “One mission. Well done.”) even if the session ended early;
+    keep flight-logged hero for partly/not-yet. Distinct from verified initial
+    flight-logged branch on End.
+- escalate: scrutinous
+- commit: 46b3262
+- change: Early-End + Finished upgrades hero to ✓ QUEST COMPLETE / “One mission. Well done.” via `syncSummaryCelebrationFromOutcome`; partly/not-yet keep FLIGHT LOGGED.
+
+## done: fp-summary-outcome-note-copy
+- screen: summary
+- ref: `.cursor/figma-refs/22-ended-early-finished.png` · `24-ended-early-not-yet.png` · live `8:531` / `8:715`
+- deviation: |
+    EXPECTED (live 22/24 after an objective pick): plain muted paragraph under the pills —
+    no “✦ A note from your copilot” kicker. Finished: “You logged {n} flight minutes and
+    said you finished {goal}. Your personal best remains {pb} minutes.” Not yet: “You
+    logged {n} flight minutes and said your objective is not finished yet. Your time
+    still counts, and your personal best remains {pb} minutes.”
+    ACTUAL: `.quest-copilot-kicker` always shows; `buildCopilotNote` uses
+    “finished your objective — {goal}” / “didn't finish your objective yet” and may append
+    `closing_note` instead of the “personal best remains / time still counts” lines.
+- fix_hint: |
+    Hide `.quest-copilot-kicker` (or drop it); rewrite `buildCopilotNote` / outcome phrases
+    to match live 22/24 sentences (include PB remains / time still counts). Keep
+    note-gated visibility from verified `fp-summary-note-gated`.
+- escalate: scrutinous
+- commit: 46b3262
+- change: Hid copilot-note kicker; plain muted note; `buildCopilotNote` matches live 22/24 PB-remains / time-still-counts sentences.
+
+## done: fp-summary-logged-banner
+- screen: summary
+- ref: `.cursor/figma-refs/22-ended-early-finished.png` · `24-ended-early-not-yet.png` · live `8:531` / `8:715`
+- deviation: |
+    EXPECTED: under the three stat tiles, a lavender pill always shows
+    “{n} minutes logged · your best is still {pb} min” (or the new-longest variant when
+    applicable — Figma samples use the “still” line when PB unchanged).
+    ACTUAL (`#summary-pb-banner`): only rendered when `pb.isNew && pb.previous > 0` with
+    “New longest flight! X → Y min”; otherwise hidden — non-PB summaries miss the logged
+    / best-still line entirely.
+- fix_hint: |
+    Always show `#summary-pb-banner` after a mission: new-PB copy when `pb.isNew`, else
+    “{n} minutes logged · your best is still {pb} min” (keep flag SVG for new-PB if Figma
+    12 uses it). Distinct from verified flag-only new-PB mount.
+- escalate: none
+- commit: 46b3262
+- change: `#summary-pb-banner` always shown — new-longest with flag when PB beaten, else “{n} minutes logged · your best is still {pb} min”.
+
+## open: fp-screen-share-permission-modal
+- screen: overlay
+- ref: `.cursor/figma-refs/27-screen-sharing-permission.png` · live `8:1019`
+- deviation: |
+    EXPECTED (live 27 Screen-sharing permission): cream MC modal over “YOUR CHOICE /
+    Fly on your own terms.” — badge “PERMISSION HANDOFF”, title “Share your screen?”,
+    body about choosing a tab/window/screen and comparing visible activity to the
+    objective, “Not now” + “Continue”, footer that nothing is recorded / can turn off.
+    ACTUAL: no screen-specific handoff; screen enable goes straight to OS/Tauri share
+    picker. Open `fp-permission-handoff-modal` covers the generic “Share an optional
+    input?” camera-style frame 17 — this is the screen-share variant (frame 27).
+- fix_hint: |
+    When enabling screen sharing from setup/settings, show this screen-specific modal
+    copy before the native picker; Continue → existing screen permission path; Not now
+    cancels. Reuse handoff shell from `fp-permission-handoff-modal` with frame-27 strings.
+- escalate: scrutinous

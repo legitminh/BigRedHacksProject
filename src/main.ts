@@ -198,6 +198,8 @@ let lastSummaryRelaunches = 0;
 
 type ObjectiveOutcome = "finished" | "partly" | "not-yet";
 let lastSummaryObjective: ObjectiveOutcome | null = null;
+let lastSummaryEndedEarly = false;
+let lastSummaryFirstFlight = false;
 
 const LONGEST_FLIGHT_KEY = "waypoint-longest-flight-min";
 const RELAUNCH_FLAG_KEY = "waypoint-summary-from-relaunch";
@@ -221,33 +223,36 @@ function consumeRelaunchFlag(): number {
   return fromRelaunch ? 1 : 0;
 }
 
-function objectivePhrase(outcome: ObjectiveOutcome): string {
-  if (outcome === "finished") return "finished your objective";
-  if (outcome === "partly") return "partly finished your objective";
-  return "didn't finish your objective yet";
+function personalBestMinutes(
+  flightMinutes: number,
+  pb: { previous: number; isNew: boolean },
+): number {
+  return pb.isNew ? flightMinutes : Math.max(pb.previous, flightMinutes);
 }
 
 function buildCopilotNote(
   summary: SessionSummary,
   flightMinutes: number,
-  relaunches: number,
+  _relaunches: number,
   pb: { previous: number; isNew: boolean; delta: number },
   outcome: ObjectiveOutcome,
 ): string {
   const goalLine = summary.goals.trim().split("\n")[0]?.trim();
-  let note = `You logged ${flightMinutes} flight minute${flightMinutes === 1 ? "" : "s"}`;
-  if (relaunches > 0) {
-    note += `, relaunched ${relaunches === 1 ? "once" : `${relaunches} times`}`;
+  const unit = flightMinutes === 1 ? "minute" : "minutes";
+  const best = personalBestMinutes(flightMinutes, pb);
+  if (outcome === "finished") {
+    const finishedWhat = goalLine
+      ? goalLine.replace(/^(finish|complete)\s+/i, "").trim() || goalLine
+      : "your objective";
+    return `You logged ${flightMinutes} flight ${unit} and said you finished ${finishedWhat}. Your personal best remains ${best} minutes.`;
   }
-  note += `, and said you ${objectivePhrase(outcome)}`;
-  if (goalLine) note += ` — ${goalLine}`;
-  note += ".";
-  if (pb.isNew && pb.delta > 0) {
-    note += ` That's ${pb.delta} minute${pb.delta === 1 ? "" : "s"} beyond your previous longest flight.`;
-  } else if (summary.closing_note) {
-    note += ` ${summary.closing_note}`;
+  if (outcome === "partly") {
+    const partlyWhat = goalLine
+      ? goalLine.replace(/^(finish|complete)\s+/i, "").trim() || goalLine
+      : "your objective";
+    return `You logged ${flightMinutes} flight ${unit} and said you partly finished ${partlyWhat}. Your time still counts, and your personal best remains ${best} minutes.`;
   }
-  return note;
+  return `You logged ${flightMinutes} flight ${unit} and said your objective is not finished yet. Your time still counts, and your personal best remains ${best} minutes.`;
 }
 
 function resetObjectiveButtons(): void {
@@ -319,11 +324,21 @@ function updateSummaryCelebration(
   }
 }
 
+/** Early End starts as FLIGHT LOGGED; Finished upgrades to QUEST COMPLETE (live 22). */
+function syncSummaryCelebrationFromOutcome(): void {
+  if (!lastSessionSummary || lastSummaryFirstFlight || !lastSummaryObjective) return;
+  if (!lastSummaryEndedEarly) return;
+  const questComplete = lastSummaryObjective === "finished";
+  updateSummaryCelebration(lastSessionSummary, false, !questComplete);
+}
+
 function showSummaryWithCelebration(summary: SessionSummary, endedEarly = false): void {
   const firstFlight = onMissionCompleted(summary, summary.duration_secs);
   lastSummaryPersonalBest = recordLongestFlight(flightMinutesFromSecs(summary.duration_secs));
   lastSummaryRelaunches = consumeRelaunchFlag();
   lastSummaryObjective = null;
+  lastSummaryEndedEarly = endedEarly;
+  lastSummaryFirstFlight = firstFlight;
   resetObjectiveButtons();
   setSummaryNoteVisible(false);
   renderSummary(summary);
@@ -1727,8 +1742,8 @@ function renderSummary(summary: SessionSummary) {
   `;
 
   if (pbBanner) {
+    pbBanner.hidden = false;
     if (pb.isNew && pb.previous > 0) {
-      pbBanner.hidden = false;
       pbBanner.innerHTML = `
         <svg class="quest-complete-pb-banner-flag" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
           <path
@@ -1739,8 +1754,8 @@ function renderSummary(summary: SessionSummary) {
         <span>New longest flight! ${escapeHtml(String(pb.previous))} → ${escapeHtml(String(flightMinutes))} min</span>
       `;
     } else {
-      pbBanner.hidden = true;
-      pbBanner.textContent = "";
+      const best = personalBestMinutes(flightMinutes, pb);
+      pbBanner.textContent = `${flightMinutes} minutes logged · your best is still ${best} min`;
     }
   }
 
@@ -1884,6 +1899,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       button.classList.add("is-selected");
       const outcome = button.dataset.objective as ObjectiveOutcome | undefined;
       if (outcome) lastSummaryObjective = outcome;
+      syncSummaryCelebrationFromOutcome();
       refreshSummaryCopilotNote();
     });
   });

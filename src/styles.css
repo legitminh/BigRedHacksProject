@@ -4213,14 +4213,14 @@ body:has(.view-quest-complete.active) .grain {
 }
 
 .quest-copilot-note {
-  margin-bottom: 1rem;
-  padding: 1rem 1.05rem;
-  border-radius: 0.85rem;
-  background: rgba(232, 224, 245, 0.55);
-  border: 1px solid rgba(107, 76, 255, 0.1);
+  margin: 0.35rem 0 1rem;
+  padding: 0;
+  background: transparent;
+  border: none;
 }
 
 .quest-copilot-kicker {
+  display: none;
   margin: 0 0 0.45rem;
   font-size: 0.68rem;
   font-weight: 600;
