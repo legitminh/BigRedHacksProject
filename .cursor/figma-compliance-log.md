@@ -173,3 +173,9 @@ Verifier appends pass/fail notes after each 10m check.
 - pass: fp-copilot-mic-idle-label, fp-copilot-composer-hint-copy, fp-copilot-responses-foot-copy, fp-copilot-mic-live-phase-chrome, fp-welcome-title-scale, fp-welcome-title-medium-32
 - fail: (none)
 - notes: Live get_screenshot 2:35/10:667/2:33 + metadata 5:251/5:256/5:61 — c00ab73 Copilot Mic tonal + sticky “Mic” + Enter/mic hint + Responses foot + listening placeholder; bb10d7d welcome title Medium 32px/500/1.4. Rewrote scrutinous fp-listening-session-ui (session ■ still open; Copilot Mic verified) + fp-relaunch-panel-compact (→ not ↗). Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true, #app padding:0. No code edits; no push.
+
+## check: 2026-10-03T19:12:40-04:00
+- reviewed: fp-copilot-page-title-scale, fp-copilot-intro-gap, fp-permission-handoff-title-scale, fp-welcome-foot-muted, fp-welcome-signin-cta-solid, fp-handoff-modal-stack-gap; spot escalate:scrutinous (fp-permissions-choice-surface, fp-welcome-signin-form, fp-listening-session-ui, fp-session-at-launch-chrome, fp-gentle-checkin-progress-pill, fp-relaunch-live-panel-copy)
+- pass: fp-copilot-page-title-scale, fp-copilot-intro-gap, fp-permission-handoff-title-scale, fp-welcome-foot-muted, fp-welcome-signin-cta-solid, fp-handoff-modal-stack-gap
+- fail: (none)
+- notes: Live get_screenshot/metadata 2:35/5:233→5:234 (22px intro) + 2:33/5:71/5:77 + 2:49/7:415/7:418 — b0e40e8 Copilot title Medium 36/500 + intro gap 22px + handoff title Medium 30/500; a947816 welcome foot `#645d73`/13 + Sign in solid `#6750a4` Medium 14 + handoff pad 32/gap 22. Rewrote scrutinous fp-permissions-choice-surface (modal pad/gap done; YOUR CHOICE page still missing) + fp-welcome-signin-form (CTA/foot tokens done; Google-only form remains). Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true, #app padding:0. No code edits; no push.

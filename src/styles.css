@@ -652,14 +652,6 @@ body:has(.view-home.view-home--guest.active) .grain {
   color: var(--mc-text-secondary);
 }
 
-.mc-home-best-disclaimer {
-  margin: 0;
-  font-size: 0.72rem;
-  line-height: 1.4;
-  color: var(--mc-text-muted);
-  max-width: 14rem;
-}
-
 .mc-home-copilot {
   grid-column: 1;
   grid-row: 2;
