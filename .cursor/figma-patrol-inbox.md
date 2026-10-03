@@ -2281,7 +2281,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Set `.copilot-chip` min-widths 210 / 180 / 230 (or per-chip modifiers);
     keep 52px height + plain labels + study wiring.
 - escalate: scrutinous
-- commit: PENDING
+- commit: 62162e9
 - change: |
     Per-`data-study` chip widths 210/180/230×52 with 10px gaps; study
     wiring + plain labels kept.
@@ -2303,7 +2303,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Set empty-state `.copilot-panel` / `#chat-empty` fill to `#fffbff` +
     keep `#c8bfd7` / ~28px radius; leave Mic/Send/chip wiring.
 - escalate: scrutinous
-- commit: PENDING
+- commit: 62162e9
 - change: |
     Empty-state `.copilot-panel:has(#chat-empty)` uses `#fffbff` +
     `#c8bfd7` / 28px radius; cream cards elsewhere unchanged.
@@ -2325,7 +2325,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Set Copilot (and session) input-wrap vertical padding to 12px so the
     pill is 78px with 52px Mic/Send; keep `#f7f2ff` / `#c8bfd7` / 16px radius.
 - escalate: scrutinous
-- commit: PENDING
+- commit: 62162e9
 - change: |
     Copilot + session `.copilot-input-wrap` padding 12×16, gap 12 → ~78px
     with 52px Mic/Send; fill/border/ellipsis preserved.
