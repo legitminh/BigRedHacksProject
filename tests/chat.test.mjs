@@ -47,8 +47,8 @@ test('untrusted replies cannot inject scripts, events, embeds, or unsafe links',
 test('chat keeps turns in order, renders replies, supports study actions and clears history', async () => {
   const input = document.querySelector('#chat-input');
   const form = document.querySelector('#chat-form');
-  document.querySelector('[data-study="quiz"]').click();
-  assert.match(input.value, /one question at a time/);
+  document.querySelector('[data-study="explain"]').click();
+  assert.match(input.value, /Explain this topic simply/);
   input.value = '<b>Explain photosynthesis</b>\nWith an example';
   form.dispatchEvent(new window.Event('submit', { cancelable: true }));
   assert.equal(document.querySelector('.bubble.user b'), null);
@@ -62,8 +62,8 @@ test('chat keeps turns in order, renders replies, supports study actions and cle
   assert.equal(input.value, 'next draft');
   assert.equal(document.querySelector('#chat-send').disabled, false);
   input.value = '';
-  document.querySelector('[data-study="quiz"]').click();
-  assert.match(input.value, /we’re discussing/);
+  document.querySelector('[data-study="stuck"]').click();
+  assert.match(input.value, /we're discussing/);
   const shiftEnter = new window.KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true });
   input.dispatchEvent(shiftEnter);
   assert.equal(shiftEnter.defaultPrevented, false);
