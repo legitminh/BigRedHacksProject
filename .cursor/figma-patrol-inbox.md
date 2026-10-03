@@ -2025,7 +2025,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Set `.copilot-chip` to `min-height: 52px` (and optional min-widths
     210/180/230); keep plain labels + study wiring.
 - escalate: scrutinous
-- commit: PENDING
+- commit: ab57008
 - change: `.copilot-chip` `min-height: 52px` to match live `5:240` suggested-prompt pills; labels + study wiring unchanged.
 
 ## done: fp-copilot-placeholder-ellipsis
@@ -2045,7 +2045,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Replace `...` with `…` in Copilot + session idle placeholders (and the
     TS constant); keep Mic/Send/listening wiring.
 - escalate: scrutinous
-- commit: PENDING
+- commit: ab57008
 - change: Idle placeholder “Message your copilot…” uses U+2026 on `#chat-input`, `#session-chat-input`, and `CHAT_INPUT_IDLE_PLACEHOLDER`.
 
 ## open: fp-relaunch-next-step-field
