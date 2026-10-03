@@ -317,8 +317,17 @@
       </section>
 
       <section id="view-lockin" class="view view-mission-setup">
-        <header class="mission-setup-head">
-          <button class="mission-setup-back" data-back type="button" aria-label="Back to home">←</button>
+        <header class="settings-top-bar">
+          <p class="settings-brand"><span class="settings-brand-star" aria-hidden="true">✦</span> Waypoint</p>
+          <nav class="settings-nav" aria-label="Primary">
+            <button type="button" class="settings-nav-link" data-session-nav="home">Home</button>
+            <button type="button" class="settings-nav-link" data-session-nav="copilot">Copilot</button>
+            <span class="settings-nav-link settings-nav-link--active" aria-current="page">Lock in</span>
+          </nav>
+          <div class="settings-nav-end">
+            <button type="button" class="settings-nav-link" data-session-nav="settings">Settings</button>
+            <span id="setup-avatar" class="settings-avatar" aria-hidden="true">—</span>
+          </div>
         </header>
         <div class="mission-setup-shell">
           <div class="mission-setup-deco" aria-hidden="true">
@@ -608,6 +617,18 @@
       </section>
 
       <section id="view-summary" class="view view-summary view-quest-complete" aria-label="Quest complete">
+        <header class="settings-top-bar quest-complete-head">
+          <p class="settings-brand"><span class="settings-brand-star" aria-hidden="true">✦</span> Waypoint</p>
+          <nav class="settings-nav" aria-label="Primary">
+            <button type="button" class="settings-nav-link" data-session-nav="home">Home</button>
+            <button type="button" class="settings-nav-link" data-session-nav="copilot">Copilot</button>
+            <span class="settings-nav-link settings-nav-link--active" aria-current="page">Lock in</span>
+          </nav>
+          <div class="settings-nav-end">
+            <button type="button" class="settings-nav-link" data-session-nav="settings">Settings</button>
+            <span id="summary-avatar" class="settings-avatar" aria-hidden="true">—</span>
+          </div>
+        </header>
         <div class="quest-complete-stage">
           <div class="quest-complete-decor" aria-hidden="true">
             <img class="quest-complete-constellation" src="/src/assets/figma/constellation.svg" alt="" />

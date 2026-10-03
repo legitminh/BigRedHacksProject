@@ -80,7 +80,7 @@ function renderNavAvatar(status: StatusPayload) {
           ? `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase()
           : name.slice(0, 2).toUpperCase();
       })();
-  for (const id of ["settings-avatar", "session-avatar"]) {
+  for (const id of ["settings-avatar", "session-avatar", "setup-avatar", "summary-avatar"]) {
     const el = $(`#${id}`);
     if (el) el.textContent = initials;
   }
