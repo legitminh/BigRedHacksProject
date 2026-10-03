@@ -80,7 +80,14 @@ function renderNavAvatar(status: StatusPayload) {
           ? `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase()
           : name.slice(0, 2).toUpperCase();
       })();
-  for (const id of ["settings-avatar", "session-avatar", "setup-avatar", "summary-avatar"]) {
+  for (const id of [
+    "settings-avatar",
+    "session-avatar",
+    "setup-avatar",
+    "summary-avatar",
+    "home-avatar",
+    "copilot-avatar",
+  ]) {
     const el = $(`#${id}`);
     if (el) el.textContent = initials;
   }
@@ -338,9 +345,6 @@ function show(view: ViewId) {
   }
   if (view === "view-lockin") {
     syncDurationChips();
-    void invoke<StatusPayload>("get_status")
-      .then(renderLockinHints)
-      .catch(() => {});
     requestAnimationFrame(() => {
       ($("#goals") as HTMLTextAreaElement | null)?.focus();
     });
@@ -458,10 +462,15 @@ function renderGuestNav() {
   const nav = $("#home-nav-actions");
   const center = $("#home-nav-center");
   const header = document.querySelector(".welcome-nav");
-  header?.classList.add("welcome-nav--guest");
-  header?.classList.remove("welcome-nav--signed-in");
+  header?.classList.add("mc-nav", "welcome-nav--guest");
+  header?.classList.remove("welcome-nav--signed-in", "settings-top-bar");
+  center?.classList.remove("settings-nav");
+  center?.classList.add("mc-nav-center");
   center?.toggleAttribute("hidden", true);
+  nav?.classList.remove("settings-nav-end");
+  nav?.classList.add("mc-nav-actions");
   if (brand) {
+    brand.className = "mc-nav-brand";
     brand.innerHTML = '<span class="welcome-brand-star" aria-hidden="true">✦</span> Waypoint';
   }
   if (nav) {
@@ -488,9 +497,18 @@ function renderHomeNav(status: StatusPayload) {
   header?.classList.remove("welcome-nav--guest");
   if (!status.signed_in) return;
 
+  header?.classList.add("settings-top-bar");
+  header?.classList.remove("mc-nav");
   if (brand) {
-    brand.innerHTML = '<span class="mc-nav-star" aria-hidden="true">✦</span> Waypoint';
+    brand.className = "settings-brand";
+    brand.innerHTML =
+      '<span class="settings-brand-star" aria-hidden="true">✦</span> Waypoint';
   }
+  if (center) {
+    center.className = "settings-nav";
+    center.setAttribute("aria-label", "Primary");
+  }
+  nav.className = "settings-nav-end";
 
   const links: { label: string; view: ViewId; active?: boolean }[] = [
     { label: "Home", view: "view-home", active: true },
@@ -498,9 +516,17 @@ function renderHomeNav(status: StatusPayload) {
     { label: "Lock in", view: "view-lockin" },
   ];
   for (const link of links) {
+    if (link.active) {
+      const current = document.createElement("span");
+      current.className = "settings-nav-link settings-nav-link--active";
+      current.setAttribute("aria-current", "page");
+      current.textContent = link.label;
+      center?.appendChild(current);
+      continue;
+    }
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = link.active ? "mc-nav-link mc-nav-link--active" : "mc-nav-link";
+    btn.className = "settings-nav-link";
     btn.textContent = link.label;
     btn.addEventListener("click", () => show(link.view));
     center?.appendChild(btn);
@@ -508,14 +534,15 @@ function renderHomeNav(status: StatusPayload) {
 
   const settings = document.createElement("button");
   settings.type = "button";
-  settings.className = "mc-nav-link";
+  settings.className = "settings-nav-link";
   settings.textContent = "Settings";
   settings.addEventListener("click", () => {
     void openSettings();
   });
 
   const avatar = document.createElement("span");
-  avatar.className = "mc-nav-avatar";
+  avatar.id = "home-avatar";
+  avatar.className = "settings-avatar";
   avatar.setAttribute("aria-hidden", "true");
   avatar.textContent = navInitials(status.username);
 
@@ -542,6 +569,7 @@ function renderHome(status: StatusPayload) {
   $("#home-dashboard")?.toggleAttribute("hidden", showFirstFlightHome);
 
   renderHomeNav(status);
+  renderNavAvatar(status);
   syncStartHerePanel(status.signed_in);
 
   if (showFirstFlightHome) {
@@ -740,15 +768,15 @@ async function renderConnectionStatus(status: StatusPayload) {
   if (!list) return;
   list.innerHTML = `<li class="mc-conn-row mc-conn-row--loading"><span class="muted">Checking links…</span></li>`;
 
-  let localLine = "Local coach model";
+  let localLine = "Coach";
   if (status.local_llm_enabled !== false) {
     try {
       localLine = await invoke<string>("local_llm_status");
     } catch {
-      localLine = `Local model: ${status.local_llm_model || "qwen2.5:0.5b"} (checking…)`;
+      localLine = `Coach: ${status.local_llm_model || "qwen2.5:0.5b"} (checking…)`;
     }
   } else {
-    localLine = "Local model disabled in config";
+    localLine = "Coach off in config";
   }
   const localOk = /ready|online|running/i.test(localLine);
 
@@ -1553,30 +1581,9 @@ function syncMissionTimer(session: Pick<LockInSession, "paused" | "ends_at">) {
   startTimer(session.ends_at);
 }
 
-async function renderLockinHints(status: StatusPayload) {
-  const hint = $("#lockin-wellness");
-  if (!hint) return;
-  const bits: string[] = [];
-  if (status.local_llm_enabled !== false) {
-    try {
-      const local = await invoke<string>("local_llm_status");
-      bits.push(local);
-    } catch {
-      bits.push(`Local model: ${status.local_llm_model || "qwen2.5:0.5b"} (checking…)`);
-    }
-  }
-  if (status.presage_ready) {
-    bits.push("Presage ready for webcam wellness.");
-  } else {
-    bits.push("No Presage key — wellness optional.");
-  }
-  hint.textContent = bits.join(" · ");
-}
-
 async function refreshStatus() {
   const status = await invoke<StatusPayload>("get_status");
   renderHome(status);
-  await renderLockinHints(status);
   if ($("#view-settings")?.classList.contains("active")) {
     await renderMissionControlSettings(status);
   }

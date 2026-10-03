@@ -220,19 +220,16 @@
         <span class="copilot-deco-plus copilot-deco-plus--bl" aria-hidden="true">+</span>
         <span class="copilot-deco-plus copilot-deco-plus--br" aria-hidden="true">+</span>
 
-        <header class="copilot-nav">
-          <button type="button" class="copilot-nav-brand" data-copilot-nav="home">
-            <span class="copilot-nav-star" aria-hidden="true">✦</span>
-            Waypoint
-          </button>
-          <nav class="copilot-nav-links" aria-label="Primary">
-            <button type="button" class="copilot-nav-link" data-copilot-nav="home">Home</button>
-            <button type="button" class="copilot-nav-link is-active" aria-current="page">Copilot</button>
-            <button type="button" class="copilot-nav-link" data-copilot-nav="lockin">Lock in</button>
+        <header class="settings-top-bar">
+          <p class="settings-brand"><span class="settings-brand-star" aria-hidden="true">✦</span> Waypoint</p>
+          <nav class="settings-nav" aria-label="Primary">
+            <button type="button" class="settings-nav-link" data-copilot-nav="home">Home</button>
+            <span class="settings-nav-link settings-nav-link--active" aria-current="page">Copilot</span>
+            <button type="button" class="settings-nav-link" data-copilot-nav="lockin">Lock in</button>
           </nav>
-          <div class="copilot-nav-end">
-            <button type="button" class="copilot-nav-link" data-copilot-nav="settings">Settings</button>
-            <span class="copilot-nav-avatar" aria-hidden="true">JL</span>
+          <div class="settings-nav-end">
+            <button type="button" class="settings-nav-link" data-copilot-nav="settings">Settings</button>
+            <span id="copilot-avatar" class="settings-avatar" aria-hidden="true">—</span>
           </div>
         </header>
 
@@ -401,7 +398,6 @@
               </label>
             </div>
 
-            <p id="lockin-wellness" class="mission-setup-meta" aria-live="polite"></p>
             <p id="lockin-error" class="lockin-error" role="alert" hidden></p>
             <button id="lockin-start" type="submit" class="primary wide mission-launch">
               <span class="mission-launch-label">Launch mission →</span>
@@ -651,7 +647,7 @@
           aria-live="polite"
         ></div>
         <p id="session-watch-note" class="session-watch-note visually-hidden"></p>
-        <div id="session-vitals" class="vitals-panel visually-hidden" aria-live="polite">
+        <div id="session-vitals" class="vitals-panel visually-hidden" hidden aria-hidden="true">
           <p class="vitals-label">Wellness</p>
           <p id="vitals-line">Running quietly in the background (not required to lock in)</p>
         </div>
@@ -726,12 +722,12 @@
         <header class="settings-top-bar">
           <p class="settings-brand"><span class="settings-brand-star" aria-hidden="true">✦</span> Waypoint</p>
           <nav class="settings-nav" aria-label="Primary">
-            <button type="button" class="settings-nav-link settings-nav-link--active" data-settings-nav="home" aria-current="page">Home</button>
+            <button type="button" class="settings-nav-link" data-settings-nav="home">Home</button>
             <button type="button" class="settings-nav-link" data-settings-nav="copilot">Copilot</button>
             <button type="button" class="settings-nav-link" data-settings-nav="lockin">Lock in</button>
           </nav>
           <div class="settings-nav-end">
-            <span class="settings-nav-link">Settings</span>
+            <span class="settings-nav-link settings-nav-link--active" aria-current="page">Settings</span>
             <span id="settings-avatar" class="settings-avatar" aria-hidden="true">—</span>
           </div>
         </header>

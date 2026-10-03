@@ -393,70 +393,9 @@ body:has(.view-home.view-home--guest.active) .grain {
   display: none !important;
 }
 
-/* Signed-in home — Figma 02 */
-.view-home--signed-in .welcome-nav {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 1rem;
-}
-
-.view-home--signed-in .welcome-nav .mc-nav-brand {
-  justify-self: start;
-}
-
-.mc-nav-center {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-}
-
+/* Signed-in home reuses .settings-top-bar chrome (see renderHomeNav). */
 .mc-nav-center[hidden] {
   display: none !important;
-}
-
-.mc-nav-link {
-  border: none;
-  background: transparent;
-  font: inherit;
-  font-size: 0.92rem;
-  font-weight: 500;
-  color: var(--mc-text-secondary);
-  padding: 0.45rem 0.85rem;
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-}
-
-.mc-nav-link:hover {
-  color: var(--mc-text-primary);
-}
-
-.mc-nav-link--active {
-  background: var(--mc-surface-lavender);
-  color: var(--mc-text-primary);
-}
-
-.mc-nav-star,
-.welcome-brand-star {
-  color: var(--mc-accent-purple);
-  margin-right: 0.35rem;
-}
-
-.mc-nav-avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.1rem;
-  height: 2.1rem;
-  margin-left: 0.35rem;
-  border-radius: 50%;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: #fff;
-  background: linear-gradient(145deg, #43968f, #357870);
 }
 
 .mc-home {
@@ -781,16 +720,6 @@ body:has(.view-home.view-home--guest.active) .grain {
 }
 
 @media (max-width: 900px) {
-  .view-home--signed-in .welcome-nav {
-    grid-template-columns: 1fr;
-    justify-items: start;
-  }
-
-  .mc-nav-center {
-    justify-content: flex-start;
-    width: 100%;
-  }
-
   .mc-home-grid {
     grid-template-columns: 1fr;
     grid-template-rows: auto;
@@ -2219,100 +2148,6 @@ button:active {
   z-index: 1;
 }
 
-.copilot-nav {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 1rem 1.5rem;
-  flex-shrink: 0;
-  padding: 0.7rem 1.25rem;
-  border-radius: var(--radius-pill);
-  background: var(--mc-bg-card);
-  border: 1px solid var(--mc-border-subtle);
-  box-shadow: var(--mc-shadow-soft);
-}
-
-.copilot-nav-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-  font-family: var(--font-display);
-  font-size: 1.35rem;
-  font-weight: 600;
-  color: var(--mc-text-primary);
-  letter-spacing: -0.02em;
-  cursor: pointer;
-}
-
-.copilot-nav-star {
-  color: var(--mc-accent-purple);
-  font-size: 1.15rem;
-}
-
-.copilot-nav-links {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.55rem;
-  flex-wrap: wrap;
-}
-
-.copilot-nav-end {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.copilot-nav-link {
-  min-height: 2.75rem;
-  min-width: 5.5rem;
-  padding: 0.55rem 1.15rem;
-  border-radius: var(--radius-pill);
-  border: none;
-  background: transparent;
-  color: var(--mc-text-primary);
-  font-size: 0.95rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.copilot-nav-link:hover {
-  color: var(--mc-text-primary);
-  background: rgba(107, 76, 255, 0.08);
-}
-
-.copilot-nav-link.is-active {
-  background: #e9ddfd;
-  color: var(--mc-text-primary);
-  font-weight: 500;
-}
-
-.copilot-nav-avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  background: var(--mc-accent-cyan);
-  color: #fff;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-
-.copilot-nav-new {
-  font-size: 0.78rem;
-  padding: 0.35rem 0.75rem;
-  color: var(--mc-text-muted);
-}
-
 .copilot-shell {
   display: grid;
   grid-template-columns: minmax(15rem, 19.375rem) minmax(0, 1fr);
@@ -2678,15 +2513,6 @@ button:active {
 
   .copilot-sidebar {
     min-height: 0;
-  }
-
-  .copilot-nav {
-    grid-template-columns: 1fr;
-    justify-items: start;
-  }
-
-  .copilot-nav-links {
-    justify-content: flex-start;
   }
 }
 
@@ -3120,12 +2946,6 @@ body:has(.view-mission-setup.active) .grain {
   outline-offset: 2px;
 }
 
-.mission-setup-meta {
-  margin: 0;
-  color: #7a728c;
-  font-size: 0.85rem;
-}
-
 .view-mission-setup .lockin-error {
   color: #b45309;
 }
@@ -3507,8 +3327,7 @@ body:has(.view-session.active) .grain {
 .view-session > .session-top-bar,
 .view-session > .session-page,
 .view-session > .session-coach-log,
-.view-session > .session-watch-note,
-.view-session > .vitals-panel {
+.view-session > .session-watch-note {
   position: relative;
   z-index: 1;
 }
@@ -4005,6 +3824,18 @@ body:has(.view-session.active) .grain {
   padding: 0.75rem 0.95rem;
   background: rgba(12, 32, 40, 0.55);
   border: 1px solid rgba(159, 196, 188, 0.22);
+}
+
+/* Demoted from Figma 06 — keep DOM for vitals plumbing, never show chrome. */
+.vitals-panel.visually-hidden,
+.vitals-panel[hidden] {
+  display: none;
+  max-width: none;
+  width: 1px;
+  margin: -1px;
+  padding: 0;
+  background: transparent;
+  border: 0;
 }
 
 .vitals-panel.stressed {
