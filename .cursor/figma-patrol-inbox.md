@@ -258,18 +258,42 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - commit: 232e40d
 - change: Dark `#282237` rounded square + lavender outline-star SVG from Figma 06 path.
 
-## open: fp-copilot-chip-plus
+## done: fp-copilot-chip-plus
 - screen: copilot
-- ref: `.cursor/figma-refs/03-copilot.png`
+- ref: `.cursor/figma-refs/03-copilot.png` · `.cursor/figma-refs/03---Copilot.svg`
 - deviation: |
-    EXPECTED (Figma 03 chip row, cropped): “Explain simply” and “I'm stuck” are plain lavender pills with label only; only “Find a next step” has a trailing darker-purple “+” inside the pill.
-    ACTUAL (2971eae): all three chips mount `<span class="copilot-chip-plus">+</span>`, so Explain/Stuck overshoot Figma.
-- fix_hint: Remove `.copilot-chip-plus` from explain/stuck chips; keep it only on `.copilot-chip--next` (“Find a next step”).
+    EXPECTED (Figma 03 Copilot prompt-chip row under empty card, left of astronaut; PNG + SVG raster):
+    1. Row: `.copilot-prompts-row` → `.study-actions.copilot-shortcuts` — three lavender pills, left→right:
+       - `button.copilot-chip[data-study="explain"]` → text “Explain simply” only — NO trailing `+`, no `.copilot-chip-plus` child.
+       - `button.copilot-chip[data-study="stuck"]` → text “I'm stuck” only — NO trailing `+`, no `.copilot-chip-plus` child.
+       - `button.copilot-chip.copilot-chip--next[data-study="plan"]` → “Find a next step” + ONE trailing thin dark `+` glyph inside the pill (plain stroke/character after a small gap past “step”; same ink family as the label).
+    2. Ambient decorative `+` marks near the astronaut / page margins are NOT chip children.
+    ACTUAL (`index.html` `#view-chat` `.copilot-prompts-row .copilot-shortcuts`, HEAD after 2971eae):
+    1. Explain chip mounts `<span class="copilot-chip-plus" aria-hidden="true">+</span>` after “Explain simply”.
+    2. Stuck chip mounts the same `<span class="copilot-chip-plus">+</span>` after “I'm stuck”.
+    3. Plan/next chip also mounts `<span class="copilot-chip-plus">+</span>` (correct presence; style covered by sibling open).
+    4. Overshoot vs Figma: two extra trailing pluses on explain + stuck.
+- fix_hint: |
+    In `index.html`, delete the `.copilot-chip-plus` span from `[data-study="explain"]` and `[data-study="stuck"]` only. Keep the span on `.copilot-chip--next` / `[data-study="plan"]`. Do not touch Settings five-tab, Pause/End, LTR orbit, objective ✦ Launch, or `silent_mode` default true.
 - escalate: scrutinous
 - reopened: true
-- commit: 2971eae
-- change: Added trailing `+` on Explain simply / I'm stuck chips; all chips share inline-flex layout.
-- note: Compliance 2026-10-03 — prior patrol claim that all three chips have + does not match Figma 03; reopen to strip extras.
+- commit: b9a857a
+- change: Removed `.copilot-chip-plus` from explain + stuck chips; kept only on `copilot-chip--next` / plan.
+- note: |
+    Compliance 2026-10-03 — prior claim that all three chips should have + does not match Figma 03; reopen to strip extras.
+    Scrutinous rewrite 2026-10-03T14:35 — pixel crops of 03-copilot.png + 03---Copilot.svg confirm only “Find a next step” carries a trailing +.
+
+## done: fp-copilot-chip-plus-glyph
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · `.cursor/figma-refs/03---Copilot.svg`
+- deviation: |
+    EXPECTED (Figma 03 trailing mark on “Find a next step” only): plain thin dark charcoal/`#`-ink `+` glyph after the label inside the pill — no nested circle, no fill disc behind the plus.
+    ACTUAL (`src/styles.css` `.copilot-chip-plus`): `width/height: 1.35rem`, `border-radius: 50%`, `background: rgba(107, 76, 255, 0.12)`, bold `color: var(--mc-accent-purple)` — reads as a circular badge control nested in the chip, not Figma’s thin trailing glyph.
+- fix_hint: |
+    Restyle `.copilot-chip-plus` to a plain inline glyph (drop circle dimensions/background/radius); keep mounted only on `.copilot-chip--next` after `fp-copilot-chip-plus` strip. Tune spacing with `.copilot-chip` `gap` / margin so “step” → `+` matches the ref gap.
+- escalate: none
+- commit: b9a857a
+- change: Restyled `.copilot-chip-plus` as thin plain ink glyph (no circular lavender badge).
 
 ## verified: fp-summary-decor-moon
 - screen: summary
@@ -358,12 +382,14 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - fix_hint: Seed an AT LAUNCH row in `#session-chat-log` when a mission starts (reuse goal + duration); keep empty helper for pre-start if needed.
 - escalate: none
 
-## open: fp-welcome-hero-body-plus
+## done: fp-welcome-hero-body-plus
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png`
 - deviation: Hero body ends with a purple `✦` (`.welcome-hero-star`); Figma ends the same sentence with a trailing “+” after “one step forward.”
 - fix_hint: Replace the inline star span with a “+” (or match Figma asset) and tune color/size to the ref.
 - escalate: none
+- commit: b9a857a
+- change: Replaced welcome hero body ✦ with trailing `+` (`.welcome-hero-plus`).
 
 ## open: fp-settings-topnav-home-active
 - screen: settings
