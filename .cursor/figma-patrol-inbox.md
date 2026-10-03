@@ -243,7 +243,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - deviation: `#end-session` uses `window.confirm("End this mission?…")`; Figma 11 is a designed End confirmation surface (cream modal / screen chrome), not a native browser dialog.
 - fix_hint: Add a small MC-styled confirm dialog matching Figma 11; keep Pause/End wiring, only replace the confirm UI.
 - escalate: none
-- commit: TBD
+- commit: 10bb695
 - change: |
     MC `#end-session-modal` (badge END MISSION / Keep working / End session)
     replaces native `window.confirm`.
@@ -254,7 +254,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - deviation: Figma replaces the session copilot sidebar with a “✦ QUICK CHECK-IN” card (Still working… + On task / Got distracted / Take a break). App uses a separate toast overlay (`overlay.html`) without those three actions in the session layout.
 - fix_hint: When a check-in fires, swap/overlay the session copilot panel with the Figma quick-check-in card; wire buttons to existing coach responses.
 - escalate: none
-- commit: TBD
+- commit: 10bb695
 - change: |
     Session copilot column swaps to `#session-checkin-card` on overlay-prompt;
     three CTAs wired; chat restored on dismiss.
@@ -619,7 +619,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Replace `window.confirm` with an MC modal matching live 11 copy/buttons; Keep working dismisses;
     End session keeps existing end invoke. Complements `fp-end-confirm-figma-modal`.
 - escalate: scrutinous
-- commit: TBD
+- commit: 10bb695
 - change: |
     Live 11 copy + CTA hierarchy in `#end-session-modal`; earned minutes interpolated.
 
@@ -638,7 +638,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     buttons to existing coach responses; auto-dismiss per footer. Complements
     `fp-gentle-checkin-session-panel`.
 - escalate: scrutinous
-- commit: TBD
+- commit: 10bb695
 - change: |
     Exact live 08 badge/title/body/footer copy on `#session-checkin-card`.
 
@@ -2161,7 +2161,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     path; Got distracted + Take a break tonal (Take a break → pause path).
     Keep Pause/End on the left flight card.
 - escalate: scrutinous
-- commit: TBD
+- commit: 10bb695
 - change: |
     Stacked 52px CTAs: On task filled primary → dismiss; Got distracted tonal
     → soft distracted orbit/pill; Take a break tonal → `#session-pause`.
@@ -2184,7 +2184,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When building the end modal: Keep working lavender secondary (dismiss);
     End session filled primary → existing end invoke. Keep Pause wiring.
 - escalate: scrutinous
-- commit: TBD
+- commit: 10bb695
 - change: |
     Replaced `window.confirm` with MC `#end-session-modal`: Keep working
     lavender secondary; End session filled primary → `stop_lock_in`.
@@ -2229,7 +2229,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Replace copilot column contents with the compact check-in card; restore
     chat on dismiss / auto-close. Pair with CTA-hierarchy + panel-copy.
 - escalate: scrutinous
-- commit: TBD
+- commit: 10bb695
 - change: |
     `#session-checkin-card` replaces chat column under `is-session-checkin`
     (badge/title/body/divider/3 CTAs/footer); chat restored on dismiss/auto-close.
