@@ -2517,7 +2517,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Set `.copilot-sidebar-title` to 26px medium (500); keep Start a
     mission wiring + `#e9ddfd` card fill.
 - escalate: scrutinous
-- commit: PENDING
+- commit: 254b24b
 - change: `.copilot-sidebar-title` → Medium 26px / line-height 1.4 (`font-weight: 500`, `1.625rem`).
 
 ## done: fp-copilot-empty-heading-weight
@@ -2538,7 +2538,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Set `.copilot-empty-heading` to `font-weight: 400` (optional gap
     14px); leave Mic/Send/chip wiring.
 - escalate: scrutinous
-- commit: PENDING
+- commit: 254b24b
 - change: `.copilot-empty-heading` → Regular (`font-weight: 400`); empty-card gap 14px.
 
 ## open: fp-relaunch-next-step-field-fill
@@ -2598,5 +2598,5 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When mounting guest CTA: `#fffbff` Quiet pill 438×52 (not `#e9ddfd`);
     keep guest unlock wiring. Ignore lavender secondary on sibling open.
 - escalate: scrutinous
-- commit: PENDING
+- commit: 254b24b
 - change: Mounted `#welcome-continue-guest` as full-width Quiet `#fffbff` 52px pill; wired `sign_in_waypoint_guest` + `guest_mode` unlock.
