@@ -499,8 +499,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       input.value = input.value.trim()
         ? `${prompts[0]}${input.value.trim()}`
         : prompts[hasChatReply ? 1 : 0];
-      input.focus();
-      input.setSelectionRange(input.value.length, input.value.length);
+      void sendChat();
     });
   });
 
@@ -584,6 +583,9 @@ window.addEventListener("DOMContentLoaded", async () => {
   });
 
   $("#end-session")?.addEventListener("click", async () => {
+    if (!window.confirm("End this lock-in? Screen watching will stop.")) {
+      return;
+    }
     const summary = await invoke<SessionSummary | null>("stop_lock_in");
     if (summary) {
       renderSummary(summary);
