@@ -959,6 +959,19 @@ function applySessionOrbitState(label: string) {
   if (orbit) orbit.setAttribute("data-state", label);
 }
 
+function updateSessionOrbitPersonalBest() {
+  const wrap = $("#session-orbit-personal-best");
+  const label = $("#session-orbit-pb-label");
+  if (!wrap || !label) return;
+  const mins = readShipProgress().longestFlightMinutes || 0;
+  if (mins <= 0) {
+    wrap.hidden = true;
+    return;
+  }
+  wrap.hidden = false;
+  label.textContent = `Personal best ${mins} min`;
+}
+
 function formatVitals(vitals?: VitalsSnapshot | null): string {
   if (!vitals || (!vitals.raw_summary && vitals.source !== "presage" && vitals.source !== "fallback")) {
     return "Running quietly in the background (not required to lock in)";
@@ -1051,6 +1064,7 @@ function renderSession(session: LockInSession) {
   renderSessionCoachLog(session.prompts);
   onMissionStarted(session.duration_secs);
   refreshSessionFlight();
+  updateSessionOrbitPersonalBest();
   updateSessionOrbit(session.ends_at, session.duration_secs);
   updateSessionFlight(session.ends_at, session.duration_secs);
   updateFlightMinutesLine(session.ends_at, session.duration_secs);

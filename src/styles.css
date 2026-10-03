@@ -3349,6 +3349,56 @@ body:has(.view-session.active) .grain {
   --flight-pct: 0;
 }
 
+.session-flight-route {
+  position: absolute;
+  top: 10%;
+  left: 7%;
+  z-index: 2;
+  margin: 0;
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+  pointer-events: none;
+}
+
+.session-flight-personal-best {
+  position: absolute;
+  left: 52%;
+  top: 22%;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.45rem 0.2rem 0.35rem;
+  border-radius: var(--radius-pill);
+  background: rgba(26, 18, 48, 0.72);
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.88);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.session-flight-pb-flag {
+  flex-shrink: 0;
+  color: var(--mc-accent-green-dim, #5cb88a);
+}
+
+.session-flight-satellite {
+  position: absolute;
+  left: 58%;
+  top: 32%;
+  width: 2.75rem;
+  height: auto;
+  transform: translate(-50%, -50%) rotate(-8deg);
+  opacity: 0.95;
+  pointer-events: none;
+  background: transparent;
+}
+
 .session-flight-path-svg {
   position: absolute;
   inset: 18% 4% 28%;

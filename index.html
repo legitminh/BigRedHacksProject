@@ -453,6 +453,16 @@
                 role="group"
                 aria-label="Active mission flight path"
               >
+                <p class="session-flight-route" aria-hidden="true">Earth → Kepler</p>
+                <div id="session-orbit-personal-best" class="session-flight-personal-best" hidden>
+                  <svg class="session-flight-pb-flag" width="14" height="14" viewBox="0 0 12 12" aria-hidden="true">
+                    <path
+                      fill="currentColor"
+                      d="M2 1.5v9M2 2.5h6.2c.3 0 .5.2.5.5v2.8c0 .3-.2.5-.5.5H2"
+                    />
+                  </svg>
+                  <span id="session-orbit-pb-label">Personal best 0 min</span>
+                </div>
                 <img
                   class="session-flight-orbits"
                   src="/src/assets/figma/orbits.svg"
@@ -465,6 +475,14 @@
                   alt=""
                   width="48"
                   height="48"
+                />
+                <img
+                  class="session-flight-satellite"
+                  src="/src/assets/figma/satellite.svg"
+                  alt=""
+                  width="56"
+                  height="48"
+                  aria-hidden="true"
                 />
                 <img
                   class="session-flight-dest"
