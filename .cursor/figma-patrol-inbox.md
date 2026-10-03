@@ -3380,7 +3380,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   title `7:418` · crop `_verify/tick26-handoff-modal-crop.png`
-- commit: PENDING
+- commit: 1b68ff1
 - change: |
     `#permission-handoff-title` → “Share an optional input?”; badge →
     “PERMISSION HANDOFF”. Not now · Continue wiring kept; pad/gap 32/22
@@ -3390,7 +3390,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   body `7:419` · crop `_verify/tick26-handoff-modal-crop.png`
-- commit: PENDING
+- commit: 1b68ff1
 - change: |
     Handoff body → “Your browser will ask for camera or screen access.
     You can decline and still launch.” Supersedes tick25 camera-signals
@@ -3400,7 +3400,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   foot `7:427` · crop `_verify/tick26-handoff-modal-crop.png`
-- commit: PENDING
+- commit: 1b68ff1
 - change: |
     Foot → “Design reference: the next step is the browser’s native
     permission UI.” (inbox/tick26 expected; live crop still showed
