@@ -237,7 +237,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - verified: 2026-10-03T15:32:34-04:00
 
 
-## done: fp-end-confirm-figma-modal
+## verified: fp-end-confirm-figma-modal
 - screen: active
 - ref: `.cursor/figma-refs/11---End-confirmation.svg`
 - deviation: `#end-session` uses `window.confirm("End this mission?…")`; Figma 11 is a designed End confirmation surface (cream modal / screen chrome), not a native browser dialog.
@@ -247,8 +247,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     MC `#end-session-modal` (badge END MISSION / Keep working / End session)
     replaces native `window.confirm`.
+- verified: 2026-10-03T17:52:09-04:00
 
-## done: fp-gentle-checkin-session-panel
+
+## verified: fp-gentle-checkin-session-panel
 - screen: active
 - ref: `.cursor/figma-refs/07-gentle-reminder-temp.png` · `08---Gentle-check-in.svg`
 - deviation: Figma replaces the session copilot sidebar with a “✦ QUICK CHECK-IN” card (Still working… + On task / Got distracted / Take a break). App uses a separate toast overlay (`overlay.html`) without those three actions in the session layout.
@@ -258,6 +260,8 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     Session copilot column swaps to `#session-checkin-card` on overlay-prompt;
     three CTAs wired; chat restored on dismiss.
+- verified: 2026-10-03T17:52:09-04:00
+
 
 ## verified: fp-session-chat-meta-kickers
 - screen: active
@@ -594,18 +598,25 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 
 ## open: fp-gentle-checkin-progress-pill
 - screen: active
-- ref: `.cursor/figma-refs/08-gentle-check-in.png` · live `2:40`
+- ref: `.cursor/figma-refs/08-gentle-check-in.png` · live `2:40` · pill `6:421`
+- expected: |
+    Live 08 left progress pill reads “✦ A gentle check-in” (not “Mission in
+    progress”); caption stays “REMAINING IN YOUR FLIGHT”; Pause/End remain.
+- actual: |
+    Session check-in card/CTA/compact chrome now verified (10bb695), but
+    `updateSessionProgressPill` never sets a check-in label — still
+    “Mission in progress” while `is-session-checkin`. Overlay toast may also
+    show; left pill does not flip.
 - deviation: |
-    EXPECTED (live 08): while check-in is up, left progress pill becomes “✦ A gentle check-in”
-    (not “Mission in progress”); timer caption stays “REMAINING IN YOUR FLIGHT”; Pause/End remain.
-    ACTUAL: `#session-progress-label` stays “Mission in progress”; check-in only appears as
-    `overlay.html` toast (see also `fp-gentle-checkin-session-panel`).
+    Progress pill copy vs live 08 during check-in. Distinct from verified
+    panel/CTA/compact opens — only the left pill remains.
 - fix_hint: |
-    When a gentle check-in fires, set `#session-progress-label` to “A gentle check-in” (star via
-    existing pill styles); restore “Mission in progress” when check-in dismisses. Keep Pause/End.
+    In `setSessionCheckinUi(true)`, set `#session-progress-label` to
+    “A gentle check-in” (✦ via pill styles); restore “Mission in progress”
+    on dismiss/auto-close. Keep Pause/End.
 - escalate: scrutinous
 
-## done: fp-end-confirm-modal-spec
+## verified: fp-end-confirm-modal-spec
 - screen: active
 - ref: `.cursor/figma-refs/11-end-confirmation.png` · live `2:43`
 - deviation: |
@@ -622,8 +633,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - commit: 10bb695
 - change: |
     Live 11 copy + CTA hierarchy in `#end-session-modal`; earned minutes interpolated.
+- verified: 2026-10-03T17:52:09-04:00
 
-## done: fp-gentle-checkin-panel-copy
+
+## verified: fp-gentle-checkin-panel-copy
 - screen: active
 - ref: `.cursor/figma-refs/08-gentle-check-in.png` · live `2:40`
 - deviation: |
@@ -641,6 +654,8 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - commit: 10bb695
 - change: |
     Exact live 08 badge/title/body/footer copy on `#session-checkin-card`.
+- verified: 2026-10-03T17:52:09-04:00
+
 
 ## verified: fp-active-next-step-clock
 - screen: active
@@ -2021,7 +2036,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Live get_screenshot/metadata `6:828` = 434×376 compact card only;
     HEAD `is-session-break` hides chat stack + shows `#session-break-card`.
 
-## done: fp-copilot-chip-height
+## verified: fp-copilot-chip-height
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · prompts `5:240` ·
   chips `5:241`/`5:243`/`5:245`
@@ -2041,26 +2056,34 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: scrutinous
 - commit: ab57008
 - change: `.copilot-chip` `min-height: 52px` to match live `5:240` suggested-prompt pills; labels + study wiring unchanged.
+- verified: 2026-10-03T17:52:09-04:00
+
 
 ## done: fp-copilot-placeholder-ellipsis
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · input `5:250` ·
-  also session `6:1727`
+  also session `6:1011` / `6:1727`
 - expected: |
     Live composer placeholder is “Message your copilot…” with a single
     unicode ellipsis (U+2026) — same on Copilot 03 and session composers.
 - actual: |
-    `#chat-input` / session placeholder / `CHAT_INPUT_IDLE_PLACEHOLDER` use
-    three ASCII dots (`...`). Composer fill/radius OK after b1c106a.
+    `#chat-input` + `CHAT_INPUT_IDLE_PLACEHOLDER` correctly use
+    “Message your copilot…” (U+2026) after ab57008. `#session-chat-input`
+    regressed in 10bb695 to “Ask your companion…” (still U+2026, wrong copy
+    vs live session composers).
 - deviation: |
-    Copilot priority composer spot-check — ellipsis glyph vs live `5:250`.
-    Distinct from done surface-token open.
+    Session idle placeholder copy vs live `5:250`/`6:1011` — Copilot path OK;
+    session still mismatches Figma string. Reopened after ab57008 “done”.
 - fix_hint: |
-    Replace `...` with `…` in Copilot + session idle placeholders (and the
-    TS constant); keep Mic/Send/listening wiring.
-- escalate: scrutinous
-- commit: ab57008
-- change: Idle placeholder “Message your copilot…” uses U+2026 on `#chat-input`, `#session-chat-input`, and `CHAT_INPUT_IDLE_PLACEHOLDER`.
+    Restore `#session-chat-input` idle placeholder to “Message your copilot…”
+    (U+2026); keep Talk/Mic + send wiring. Do not touch Copilot `#chat-input`.
+- commit: PENDING
+- change: |
+    Restored `#session-chat-input` HTML placeholder to “Message your
+    copilot…” (U+2026) after 10bb695 companion Live regression.
+- reopen_note: |
+    Tick8 live verify: Copilot OK; session placeholder overwritten by 10bb695
+    companion Live to “Ask your companion…”.
 
 ## open: fp-relaunch-next-step-field
 - screen: active
@@ -2142,7 +2165,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     card only; restore chat after Relaunch/idle. Keep End + Take a break wiring.
 - escalate: scrutinous
 
-## done: fp-gentle-checkin-cta-hierarchy
+## verified: fp-gentle-checkin-cta-hierarchy
 - screen: active
 - ref: `.cursor/figma-refs/08-gentle-check-in.png` · live `2:40` ·
   CTAs `8:404` / `8:407` / `8:410`
@@ -2165,8 +2188,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     Stacked 52px CTAs: On task filled primary → dismiss; Got distracted tonal
     → soft distracted orbit/pill; Take a break tonal → `#session-pause`.
+- verified: 2026-10-03T17:52:09-04:00
 
-## done: fp-end-confirm-cta-hierarchy
+
+## verified: fp-end-confirm-cta-hierarchy
 - screen: active
 - ref: `.cursor/figma-refs/11-end-confirmation.png` · live `2:43` ·
   actions `6:1026` / `6:1029`
@@ -2189,6 +2214,8 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Replaced `window.confirm` with MC `#end-session-modal`: Keep working
     lavender secondary; End session filled primary → `stop_lock_in`.
     Keeps `is-session-ending` next-step hide.
+- verified: 2026-10-03T17:52:09-04:00
+
 
 ## open: fp-connection-lost-keeps-mission-running
 - screen: active
@@ -2212,7 +2239,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     break/relaunch control chrome.
 - escalate: scrutinous
 
-## done: fp-gentle-checkin-panel-compact
+## verified: fp-gentle-checkin-panel-compact
 - screen: active
 - ref: `.cursor/figma-refs/08-gentle-check-in.png` · live `2:40` · panel `6:475`
 - expected: |
@@ -2233,3 +2260,102 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     `#session-checkin-card` replaces chat column under `is-session-checkin`
     (badge/title/body/divider/3 CTAs/footer); chat restored on dismiss/auto-close.
+- verified: 2026-10-03T17:52:09-04:00
+
+
+## open: fp-copilot-chip-widths
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · prompts `5:240` ·
+  chips `5:241`/`5:243`/`5:245`
+- expected: |
+    Live 03 suggested prompts are fixed-width pills: Explain simply 210×52,
+    I’m stuck 180×52, Find a next step 230×52 (10px gaps in a 640×52 row).
+- actual: |
+    `ab57008` locked `.copilot-chip` `min-height: 52px` only — chips still
+    hug content width via horizontal padding (no 210/180/230 min-widths).
+    CTA/composer/ellipsis already match.
+- deviation: |
+    Copilot priority tick16 spot-check after ab57008 — chip widths vs live
+    `5:240`. Distinct from done chip-height / verified chip-plus removal.
+- fix_hint: |
+    Set `.copilot-chip` min-widths 210 / 180 / 230 (or per-chip modifiers);
+    keep 52px height + plain labels + study wiring.
+- escalate: scrutinous
+
+## open: fp-copilot-empty-surface
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · card `5:235`
+- expected: |
+    Live empty “Copilot response” card (`5:235`) is surface `#fffbff` with
+    `#c8bfd7` border, 28px radius, 24px padding — not cream.
+- actual: |
+    `.copilot-panel` uses `background: var(--mc-bg-card)` (`#fffdf8` cream)
+    for the empty-state card shell. Copy/heading OK; b1c106a fixed composer
+    fill only.
+- deviation: |
+    Empty-card surface token vs live `5:235`. Copilot priority after
+    b1c106a composer-surface (composer lavender OK; card still cream).
+- fix_hint: |
+    Set empty-state `.copilot-panel` / `#chat-empty` fill to `#fffbff` +
+    keep `#c8bfd7` / ~28px radius; leave Mic/Send/chip wiring.
+- escalate: scrutinous
+
+## open: fp-copilot-composer-height
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · input `5:249`
+- expected: |
+    Live 03 Composer input is 868×78 — `py` 12px around 52×52 Mic/Send
+    (`5:251`/`5:254`), `px` 16, gap 12; fill/border already match.
+- actual: |
+    `.view-copilot .copilot-input-wrap` uses `padding: 0.65rem …` (~10.4px
+    vertical) → wrap reads ~73px tall with 52px controls. Surface tokens
+    OK after b1c106a; ellipsis OK after ab57008.
+- deviation: |
+    Composer height/padding vs live `5:249` 78px. Distinct from verified
+    surface-token + done placeholder.
+- fix_hint: |
+    Set Copilot (and session) input-wrap vertical padding to 12px so the
+    pill is 78px with 52px Mic/Send; keep `#f7f2ff` / `#c8bfd7` / 16px radius.
+- escalate: scrutinous
+
+## open: fp-timer-replace-closer-has-timer
+- screen: active
+- ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` ·
+  body `6:1566`
+- expected: |
+    Live get_design_context `6:1566` verbatim closer: “Your mission timer
+    keeps running.” — the word “timer” IS present after “mission”.
+- actual: |
+    Opens `fp-timer-replace-keeps-running` + `fp-timer-replace-mission-timer-copy`
+    still instruct fixers to DROP “timer” (“Your mission keeps running.”)
+    from a prior false OCR. App has no replace modal yet.
+- deviation: |
+    Tick16 live proof reverted the false reading — body must include
+    “mission timer keeps running.” Supersedes the no-timer expected in
+    those sibling opens when building `fp-timer-replace-modal`.
+- fix_hint: |
+    When building the replace modal body, use live closer with “timer”:
+    “…five-minute timer? Your mission timer keeps running.” Ignore the
+    no-timer guidance on the sibling opens.
+- escalate: scrutinous
+
+## open: fp-connection-lost-keeps-chat-chrome
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  panel `6:1707` · header `6:1708`
+- expected: |
+    Live 16 right column stays a full chat shell (434×678): ✦ Your copilot
+    header, ○ Reconnecting… presence, AT LAUNCH / YOU history, Latest
+    lost card, Retry, composer. NOT a compact status card.
+- actual: |
+    Opens cover presence/callout/Retry/history/composer/mission-running —
+    not that lost UI must KEEP the chat chrome. Risk: fixer copies
+    break/check-in/relaunch `*-panel-compact` and strips header/history.
+- deviation: |
+    Connection lost is NOT compact (opposite of verified break / done
+    check-in / open relaunch compact). Under-covered `2:48` surface.
+- fix_hint: |
+    On disconnect: keep `.session-copilot` header + log; only swap presence,
+    append Latest lost card, suggest→Retry. Do not apply
+    `is-session-break` / check-in compact swap.
+- escalate: scrutinous
