@@ -124,9 +124,20 @@ interface StatusPayload {
   session: LockInSession | null;
 }
 
+interface StudySessionSuggestion {
+  goals: string;
+  duration_mins: number;
+  reason: string;
+  proposed_start: string;
+  calendar_checked: boolean;
+  calendar_clear: boolean;
+  conflict_summary?: string | null;
+}
+
 interface ChatMessage {
   role: string;
   content: string;
+  study_suggestion?: StudySessionSuggestion | null;
 }
 
 interface VitalsSnapshot {
@@ -874,6 +885,156 @@ function appendChat(role: "user" | "assistant", content: string) {
   return bubble;
 }
 
+/** True when the user is already inside an active lock-in mission UI. */
+function isLockInSessionActive(): boolean {
+  return Boolean($("#view-session")?.classList.contains("active"));
+}
+
+function parseStudySuggestion(
+  raw: ChatMessage["study_suggestion"] | Record<string, unknown> | null | undefined,
+): StudySessionSuggestion | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const calendarClear = o.calendar_clear ?? o.calendarClear;
+  if (calendarClear !== true) return null;
+  const durationRaw = o.duration_mins ?? o.durationMins ?? o.duration;
+  const durationMins = Number(durationRaw);
+  if (!Number.isFinite(durationMins) || durationMins <= 0) return null;
+  return {
+    goals: String(o.goals ?? ""),
+    duration_mins: durationMins,
+    reason: String(o.reason ?? ""),
+    proposed_start: String(o.proposed_start ?? o.proposedStart ?? ""),
+    calendar_checked: Boolean(o.calendar_checked ?? o.calendarChecked),
+    calendar_clear: true,
+    conflict_summary:
+      o.conflict_summary == null && o.conflictSummary == null
+        ? null
+        : String(o.conflict_summary ?? o.conflictSummary ?? ""),
+  };
+}
+
+function removeStudySuggestionCardNear(bubble: HTMLElement) {
+  const anchor = bubble.closest(".session-chat-turn") ?? bubble;
+  const next = anchor.nextElementSibling;
+  if (next?.classList.contains("study-suggest-card")) next.remove();
+}
+
+function appendStudySuggestionCard(
+  bubble: HTMLElement,
+  suggestion: StudySessionSuggestion,
+) {
+  if (isLockInSessionActive()) return;
+
+  removeStudySuggestionCardNear(bubble);
+
+  const mins = Math.min(180, Math.max(1, Math.round(suggestion.duration_mins)));
+  const goalsText = suggestion.goals.trim() || "General study session";
+  const reasonText =
+    suggestion.reason.trim() || "Looks like a good window for a focused session.";
+
+  const card = document.createElement("div");
+  card.className = "study-suggest-card";
+  card.setAttribute("role", "group");
+  card.setAttribute("aria-label", "Suggested study session");
+
+  const kicker = document.createElement("p");
+  kicker.className = "study-suggest-card__kicker";
+  kicker.textContent = "Suggested lock-in";
+
+  const reason = document.createElement("p");
+  reason.className = "study-suggest-card__reason";
+  reason.textContent = reasonText;
+
+  const goals = document.createElement("p");
+  goals.className = "study-suggest-card__goals";
+  goals.textContent = goalsText;
+
+  const meta = document.createElement("p");
+  meta.className = "study-suggest-card__meta";
+  meta.textContent = `${mins} min`;
+
+  const error = document.createElement("p");
+  error.className = "study-suggest-card__error";
+  error.hidden = true;
+
+  const actions = document.createElement("div");
+  actions.className = "study-suggest-card__actions";
+
+  const decline = document.createElement("button");
+  decline.type = "button";
+  decline.className = "ghost study-suggest-card__decline";
+  decline.textContent = "Decline";
+
+  const accept = document.createElement("button");
+  accept.type = "button";
+  accept.className = "primary study-suggest-card__accept";
+  accept.textContent = "Accept";
+
+  decline.addEventListener("click", () => {
+    card.remove();
+  });
+
+  accept.addEventListener("click", () => {
+    void (async () => {
+      if (accept.disabled) return;
+      if (isLockInSessionActive()) {
+        card.remove();
+        return;
+      }
+      accept.disabled = true;
+      decline.disabled = true;
+      error.hidden = true;
+      error.textContent = "";
+      try {
+        const session = await invoke<LockInSession>("start_lock_in", {
+          goals: suggestion.goals,
+          durationMins: mins,
+        });
+        try {
+          sessionStorage.setItem("lockin-last-duration", String(mins));
+        } catch {
+          // ignore
+        }
+        card.remove();
+        renderVitals(null);
+        playLaunchCelebration(() => {
+          clearNextStepTimer();
+          renderSession(session);
+          syncMissionTimer(session);
+          show("view-session");
+        });
+      } catch (err) {
+        const message = String(err);
+        console.error("start_lock_in from study suggestion failed:", err);
+        error.hidden = false;
+        error.textContent = message || "Couldn’t start that session. Try again.";
+        accept.disabled = false;
+        decline.disabled = false;
+      }
+    })();
+  });
+
+  actions.append(decline, accept);
+  card.append(kicker, reason, goals, meta, error, actions);
+
+  const anchor = bubble.closest(".session-chat-turn") ?? bubble;
+  anchor.insertAdjacentElement("afterend", card);
+
+  const log = card.closest(".chat-log, #chat-log, #session-chat-log") as HTMLElement | null;
+  if (log) log.scrollTop = log.scrollHeight;
+}
+
+function maybeShowStudySuggestion(
+  bubble: HTMLElement | undefined | null,
+  reply: ChatMessage,
+) {
+  if (!bubble) return;
+  const suggestion = parseStudySuggestion(reply.study_suggestion);
+  if (!suggestion) return;
+  appendStudySuggestionCard(bubble, suggestion);
+}
+
 let chatBusy = false;
 let hasChatReply = false;
 
@@ -939,6 +1100,7 @@ function showChatFailure(bubble: HTMLElement, userMessage: string, err?: unknown
 
 async function retryChatAssistant(userMessage: string, bubble: HTMLElement) {
   if (chatBusy) return;
+  removeStudySuggestionCardNear(bubble);
   bubble.textContent = "Thinking…";
   chatBusy = true;
   setChatControlsBusy(true);
@@ -952,8 +1114,10 @@ async function retryChatAssistant(userMessage: string, bubble: HTMLElement) {
       },
     );
     renderMarkdown(bubble, reply.content);
+    maybeShowStudySuggestion(bubble, reply);
     hasChatReply = true;
   } catch (e) {
+    removeStudySuggestionCardNear(bubble);
     showChatFailure(bubble, userMessage, e);
   } finally {
     chatBusy = false;
@@ -1033,10 +1197,16 @@ async function dispatchChatMessage(
     () => {
       if (pending) pending.textContent = "Sorry, there’s a slight delay. Still working on your reply…";
     });
-    if (pending) renderMarkdown(pending, reply.content);
+    if (pending) {
+      renderMarkdown(pending, reply.content);
+      maybeShowStudySuggestion(pending, reply);
+    }
     hasChatReply = true;
   } catch (e) {
-    if (pending) showChatFailure(pending, message, e);
+    if (pending) {
+      removeStudySuggestionCardNear(pending);
+      showChatFailure(pending, message, e);
+    }
   } finally {
     chatBusy = false;
     setChatControlsBusy(false);
@@ -1958,18 +2128,11 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (durationInput && durationAdjusted) {
       durationInput.value = String(duration);
     }
-    if (!goals) {
-      if (errEl) {
-        errEl.hidden = false;
-        errEl.textContent = "Add your mission objectives before launch.";
-      }
-      goalsInput?.focus();
-      return;
-    }
+    const missionGoals = goals || "General study session";
     setMissionLaunchButton(true);
     try {
       const session = await invoke<LockInSession>("start_lock_in", {
-        goals,
+        goals: missionGoals,
         durationMins: duration,
       });
       try {
@@ -2163,6 +2326,50 @@ window.addEventListener("DOMContentLoaded", async () => {
   $("#permissions-refresh")?.addEventListener("click", () => {
     void renderPermissionsStatus();
   });
+  const deleteStep = $("#delete-data-step");
+  const deleteConfirm = $("#delete-data-confirm");
+  const deleteResult = $("#delete-data-result");
+  $("#delete-data-start")?.addEventListener("click", () => {
+    if (deleteStep) deleteStep.hidden = true;
+    if (deleteConfirm) deleteConfirm.hidden = false;
+    if (deleteResult) deleteResult.textContent = "";
+  });
+  $("#delete-data-cancel")?.addEventListener("click", () => {
+    if (deleteConfirm) deleteConfirm.hidden = true;
+    if (deleteStep) deleteStep.hidden = false;
+    if (deleteResult) deleteResult.textContent = "";
+  });
+  $("#delete-data-confirm-btn")?.addEventListener("click", async () => {
+    const btn = $("#delete-data-confirm-btn") as HTMLButtonElement | null;
+    if (btn) btn.disabled = true;
+    if (deleteResult) deleteResult.textContent = "Deleting…";
+    try {
+      const result = await invoke<{
+        removed: string[];
+        cleared_local_keys: string[];
+      }>("delete_all_user_data");
+      for (const key of result.cleared_local_keys) {
+        try {
+          localStorage.removeItem(key);
+        } catch {
+          // ignore
+        }
+      }
+      if (deleteResult) {
+        deleteResult.textContent =
+          result.removed.length > 0
+            ? `Deleted: ${result.removed.join(", ")}.`
+            : "Local data cleared.";
+      }
+      await refreshStatus();
+      refreshAllShipViews();
+    } catch (err) {
+      if (deleteResult) deleteResult.textContent = `Delete failed: ${String(err)}`;
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  });
+
   $("#invoke-voice-speak")?.addEventListener("click", async () => {
     const out = $("#invoke-voice-result");
     const btn = $("#invoke-voice-speak") as HTMLButtonElement | null;

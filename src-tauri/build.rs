@@ -85,9 +85,11 @@ fn main() {
     println!("cargo:rerun-if-changed=secrets.example.toml");
     println!("cargo:rerun-if-changed=Info.plist");
     println!("cargo:rerun-if-changed=tools/ocr_vision.swift");
+    println!("cargo:rerun-if-changed=tools/encode_clip.swift");
     println!("cargo:rerun-if-env-changed=GEMINI_API_KEY");
 
     compile_ocr_helper(&manifest);
+    compile_encode_clip_helper(&manifest);
 
     tauri_build::build()
 }
@@ -128,6 +130,55 @@ fn compile_ocr_helper(manifest: &PathBuf) {
         }
         Err(e) => {
             eprintln!("cargo:warning=swiftc not available ({e}) — local OCR disabled");
+        }
+    }
+}
+
+fn compile_encode_clip_helper(manifest: &PathBuf) {
+    let swift = manifest.join("tools/encode_clip.swift");
+    let bin_dir = manifest.join("bin");
+    let _ = fs::create_dir_all(&bin_dir);
+    let out = bin_dir.join("waypoint-encode-clip");
+    println!("cargo:rustc-env=WAYPOINT_ENCODE_CLIP_BIN={}", out.display());
+
+    if !swift.exists() {
+        eprintln!(
+            "cargo:warning=encode_clip.swift missing at {}",
+            swift.display()
+        );
+        return;
+    }
+    if cfg!(not(target_os = "macos")) {
+        return;
+    }
+    let status = Command::new("swiftc")
+        .args([
+            "-O",
+            "-framework",
+            "AVFoundation",
+            "-framework",
+            "AppKit",
+            "-framework",
+            "CoreMedia",
+            "-framework",
+            "CoreVideo",
+            "-o",
+            out.to_str().unwrap_or("waypoint-encode-clip"),
+            swift.to_str().unwrap_or("encode_clip.swift"),
+        ])
+        .status();
+    match status {
+        Ok(s) if s.success() => {
+            println!(
+                "cargo:warning=compiled clip encoder → {}",
+                out.display()
+            );
+        }
+        Ok(s) => {
+            eprintln!("cargo:warning=swiftc encode_clip failed ({s}) — will try ffmpeg fallback");
+        }
+        Err(e) => {
+            eprintln!("cargo:warning=swiftc not available ({e}) — encode_clip disabled");
         }
     }
 }

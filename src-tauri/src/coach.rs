@@ -5,8 +5,8 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use uuid::Uuid;
 
-use crate::capture::{self, camera, frontmost, screen};
-use crate::gemini::{self, CoachVisionResult, GeminiClient};
+use crate::capture::{self, camera, frontmost};
+use crate::gemini::CoachVisionResult;
 use crate::local_judge;
 use crate::local_vision;
 use crate::overlay;
@@ -20,15 +20,8 @@ const LOCAL_TICK_SECS: u64 = 1;
 const OCR_TICK_SECS: u64 = 3;
 /// Rare tiny local VLM (moondream) when OCR/OS signals are inconclusive.
 const LOCAL_VLM_TICK_SECS: u64 = 45;
-/// Full-desktop Gemini is a last resort. Prefer local model + OS signals.
-const GEMINI_TICK_ON_TASK_SECS: u64 = 120;
-/// While already distracted locally, skip vision almost entirely.
-const GEMINI_TICK_OFF_TASK_SECS: u64 = 180;
-/// Hard cap — screenshots should be rare when the local model is healthy.
-const MAX_VISION_PER_SESSION: u32 = 24;
-/// Ambiguous context judgments per session (local model first, Gemini text fallback).
+/// Ambiguous context judgments per session (local model only — no Gemini in lock-in).
 const MAX_CONTEXT_JUDGMENTS_PER_SESSION: u32 = 120;
-const RATE_LIMIT_COOLDOWN_SECS: u64 = 120;
 /// Soft coach lines (help / stress) — don't spam.
 const PROMPT_COOLDOWN_SECS: i64 = 14;
 /// Absolute floor between any popup/voice (including praise).
@@ -225,13 +218,6 @@ pub fn spawn_coach_loop(app: AppHandle, session_id: String, use_camera: bool, us
     let local_stop = stop.clone();
     tauri::async_runtime::spawn(async move {
         run_local_watch_loop(local_app, local_id, local_stop).await;
-    });
-
-    let vision_app = app.clone();
-    let vision_id = session_id.clone();
-    let vision_stop = stop.clone();
-    tauri::async_runtime::spawn(async move {
-        run_gemini_loop(vision_app, vision_id, vision_stop).await;
     });
 
     if use_camera && use_presage {
@@ -609,7 +595,7 @@ fn truncate_note(s: &str, max: usize) -> String {
     }
 }
 
-/// Prefer on-device quantized model; fall back to Gemini text only if needed. No screenshots.
+/// Local quantized model only — Gemini is never used during lock-in.
 async fn judge_context_cascade(
     app: &AppHandle,
     goals: &str,
@@ -630,66 +616,41 @@ async fn judge_context_cascade(
         }
     }
 
-    // Local quantized model (Ollama) first.
-    if local_judge::is_available(&cfg).await {
-        match local_judge::judge_on_task(
-            &cfg,
-            goals,
-            kind,
-            &info.app_name,
-            &info.window_title,
-            &info.url,
-            &text,
-        )
-        .await
-        {
-            Ok(judgment) if judgment.confidence >= local_judge::min_confidence() => {
-                tracing::info!(
-                    "local judge ({}) conf={:.2} on_task={}",
-                    judgment.model,
-                    judgment.confidence,
-                    judgment.result.on_task
-                );
-                let on_task =
-                    judgment.result.on_task && judgment.result.distraction.is_none();
-                apply_coach_tick(app, &judgment.result, last_vitals).await;
-                return Some(on_task);
-            }
-            Ok(judgment) => {
-                tracing::info!(
-                    "local judge low confidence ({:.2}) — trying Gemini text",
-                    judgment.confidence
-                );
-            }
-            Err(e) => tracing::warn!("local judge: {e}"),
-        }
+    if !local_judge::is_available(&cfg).await {
+        return None;
     }
 
-    // Gemini text fallback (still no vision).
-    let client = GeminiClient::from_config(&cfg).ok()?;
-    match client
-        .judge_focus_context(
-            goals,
-            kind,
-            &info.app_name,
-            &info.window_title,
-            &info.url,
-            &text,
-        )
-        .await
+    match local_judge::judge_on_task(
+        &cfg,
+        goals,
+        kind,
+        &info.app_name,
+        &info.window_title,
+        &info.url,
+        &text,
+    )
+    .await
     {
-        Ok(mut result) => {
-            if result.coach_line.trim().is_empty() && !result.on_task {
-                result.coach_line = format!(
-                    "This {kind} doesn’t look like it advances your lock-in — switch back."
-                );
-            }
-            let on_task = result.on_task && result.distraction.is_none();
-            apply_coach_tick(app, &result, last_vitals).await;
+        Ok(judgment) if judgment.confidence >= local_judge::min_confidence() => {
+            tracing::info!(
+                "local judge ({}) conf={:.2} on_task={}",
+                judgment.model,
+                judgment.confidence,
+                judgment.result.on_task
+            );
+            let on_task = judgment.result.on_task && judgment.result.distraction.is_none();
+            apply_coach_tick(app, &judgment.result, last_vitals).await;
             Some(on_task)
         }
+        Ok(judgment) => {
+            tracing::info!(
+                "local judge low confidence ({:.2}) — skipping (no Gemini in lock-in)",
+                judgment.confidence
+            );
+            None
+        }
         Err(e) => {
-            tracing::warn!("gemini text judge: {e}");
+            tracing::warn!("local judge: {e}");
             None
         }
     }
@@ -729,133 +690,6 @@ fn mark_local_on_task(app: &AppHandle, info: &frontmost::FrontmostInfo) {
     let snap = session.clone();
     drop(guard);
     let _ = app.emit("session-update", &snap);
-}
-
-async fn run_gemini_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBool>) {
-    let mut last_vitals = VitalsSnapshot::default();
-    let mut last_error_notice = chrono::Utc::now() - chrono::Duration::seconds(60);
-    let mut extra_cooldown_secs = 0u64;
-    let mut was_distracted = false;
-    let mut vision_calls: u32 = 0;
-
-    // First full-screen check quickly after start.
-    tokio::time::sleep(Duration::from_secs(3)).await;
-
-    while !stop.load(Ordering::SeqCst) {
-        let (active, goals, modality, remaining, already_distracted, paused) = {
-            let state = app.state::<AppState>();
-            let guard = state.session.lock();
-            match guard.as_ref() {
-                Some(s) if s.active && s.id == session_id => {
-                    last_vitals = s.vitals.clone();
-                    (
-                        true,
-                        s.goals.clone(),
-                        s.modality.clone(),
-                        s.remaining_secs(),
-                        matches!(s.status, SessionStatusKind::Distracted),
-                        s.paused,
-                    )
-                }
-                _ => (false, String::new(), String::new(), 0, false, false),
-            }
-        };
-
-        if !active || remaining <= 0 {
-            break;
-        }
-        if paused {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            continue;
-        }
-
-        // Local loop already nags known distractions — skip vision to protect daily quota.
-        if already_distracted {
-            tokio::time::sleep(Duration::from_secs(
-                GEMINI_TICK_OFF_TASK_SECS.max(extra_cooldown_secs),
-            ))
-            .await;
-            extra_cooldown_secs = 0;
-            continue;
-        }
-
-        if vision_calls >= MAX_VISION_PER_SESSION {
-            tracing::info!(
-                "coach vision: session budget reached ({MAX_VISION_PER_SESSION}); local watch continues"
-            );
-            tokio::time::sleep(Duration::from_secs(GEMINI_TICK_OFF_TASK_SECS)).await;
-            continue;
-        }
-
-        let hints = tokio::task::spawn_blocking(|| {
-            let info = frontmost::frontmost_info().unwrap_or_default();
-            frontmost::open_context_hints(&info)
-        })
-        .await
-        .unwrap_or_default();
-
-        let screen_jpeg = match tokio::task::spawn_blocking(screen::grab_desktop_jpeg).await {
-            Ok(Ok(bytes)) => Some(bytes),
-            Ok(Err(e)) => {
-                tracing::warn!("screen: {e}");
-                maybe_soft_error(&app, &mut last_error_notice, &e);
-                None
-            }
-            Err(e) => {
-                tracing::warn!("screen join: {e}");
-                None
-            }
-        };
-
-        if let Some(bytes) = screen_jpeg {
-            let cfg = app.state::<AppState>().config.lock().clone();
-            let vision = match GeminiClient::from_config(&cfg) {
-                Ok(client) => {
-                    vision_calls = vision_calls.saturating_add(1);
-                    client
-                        .analyze_session(
-                            &goals,
-                            &modality,
-                            &last_vitals.raw_summary,
-                            Some(&bytes),
-                            None,
-                            &hints,
-                        )
-                        .await
-                }
-                Err(e) => Err(e),
-            };
-
-            match vision {
-                Ok(result) => {
-                    let distracted = !result.on_task || result.distraction.is_some();
-                    if distracted {
-                        was_distracted = true;
-                    } else if was_distracted {
-                        was_distracted = false;
-                        push_ephemeral(
-                            &app,
-                            "Nice — you’re back on your lock-in. Good job, keep it up.",
-                            "encourage",
-                        );
-                    }
-                    apply_coach_tick(&app, &result, &mut last_vitals).await;
-                }
-                Err(e) => {
-                    tracing::warn!("coach vision: {e}");
-                    if gemini::error_looks_rate_limited(&e) {
-                        extra_cooldown_secs = RATE_LIMIT_COOLDOWN_SECS;
-                    } else {
-                        maybe_soft_error(&app, &mut last_error_notice, &e);
-                    }
-                }
-            }
-        }
-
-        let wait_secs = GEMINI_TICK_ON_TASK_SECS.max(extra_cooldown_secs);
-        extra_cooldown_secs = 0;
-        tokio::time::sleep(Duration::from_secs(wait_secs)).await;
-    }
 }
 
 fn maybe_soft_error(

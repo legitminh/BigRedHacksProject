@@ -42,3 +42,15 @@ Verifier appends pass/fail notes after each 10m check.
 - fail: (none)
 - notes: Live Figma 2:35 confirms plain chips (no + on any, including Find a next step); ffaa518/#view-chat matches cream nav, sidebar copy/divider/CTA/planet, empty card, in-pill Mic+Send, deco + only. Preserved Settings five-tab, objective ✦ Launch, Pause/End, LTR orbit, silent_mode true, #app padding:0. No code edits.
 
+## check: 2026-10-03T15:15:02-04:00
+- reviewed: fp-settings-kicker-period, fp-setup-affordance-glyph, fp-active-next-step-clock
+- pass: fp-settings-kicker-period, fp-setup-affordance-glyph, fp-active-next-step-clock
+- fail: (none)
+- notes: Live 2:36 text 5:306 is “MAKE YOURSELF AT HOME” (no period) — proof-removed 4a33e9e OCR period; live 5:421 concentric target + Launch requestSubmit OK; live 6:207/6:209 clock-led NEXT STEP TIMER OK. Preserved Settings five-tab, objective Launch wiring, Pause/End, LTR orbit, silent_mode true, #app padding:0, Copilot live-match.
+
+## check: 2026-10-03T15:19:56-04:00
+- reviewed: fp-session-composer-in-pill, fp-setup-objective-compact
+- pass: fp-session-composer-in-pill, fp-setup-objective-compact
+- fail: (none)
+- notes: Live 2:38/6:231 Mic+↑ both in cream Composer input; HEAD dd85eb9 `#session-chat-send` inside `.copilot-input-wrap` + shared Copilot in-pill CSS. Live 2:37/5:421 Editable field 544×64 single-row; `#goals` rows=1 + min-height 2.5rem + centered affordance. Preserved Settings five-tab, ✦ Launch wiring, Pause/End, LTR orbit, silent_mode true, #app padding:0. No code edits.
+

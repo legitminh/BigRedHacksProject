@@ -139,10 +139,30 @@ fn regex_retry_delay_ms(raw: &str) -> Option<u64> {
     Some((secs * 1000.0) as u64)
 }
 
+/// Copilot lock-in suggestion attached to an assistant `ChatMessage`.
+/// Frontend: Accept → `start_lock_in(goals, duration_mins)`; Decline → ignore.
+/// JSON shape (field names are a shared contract with the web UI — keep in sync):
+/// `{ goals, duration_mins, reason, proposed_start, calendar_checked, calendar_clear, conflict_summary }`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StudySessionSuggestion {
+    pub goals: String,
+    pub duration_mins: u64,
+    pub reason: String,
+    /// ISO8601 / RFC3339 when the session would start (usually "now")
+    pub proposed_start: String,
+    pub calendar_checked: bool,
+    /// true when clear to start: Google connected + no overlap, OR Google not connected
+    pub calendar_clear: bool,
+    pub conflict_summary: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatMessage {
     pub role: String,
     pub content: String,
+    /// Optional study-session CTA; omitted on older messages / when not suggested.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub study_suggestion: Option<StudySessionSuggestion>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

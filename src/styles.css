@@ -1353,6 +1353,12 @@ body:has(.view-home.view-home--guest.active) .grain {
   font-size: 0.85rem;
 }
 
+.delete-data-confirm {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
 .account-block {
   margin-bottom: 1.5rem;
   padding-bottom: 1.25rem;
@@ -2609,6 +2615,94 @@ button:focus-visible, a:focus-visible, .table-scroll:focus-visible {
 .bubble.assistant th { background: rgba(159, 196, 188, 0.12); }
 .bubble.assistant hr { border: 0; border-top: 1px solid rgba(159, 196, 188, 0.3); margin: 1rem 0; }
 
+/* In-chat study-session suggestion (Copilot) */
+.study-suggest-card {
+  align-self: flex-start;
+  width: min(22rem, 92%);
+  margin: -0.15rem 0 0.25rem;
+  padding: 0.95rem 1.05rem 1rem;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(42, 36, 64, 0.1);
+  background: #fbf8f3;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.8) inset,
+    0 8px 22px rgba(42, 36, 64, 0.06);
+  color: var(--mc-text-primary);
+  animation: slideIn 0.3s ease both;
+}
+
+.session-chat-turn + .study-suggest-card {
+  margin-left: 0;
+}
+
+.study-suggest-card__kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mc-text-label);
+}
+
+.study-suggest-card__reason {
+  margin: 0 0 0.55rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--mc-text-secondary);
+}
+
+.study-suggest-card__goals {
+  margin: 0 0 0.25rem;
+  font-size: 0.98rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--mc-text-primary);
+}
+
+.study-suggest-card__meta {
+  margin: 0 0 0.75rem;
+  font-size: 0.82rem;
+  color: var(--mc-accent-cyan-dim);
+  font-weight: 500;
+}
+
+.study-suggest-card__error {
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: #b4534a;
+}
+
+.study-suggest-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.study-suggest-card__decline {
+  color: var(--mc-text-secondary);
+  border-color: var(--mc-border-default);
+  padding: 0.5rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+.study-suggest-card__accept {
+  padding: 0.55rem 1.1rem;
+  font-size: 0.85rem;
+  background: var(--mc-accent-cyan);
+  box-shadow: none;
+}
+
+.study-suggest-card__accept:hover:not(:disabled) {
+  filter: brightness(1.05);
+  background: var(--mc-accent-cyan-dim);
+}
+
+.view-copilot .study-suggest-card {
+  border-left: 3px solid var(--mc-accent-cyan);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
@@ -2770,6 +2864,11 @@ body:has(.view-mission-setup.active) .grain {
   font-weight: 600;
   letter-spacing: normal;
   text-transform: none;
+}
+
+.view-mission-setup .mission-field-optional {
+  font-weight: 500;
+  color: #6b6580;
 }
 
 .mission-field-input-wrap {

@@ -342,16 +342,15 @@
           <form id="lockin-form" class="lockin-form mission-setup-card">
             <p class="mission-setup-step">01 / PREPARE FOR LAUNCH</p>
             <h1 class="mission-setup-title">Where are we headed?</h1>
-            <p class="mission-setup-lead">One clear objective. A little room to focus.</p>
+            <p class="mission-setup-lead">A clear objective helps — or leave it blank for a general flight.</p>
 
             <div class="mission-field mission-field--objective">
-              <label class="mission-field-label" for="goals">What do you want to finish?</label>
+              <label class="mission-field-label" for="goals">What do you want to finish? <span class="mission-field-optional">(optional)</span></label>
               <div class="mission-field-input-wrap">
                 <textarea
                   id="goals"
                   rows="1"
-                  required
-                  placeholder="Finish calculus problems 1–5."
+                  placeholder="Finish calculus problems 1–5. Or leave blank for general study."
                 ></textarea>
                 <button
                   type="button"
@@ -726,12 +725,12 @@
         <header class="settings-top-bar">
           <p class="settings-brand"><span class="settings-brand-star" aria-hidden="true">✦</span> Waypoint</p>
           <nav class="settings-nav" aria-label="Primary">
-            <button type="button" class="settings-nav-link" data-settings-nav="home">Home</button>
+            <button type="button" class="settings-nav-link settings-nav-link--active" data-settings-nav="home" aria-current="page">Home</button>
             <button type="button" class="settings-nav-link" data-settings-nav="copilot">Copilot</button>
             <button type="button" class="settings-nav-link" data-settings-nav="lockin">Lock in</button>
           </nav>
           <div class="settings-nav-end">
-            <span class="settings-nav-link settings-nav-link--active" aria-current="page">Settings</span>
+            <span class="settings-nav-link">Settings</span>
             <span id="settings-avatar" class="settings-avatar" aria-hidden="true">—</span>
           </div>
         </header>
@@ -934,6 +933,29 @@
                       Link Google for deadline context and Drive notes. Missions work without it.
                     </p>
                     <div id="account-google-actions" class="cta-row"></div>
+                  </div>
+                </article>
+                <article class="mc-settings-card">
+                  <h2 class="settings-heading">Your data</h2>
+                  <p class="settings-copy tight">
+                    Permanently erase study memory, session logs, ship progress, chat history, sign-in, and linked Google tokens on this device.
+                  </p>
+                  <div id="delete-data-step" class="cta-row">
+                    <button id="delete-data-start" class="ghost danger pill" type="button">
+                      Delete my data…
+                    </button>
+                  </div>
+                  <div id="delete-data-confirm" class="delete-data-confirm" hidden>
+                    <p class="settings-copy tight">
+                      This cannot be undone. Everything listed above is deleted forever from this Mac.
+                    </p>
+                    <div class="cta-row">
+                      <button id="delete-data-cancel" class="ghost pill" type="button">Cancel</button>
+                      <button id="delete-data-confirm-btn" class="ghost danger pill" type="button">
+                        Delete everything forever
+                      </button>
+                    </div>
+                    <p id="delete-data-result" class="composer-hint" aria-live="polite"></p>
                   </div>
                 </article>
               </div>
