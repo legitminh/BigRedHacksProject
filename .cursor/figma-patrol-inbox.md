@@ -1879,7 +1879,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Keep `#session-pause-note` hidden (or remove) while paused; rely on
     break card body for coaching-paused copy. Keep Pause/End wiring.
 - escalate: scrutinous
-- commit: PENDING
+- commit: a79a5ce
 - change: |
     `syncPauseControls` always keeps `#session-pause-note` hidden; CSS
     `display: none` so the coaching-hold line never appears under Pause/End.
@@ -1901,7 +1901,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When paused: `btn.textContent = "Resume mission"`; idle → “Pause”.
     Keep pause invoke / End. Pair with break panel shell.
 - escalate: scrutinous
-- commit: PENDING
+- commit: a79a5ce
 - change: |
     Paused `#session-pause` label is “Resume mission”; idle “Pause”.
     Left control stays filled primary while paused; End mission unchanged.
@@ -1966,7 +1966,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Replace copilot column contents with the compact break card (no
     chat/composer/presence); restore chat on Resume. Keep End + pause.
 - escalate: scrutinous
-- commit: PENDING
+- commit: a79a5ce
 - change: |
     `#view-session.is-session-break` swaps `.session-copilot-chat` for
     `#session-break-card` (badge/title/body/divider/Resume/footer). Card
