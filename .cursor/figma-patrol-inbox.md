@@ -232,7 +232,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     keep `.session-flight-route` “EARTH → KEPLER”. Do not change Pause/End or LTR orbit.
 - escalate: scrutinous
 - reopened: true
-- commit: 1bef8ec
+- commit: 44f3b0e
 - change: Removed `.session-flight-waypoint-sub` Earth/Kepler spans + CSS; Launch/Destination only; route kicker “EARTH → KEPLER” kept.
 
 
