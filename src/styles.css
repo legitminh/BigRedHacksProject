@@ -2832,7 +2832,7 @@ body:has(.view-mission-setup.active) .grain {
   border-radius: 999px;
   background: rgba(232, 224, 245, 0.85);
   border: 1px solid rgba(107, 76, 255, 0.12);
-  color: #5c5478;
+  color: #326c78;
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.1em;
@@ -5192,6 +5192,11 @@ img[src*="assets/figma/"] {
   background: var(--mc-surface-lavender);
 }
 
+/* Live 12: QUEST COMPLETE badge label is mint; FLIGHT LOGGED stays purple. */
+.view-quest-complete .mission-celebration--quest .quest-complete-badge {
+  color: #326c78;
+}
+
 .view-quest-complete .flight-log-stats {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.55rem;
@@ -5341,7 +5346,7 @@ img[src*="assets/figma/"] {
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--mc-accent-purple);
+  color: #326c78;
   background: var(--mc-surface-lavender);
 }
 

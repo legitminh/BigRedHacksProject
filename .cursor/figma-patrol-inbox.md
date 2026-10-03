@@ -952,7 +952,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: `buildCopilotNote` partly uses live 23 sentence (no goal/PB closer; “Your time counts. Choose one small next step when you return.”).
 - verified: 2026-10-03T15:50:04-04:00
 
-## done: fp-summary-relaunch-note
+## verified: fp-summary-relaunch-note
 - screen: summary
 - ref: `.cursor/figma-refs/25-flight-logged-not-yet.png` · live `8:817` · card `8:886` ·
   kicker `8:887` · body `8:888`
@@ -970,8 +970,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     apply card modifier, rewrite note to relaunch sentence. Keep plain muted notes for
     zero-relaunch 22/23/24. Complements open `fp-summary-relaunch-note-card`.
 - escalate: scrutinous
-- commit: e03c5dd
+- commit: c5010ec
 - change: Not yet + relaunches>0 uses live 25 relaunch sentence + teal kicker; zero-relaunch 22/23/24 plain notes unchanged.
+- verified: 2026-10-03T15:52:00-04:00
 
 ## done: fp-summary-pb-stat-label
 - screen: summary
@@ -1008,7 +1009,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: `.session-signal-pill.is-on` uses solid `--mc-accent-purple` fill + white text.
 - verified: 2026-10-03T15:50:04-04:00
 
-## done: fp-summary-relaunch-note-card
+## verified: fp-summary-relaunch-note-card
 - screen: summary
 - ref: `.cursor/figma-refs/25-flight-logged-not-yet.png` · live `8:817` · node `8:886`
 - deviation: |
@@ -1020,5 +1021,85 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Add a modifier (e.g. `.quest-copilot-note--card`) applied when relaunches>0 that
     restores lavender card chrome; leave default transparent for plain outcome notes.
 - escalate: none
-- commit: e03c5dd
-- change: `.quest-copilot-note--card` lavender chrome (20px pad, border, gap) when Not yet + relaunches>0.
+- commit: c5010ec
+- change: `.quest-copilot-note--card` lavender chrome (20px pad, border, gap) when Not yet + relaunches>0; proof-tuned to live 8:886 tokens (#e9ddfd / #c8bfd7 / 28px / 10px gap / mint kicker).
+- verified: 2026-10-03T15:52:00-04:00
+
+## open: fp-summary-partly-relaunch-note
+- screen: summary
+- ref: `.cursor/figma-refs/13-flight-logged.png` · live `2:45` · note `6:1224`/`6:1226`
+- deviation: |
+    EXPECTED (live 13, Partly selected + relaunch≥1): lavender Copilot summary card with teal
+    kicker `✦  A NOTE FROM YOUR COPILOT` and body
+    “You logged {n} flight minutes and relaunched {once|N times}. You said there’s more to
+    do—and your time still counts. Pick up with one small step next time.”
+    Distinct from verified zero-relaunch partly (23 / `fp-summary-partly-note-copy`) and from
+    verified Not-yet relaunch (25 / `fp-summary-relaunch-note`).
+    ACTUAL: `outcome === "partly"` always returns the plain 23 sentence (ignores `relaunches`);
+    `summaryUsesRelaunchNote` is Not-yet-only so card chrome never applies on Partly+relaunch.
+- fix_hint: |
+    When partly + relaunches>0, use live 13 sentence + `--card` + teal kicker; keep zero-relaunch
+    partly as plain 23. Do not reopen verified 25 not-yet strings.
+- escalate: scrutinous
+
+## open: fp-summary-finished-relaunch-note
+- screen: summary
+- ref: `.cursor/figma-refs/12-quest-complete.png` · live `2:44` · note `6:1123`/`6:1125`
+- deviation: |
+    EXPECTED (live 12, Finished selected + relaunch≥1 + new PB): lavender card + teal kicker and
+    body “You logged {n} flight minutes, relaunched {once|N times}, and said you finished
+    {goal}. That’s {delta} minutes beyond your previous longest flight.”
+    (sample: problems 1–5 / 5 minutes). Zero-relaunch Finished stays plain 22 PB-remains note
+    (verified `fp-summary-outcome-note-copy`).
+    ACTUAL: Finished branch always uses “finished {goal}. Your personal best remains {pb}
+    minutes.” — no relaunch clause, no “beyond your previous longest”, no card chrome.
+- fix_hint: |
+    Specialize Finished+relaunches>0 (optionally when `pb.isNew`) to live 12 sentence + card
+    chrome; leave zero-relaunch Finished plain. Complements open partly-relaunch; leave 25 alone.
+- escalate: scrutinous
+
+## done: fp-quest-complete-badge-mint
+- screen: summary
+- ref: `.cursor/figma-refs/12-quest-complete.png` · live `2:44` · badge `6:1097`
+- deviation: |
+    EXPECTED (live 12): `✓  QUEST COMPLETE` pill label color is mint/teal `#326c78` on lavender
+    raised fill (same mint token as Copilot-note kickers). Live 13 `✦  FLIGHT LOGGED` stays
+    amber/purple `#6750a4`.
+    ACTUAL (`.view-quest-complete .quest-complete-badge`): both celebration badges use
+    `color: var(--mc-accent-purple)` — quest-complete never switches to mint.
+- fix_hint: |
+    When badge is QUEST COMPLETE (`.mission-celebration--quest` / sync path), set badge text
+    color to `#326c78`; keep FLIGHT LOGGED on purple/amber. No copy/wiring changes.
+- escalate: none
+- commit: 80e1edc
+- change: `.mission-celebration--quest .quest-complete-badge` uses mint `#326c78`; FLIGHT LOGGED stays purple.
+
+## done: fp-first-flight-badge-mint
+- screen: home
+- ref: `.cursor/figma-refs/19-first-flight.png` · live `2:51` · badge `7:565`
+- deviation: |
+    EXPECTED (live 19): card pill `✦  FIRST FLIGHT` uses mint label `#326c78` on lavender
+    `#e9ddfd` fill (same mint as setup/welcome kickers).
+    ACTUAL (`.mc-first-flight-badge`): `color: var(--mc-accent-purple)` — purple label, not mint.
+    (Teal body line `.mc-first-flight-card-teal` is already OK.)
+- fix_hint: |
+    Set `.mc-first-flight-badge` color to `#326c78`; keep CTA/copy/wiring. Distinct from verified
+    plain kicker `fp-first-flight-kicker-plain`.
+- escalate: none
+- commit: 80e1edc
+- change: `.mc-first-flight-badge` label color set to mint `#326c78`.
+
+## done: fp-setup-step-mint
+- screen: setup
+- ref: `.cursor/figma-refs/26-setup-camera-allowed.png` · `05-mission-setup.png` · live `8:919` /
+  `2:37` · step `8:967`
+- deviation: |
+    EXPECTED (live 05/26): `01 / PREPARE FOR LAUNCH` step pill text is mint `#326c78` on
+    lavender raised fill.
+    ACTUAL (`.mission-setup-step`): mauve `#5c5478` — wrong token vs live mint kickers.
+- fix_hint: |
+    Change `.mission-setup-step` color to `#326c78` (match welcome/first-flight mint pills).
+    Leave toggles / Launch / intentional objective ✦ wiring alone.
+- escalate: none
+- commit: 80e1edc
+- change: `.mission-setup-step` color set to mint `#326c78`.
