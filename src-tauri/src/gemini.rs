@@ -124,14 +124,14 @@ impl GeminiClient {
             "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent",
             self.model
         );
-        // Vision is frequent during lock-in — keep a wider gap and fewer retries.
+        // Vision is spaced for free-tier RPD (~250/day). Text context/chat stay snappy.
         let min_gap = match kind {
             CallKind::Chat => Duration::from_secs(2),
-            CallKind::Vision => Duration::from_secs(20),
+            CallKind::Vision => Duration::from_secs(45),
         };
         let max_attempts = match kind {
-            CallKind::Chat => 4usize,
-            CallKind::Vision => 2usize,
+            CallKind::Chat => 2usize,
+            CallKind::Vision => 1usize, // don't multiply failed vision into the daily budget
         };
 
         let mut last_err = String::new();
@@ -178,7 +178,7 @@ impl GeminiClient {
                 break;
             }
             // Respect server-suggested delay; default longer on 429 so we don't dig deeper.
-            let fallback = if rate_limited { 45_000 } else { 8_000 };
+            let fallback = if rate_limited { 90_000 } else { 8_000 };
             let wait_ms = retry_delay_from_error(&text, fallback);
             tracing::warn!(
                 "gemini {} retry in {}ms (attempt {}/{}): {}",
@@ -247,6 +247,60 @@ impl GeminiClient {
         }
     }
 
+    /// Text-only judgment (YouTube title/page excerpt). Much cheaper/faster than screenshots.
+    pub async fn judge_focus_context(
+        &self,
+        goals: &str,
+        kind: &str,
+        app: &str,
+        title: &str,
+        url: &str,
+        page_text: &str,
+    ) -> Result<CoachVisionResult, String> {
+        let excerpt = page_text.chars().take(1800).collect::<String>();
+        let body = json!({
+            "contents": [{
+                "role": "user",
+                "parts": [{
+                    "text": format!(
+                        r#"You are Waypoint, a strict but fair study lock-in coach.
+Decide if this focused app/page advances the session goals. Use ONLY the text context (no image).
+
+Session goals: {goals}
+Signal kind: {kind}
+App: {app}
+Window title: {title}
+URL: {url}
+Page text / metadata (may be truncated):
+{excerpt}
+
+RULES:
+- YouTube / video: on_task=true ONLY if the video clearly helps the goals (lecture, tutorial,
+  course content, exam review, topic explanation matching the goals). Entertainment, music,
+  gaming, vlogs, reactions, random feeds → on_task=false, distraction="youtube".
+- Instagram/TikTok/Discord/shopping/email/texting are never on-task unless goals explicitly require them.
+- If unclear and kind is youtube, lean on_task=false (entertainment is the default risk).
+- coach_line: one short direct sentence (name the video/topic if off-task, or affirm if on-task).
+- objects: short labels of what they opened.
+- needs_help=false, stress_cue=false unless text clearly says otherwise.
+
+Reply ONLY valid JSON with keys:
+on_task (bool), objects (string array), distraction (string|null),
+needs_help (bool), stress_cue (bool), coach_line (short sentence),
+modality (computer|paper|mixed)."#
+                    )
+                }]
+            }],
+            "generationConfig": {
+                "temperature": 0.15,
+                "responseMimeType": "application/json"
+            }
+        });
+
+        let raw = self.generate(body, CallKind::Chat).await?;
+        parse_coach_json(&raw)
+    }
+
     pub async fn analyze_session(
         &self,
         goals: &str,
@@ -258,7 +312,7 @@ impl GeminiClient {
     ) -> Result<CoachVisionResult, String> {
         let mut parts = vec![json!({
             "text": format!(
-                r#"You are Waypoint, a strict study lock-in coach.
+                r#"You are Waypoint, a strict but fair study lock-in coach.
 You are given a FULL DESKTOP screenshot (all monitors may be stitched side-by-side).
 Scan the ENTIRE image — not just the focused window. Look for side panels, PiP players,
 second monitors, browser tabs, dock previews, and anything else visible.
@@ -271,12 +325,13 @@ Extra OS hints (may be incomplete; trust the screenshot first):
 
 GOAL-SCOPE RULES:
 - on_task=true ONLY if nearly everything visible is advancing the goals (IDE, docs, slides, coursework, relevant research).
-- If ANY clearly off-task content is visible anywhere on the desktop, on_task=false.
-  Off-task includes: YouTube (any player/tab/PiP), Instagram/TikTok/X/Reddit/Discord,
-  Messages/iMessage/WhatsApp, email inboxes (Gmail/Outlook/Mail), online shopping
-  (Amazon/eBay/etc), Netflix/Twitch, random social feeds, shopping storefronts.
-- set distraction to a short label: youtube, email, shopping, texting, instagram, etc.
-- Vague goals still require real productive work — entertainment/email/shopping are never "the work" unless goals explicitly say so.
+- Hard off-task anywhere → on_task=false: Instagram/TikTok/X/Reddit/Discord, Messages/WhatsApp,
+  email inboxes, online shopping, Netflix/Twitch, random social feeds.
+- YouTube / video players: INTERPRET CONTEXT. on_task=true if the video clearly supports the goals
+  (lecture, tutorial, course, exam review). Music, gaming, vlogs, entertainment → on_task=false,
+  distraction="youtube". If the title/topic is unreadable, treat as off-task.
+- set distraction to a short label when off-task: youtube, email, shopping, texting, instagram, discord, etc.
+- Vague goals still require real productive work — shopping/email/social are never "the work" unless goals say so.
 - Waypoint UI alone is not on-task.
 - needs_help=true only for stuck coursework/errors.
 - stress_cue only with clear stress / provided wellness stress — no medical claims.
@@ -326,16 +381,19 @@ modality (computer|paper|mixed)."#
         });
 
         let raw = self.generate(body, CallKind::Vision).await?;
-        let cleaned = raw
-            .trim()
-            .trim_start_matches("```json")
-            .trim_start_matches("```")
-            .trim_end_matches("```")
-            .trim();
-        serde_json::from_str::<CoachVisionResult>(cleaned).map_err(|e| {
-            format!("Failed to parse coach JSON: {e}; raw={raw}")
-        })
+        parse_coach_json(&raw)
     }
+}
+
+fn parse_coach_json(raw: &str) -> Result<CoachVisionResult, String> {
+    let cleaned = raw
+        .trim()
+        .trim_start_matches("```json")
+        .trim_start_matches("```")
+        .trim_end_matches("```")
+        .trim();
+    serde_json::from_str::<CoachVisionResult>(cleaned)
+        .map_err(|e| format!("Failed to parse coach JSON: {e}; raw={raw}"))
 }
 
 pub fn error_looks_rate_limited(message: &str) -> bool {

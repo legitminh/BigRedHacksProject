@@ -124,7 +124,17 @@
           </div>
           <div class="settings-panel" id="settings-account" role="tabpanel" hidden>
             <h2 class="settings-heading">Account</h2>
-            <p class="settings-copy">Google connection and profile options will land here.</p>
+            <p class="settings-copy">Waypoint account and optional Google links for Calendar / Drive.</p>
+            <div class="account-block">
+              <p class="account-label">Waypoint</p>
+              <p id="account-waypoint-user" class="account-value">Not signed in</p>
+            </div>
+            <div class="account-block">
+              <p class="account-label">Google (optional)</p>
+              <p id="account-google-status" class="account-value">Not connected</p>
+              <p class="settings-copy tight">Link Google if you want Calendar deadlines and Drive notes in Ask. Lock-in works without it.</p>
+              <div id="account-google-actions" class="cta-row"></div>
+            </div>
           </div>
         </div>
       </section>

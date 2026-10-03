@@ -17,6 +17,8 @@ interface UserSettings {
 }
 
 interface StatusPayload {
+  signed_in: boolean;
+  username?: string | null;
   google_connected: boolean;
   gemini_ready: boolean;
   google_oauth_ready: boolean;
@@ -86,41 +88,54 @@ function renderHome(status: StatusPayload) {
   if (!host) return;
   host.innerHTML = "";
 
-  if (!status.google_connected) {
-    const signIn = document.createElement("button");
-    signIn.className = "primary";
-    signIn.type = "button";
-    signIn.textContent = status.google_oauth_ready
-      ? "Sign in with Google"
-      : "Google sign-in not configured";
-    signIn.disabled = !status.google_oauth_ready;
-    signIn.addEventListener("click", async () => {
-      if (signIn.disabled) return;
-      const label = status.google_oauth_ready
-        ? "Sign in with Google"
-        : "Google sign-in not configured";
-      signIn.textContent = "Waiting for Google…";
-      signIn.disabled = true;
+  if (!status.signed_in) {
+    const form = document.createElement("form");
+    form.className = "signin-box";
+    form.innerHTML = `
+      <p class="signin-title">Waypoint sign in</p>
+      <p class="signin-sub">Placeholder login — any username and password works for now.</p>
+      <label>
+        Username or email
+        <input id="wp-username" name="username" type="text" autocomplete="username" required placeholder="you@school.edu" />
+      </label>
+      <label>
+        Password
+        <input id="wp-password" name="password" type="password" autocomplete="current-password" placeholder="anything" />
+      </label>
+      <p class="signin-error" id="wp-signin-error" hidden></p>
+      <button class="primary wide" type="submit">Sign in</button>
+    `;
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const username = (form.querySelector("#wp-username") as HTMLInputElement | null)?.value ?? "";
+      const password = (form.querySelector("#wp-password") as HTMLInputElement | null)?.value ?? "";
+      const err = form.querySelector("#wp-signin-error") as HTMLElement | null;
+      const btn = form.querySelector("button[type=submit]") as HTMLButtonElement | null;
+      if (err) {
+        err.hidden = true;
+        err.textContent = "";
+      }
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Signing in…";
+      }
       try {
-        const connect = invoke("connect_google");
-        // UI escape hatch if the browser tab is closed without finishing OAuth.
-        const cancel = new Promise<never>((_, reject) => {
-          window.setTimeout(() => {
-            reject(new Error("Google sign-in timed out or was closed. Click Sign in with Google to try again."));
-          }, 90_000);
-        });
-        await Promise.race([connect, cancel]);
-      } catch (e) {
-        console.error("connect_google failed:", e);
-        alert(String(e));
-      } finally {
-        // Always rebuild the CTA so the button never stays stuck disabled.
-        signIn.textContent = label;
-        signIn.disabled = false;
+        await invoke("sign_in_waypoint", { username, password });
         await refreshStatus();
+      } catch (e) {
+        if (err) {
+          err.hidden = false;
+          err.textContent = String(e);
+        } else {
+          alert(String(e));
+        }
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = "Sign in";
+        }
       }
     });
-    host.appendChild(signIn);
+    host.appendChild(form);
     return;
   }
 
@@ -149,11 +164,83 @@ function renderHome(status: StatusPayload) {
   out.type = "button";
   out.textContent = "Sign out";
   out.addEventListener("click", async () => {
-    await invoke("disconnect_google");
+    await invoke("sign_out_waypoint");
     await refreshStatus();
   });
 
   host.append(chat, lock, settings, out);
+}
+
+function renderAccountSettings(status: StatusPayload) {
+  const userEl = $("#account-waypoint-user");
+  if (userEl) {
+    userEl.textContent = status.signed_in
+      ? status.username || "Signed in"
+      : "Not signed in";
+  }
+
+  const googleStatus = $("#account-google-status");
+  if (googleStatus) {
+    googleStatus.textContent = status.google_connected
+      ? "Connected"
+      : status.google_oauth_ready
+        ? "Not connected"
+        : "Not configured";
+  }
+
+  const actions = $("#account-google-actions");
+  if (!actions) return;
+  actions.innerHTML = "";
+
+  if (status.google_connected) {
+    const disconnect = document.createElement("button");
+    disconnect.className = "ghost";
+    disconnect.type = "button";
+    disconnect.textContent = "Disconnect Google";
+    disconnect.addEventListener("click", async () => {
+      disconnect.disabled = true;
+      try {
+        await invoke("disconnect_google");
+        await refreshStatus();
+      } catch (e) {
+        alert(String(e));
+        disconnect.disabled = false;
+      }
+    });
+    actions.appendChild(disconnect);
+    return;
+  }
+
+  const connect = document.createElement("button");
+  connect.className = "secondary";
+  connect.type = "button";
+  connect.textContent = status.google_oauth_ready
+    ? "Connect Google"
+    : "Google not configured";
+  connect.disabled = !status.google_oauth_ready;
+  connect.addEventListener("click", async () => {
+    if (connect.disabled) return;
+    const label = connect.textContent || "Connect Google";
+    connect.textContent = "Waiting for Google…";
+    connect.disabled = true;
+    try {
+      const job = invoke("connect_google");
+      const cancel = new Promise<never>((_, reject) => {
+        window.setTimeout(() => {
+          reject(new Error("Google connect timed out or was closed. Try again from Settings."));
+        }, 90_000);
+      });
+      await Promise.race([job, cancel]);
+    } catch (e) {
+      console.error("connect_google failed:", e);
+      alert(String(e));
+    } finally {
+      connect.textContent = label;
+      connect.disabled = false;
+      await refreshStatus();
+    }
+  });
+  actions.appendChild(connect);
 }
 
 function appendChat(role: "user" | "assistant", content: string) {
@@ -261,6 +348,8 @@ async function openSettings() {
     if (silent) silent.checked = Boolean(settings.silent_mode);
     const status = $("#settings-save-status");
     if (status) status.textContent = "";
+    const appStatus = await invoke<StatusPayload>("get_status");
+    renderAccountSettings(appStatus);
   } catch (err) {
     console.error(err);
   }
@@ -344,6 +433,9 @@ async function refreshStatus() {
   const status = await invoke<StatusPayload>("get_status");
   renderHome(status);
   renderLockinHints(status);
+  if ($("#view-settings")?.classList.contains("active")) {
+    renderAccountSettings(status);
+  }
   return status;
 }
 

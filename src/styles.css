@@ -103,6 +103,92 @@ body {
   flex-wrap: wrap;
 }
 
+.signin-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: min(100%, 22rem);
+  padding: 1.15rem 1.2rem 1.25rem;
+  border: 1px solid rgba(159, 196, 188, 0.28);
+  background: rgba(12, 32, 40, 0.55);
+  text-align: left;
+}
+
+.signin-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: var(--foam);
+}
+
+.signin-sub {
+  margin: -0.25rem 0 0.15rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.signin-box label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: var(--mist);
+  font-size: 0.85rem;
+}
+
+.signin-box input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(159, 196, 188, 0.3);
+  background: rgba(6, 18, 24, 0.65);
+  color: var(--foam);
+  padding: 0.65rem 0.75rem;
+  border-radius: 0;
+}
+
+.signin-box input:focus {
+  outline: none;
+  border-color: var(--amber);
+}
+
+.signin-error {
+  margin: 0;
+  color: #f0a090;
+  font-size: 0.85rem;
+}
+
+.account-block {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid rgba(159, 196, 188, 0.18);
+}
+
+.account-block:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.account-label {
+  margin: 0 0 0.25rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.account-value {
+  margin: 0 0 0.75rem;
+  color: var(--foam);
+  font-weight: 600;
+}
+
+.settings-copy.tight {
+  margin-bottom: 0.85rem;
+  font-size: 0.9rem;
+}
+
 .settings-tabs {
   display: flex;
   gap: 0.4rem;
