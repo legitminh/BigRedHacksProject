@@ -216,6 +216,41 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: none
 - note: Skipped this tick — user requested objective ✦ remain Launch; do not revert.
 
+## open: fp-active-waypoint-sublabels-uppercase
+- screen: active
+- ref: `.cursor/figma-refs/06-mission-active.png`
+- deviation: Waypoint subs render title case “Earth” / “Kepler”; Figma 06 shows all-caps “EARTH” / “KEPLER” under Launch/Destination. `.session-flight-waypoint-sub` has letter-spacing but no `text-transform: uppercase`.
+- fix_hint: Add `text-transform: uppercase` on `.session-flight-waypoint-sub` (or change HTML copy).
+- escalate: none
+
+## open: fp-end-confirm-figma-modal
+- screen: active
+- ref: `.cursor/figma-refs/11---End-confirmation.svg`
+- deviation: `#end-session` uses `window.confirm("End this mission?…")`; Figma 11 is a designed End confirmation surface (cream modal / screen chrome), not a native browser dialog.
+- fix_hint: Add a small MC-styled confirm dialog matching Figma 11; keep Pause/End wiring, only replace the confirm UI.
+- escalate: none
+
+## open: fp-gentle-checkin-session-panel
+- screen: active
+- ref: `.cursor/figma-refs/07-gentle-reminder-temp.png` · `08---Gentle-check-in.svg`
+- deviation: Figma replaces the session copilot sidebar with a “✦ QUICK CHECK-IN” card (Still working… + On task / Got distracted / Take a break). App uses a separate toast overlay (`overlay.html`) without those three actions in the session layout.
+- fix_hint: When a check-in fires, swap/overlay the session copilot panel with the Figma quick-check-in card; wire buttons to existing coach responses.
+- escalate: none
+
+## open: fp-session-chat-meta-kickers
+- screen: active
+- ref: `.cursor/figma-refs/06-mission-active.png`
+- deviation: Session chat rows are plain `.bubble` nodes; Figma 06 prefixes each turn with uppercase meta kickers (“AT LAUNCH”, “YOU · JUST NOW”) above the message body.
+- fix_hint: Extend `appendSessionChat` (and AT LAUNCH seed) to render a meta kicker line + body per Figma.
+- escalate: none
+
+## open: fp-session-mission-star-style
+- screen: active
+- ref: `.cursor/figma-refs/06-mission-active.png`
+- deviation: `.session-mission-star` is a purple filled gradient square with a ✦ glyph; Figma 06 uses a dark rounded square with a white outline star.
+- fix_hint: Restyle `.session-mission-star` to dark navy fill + outline star (SVG or border glyph) matching the ref.
+- escalate: none
+
 ## done: fp-copilot-chip-plus
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png`
@@ -270,27 +305,32 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - commit: f8e6fb3
 - change: Mounted `orbits.svg` + `moon.svg` in `.welcome-hero-art` behind LTR ship→planet.
 
-## open: fp-active-route-uppercase
+## done: fp-active-route-uppercase
 - screen: active
 - ref: `.cursor/figma-refs/06-mission-active.png`
 - deviation: Flight route kicker is title case “Earth → Kepler”; Figma 06 uses all-caps “EARTH → KEPLER”.
 - fix_hint: Change `.session-flight-route` copy (or CSS `text-transform: uppercase`) to match Figma casing.
 - escalate: none
-- note: CSS already has `text-transform: uppercase` on `.session-flight-route`; confirm visual then close.
+- commit: 7fd068b
+- change: Set `.session-flight-route` copy to “EARTH → KEPLER” (CSS uppercase retained).
 
-## open: fp-home-kicker-plain
+## done: fp-home-kicker-plain
 - screen: home
 - ref: `.cursor/figma-refs/02-home.png`
 - deviation: Home hero kicker renders “✦ Mission control”; Figma 02 shows plain uppercase “MISSION CONTROL” with no leading star glyph.
 - fix_hint: Remove the ✦ span from `.mc-home-kicker` (keep uppercase via existing CSS).
 - escalate: none
+- commit: 7fd068b
+- change: Removed ✦ from `.mc-home-kicker`; plain “Mission control” (uppercase via CSS).
 
-## open: fp-first-flight-kicker-plain
+## done: fp-first-flight-kicker-plain
 - screen: home
 - ref: `.cursor/figma-refs/19-first-flight.png`
 - deviation: First-flight hero kicker is “✦ YOUR FIRST MISSION”; Figma 19 shows “YOUR FIRST MISSION” without a leading star.
 - fix_hint: Drop the ✦ from `.mc-first-flight` / `.mc-kicker--star` on that screen only.
 - escalate: none
+- commit: 7fd068b
+- change: Dropped ✦ / `mc-kicker--star` from first-flight hero kicker; plain “YOUR FIRST MISSION”.
 
 ## open: fp-session-at-launch-seed
 - screen: active
@@ -313,13 +353,15 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - fix_hint: Apply `settings-nav-link--active` to Home when `#view-settings` is active; render Settings as a normal trailing link, not the active pill.
 - escalate: none
 
-## open: fp-settings-aside-figma-shortcuts
+## done: fp-settings-aside-figma-shortcuts
 - screen: settings
 - ref: `.cursor/figma-refs/04-settings.png`
 - deviation: Figma left column is two actions—“Lock in” (lavender) and “Back to home” (outlined)—plus art; `#view-settings` uses a five-tab `.settings-aside-tabs` rail (Lock in, Connection, Permissions, Account, Voice) with no “Back to home” control.
-- fix_hint: Product keeps aside tabs — do not remove. Optional: add a “Back to home” control under the tab rail without collapsing the five tabs.
+- fix_hint: Product keeps aside tabs — do not remove.
 - escalate: none
-- note: Preserve Settings aside tabs (user constraint).
+- note: Intentional product IA (user): aside is settings section tabs, not Lock-in/Back CTAs. Closed won’t-fix vs Figma shortcuts.
+- commit: n/a
+- change: Kept five-tab Settings rail; do not revert.
 
 ## open: fp-summary-pb-banner-flag
 - screen: summary
