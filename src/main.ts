@@ -4,6 +4,11 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { renderMarkdown } from "./markdown.ts";
 import { retryChat } from "./chat-retry.ts";
 import {
+  clearThinkingIndicator,
+  markThinkingProlonged,
+  showThinkingIndicator,
+} from "./thinking-indicator.ts";
+import {
   CompanionLiveSession,
   type CompanionContext,
   type CompanionPhase,
@@ -627,7 +632,7 @@ function setupFootEmpty(): string {
   return `Type an objective to enable launch.<br />${setupConsentSummary()}`;
 }
 function setupFootReady(): string {
-  return `${setupConsentSummary()} Waypoint only uses what you switch on.`;
+  return setupConsentSummary();
 }
 
 let missionLaunchLoading = false;
@@ -1418,7 +1423,7 @@ const GUEST_SESSION_CHAT_HINT =
   "Mission copilot chat needs a Google account — Guest mode is local-only.";
 
 const SESSION_IDLE_HINT =
-  "Talk for live voice · type + Enter for a turn · ends with the mission";
+  "Talk for live voice · type + Enter for a turn";
 let guestLocksApplied = false;
 
 /** Disable/badge Live + companion cloud controls for Guest; restores them for Google accounts. */
@@ -1545,7 +1550,7 @@ function showChatFailure(bubble: HTMLElement, userMessage: string, err?: unknown
 async function retryChatAssistant(userMessage: string, bubble: HTMLElement) {
   if (chatBusy) return;
   removeStudySuggestionCardNear(bubble);
-  bubble.textContent = "Thinking…";
+  showThinkingIndicator(bubble);
   chatBusy = true;
   setChatControlsBusy(true);
   try {
@@ -1553,14 +1558,15 @@ async function retryChatAssistant(userMessage: string, bubble: HTMLElement) {
       userMessage,
       (original) => invoke<ChatMessage>("chat_send", { message: original }),
       () => {
-        bubble.textContent =
-          "Sorry, there’s a slight delay. Still working on your reply…";
+        markThinkingProlonged(bubble, "Still thinking");
       },
     );
+    clearThinkingIndicator(bubble);
     renderMarkdown(bubble, reply.content);
     maybeShowStudySuggestion(bubble, reply);
     hasChatReply = true;
   } catch (e) {
+    clearThinkingIndicator(bubble);
     removeStudySuggestionCardNear(bubble);
     showChatFailure(bubble, userMessage, e);
   } finally {
@@ -1632,22 +1638,25 @@ async function dispatchChatMessage(
 ) {
   if (chatBusy || !message.trim()) return;
   appendUser(message);
-  const pending = appendAssistant("Thinking…");
+  const pending = appendAssistant("");
+  if (pending) showThinkingIndicator(pending);
   chatBusy = true;
   setChatControlsBusy(true);
   try {
     const reply = await retryChat(message, (original) =>
       invoke<ChatMessage>("chat_send", { message: original }),
     () => {
-      if (pending) pending.textContent = "Sorry, there’s a slight delay. Still working on your reply…";
+      if (pending) markThinkingProlonged(pending, "Still thinking");
     });
     if (pending) {
+      clearThinkingIndicator(pending);
       renderMarkdown(pending, reply.content);
       maybeShowStudySuggestion(pending, reply);
     }
     hasChatReply = true;
   } catch (e) {
     if (pending) {
+      clearThinkingIndicator(pending);
       removeStudySuggestionCardNear(pending);
       showChatFailure(pending, message, e);
     }
@@ -1765,6 +1774,47 @@ function setCompanionPhaseUi(phase: CompanionPhase) {
     liveSurface === "session" &&
       (phase === "listening" || phase === "connecting" || phase === "thinking" || phase === "speaking"),
   );
+  if (phase === "thinking" && liveSurface) {
+    ensureLiveThinkingBubble(liveSurface);
+  } else if (phase === "idle" || phase === "listening") {
+    clearOrphanLiveThinkingBubbles();
+  }
+}
+
+function ensureLiveThinkingBubble(surface: LiveSurface): void {
+  if (surface === "copilot") {
+    const log = $("#chat-log");
+    if (!log) return;
+    const last = log.lastElementChild as HTMLElement | null;
+    if (last?.classList.contains("is-thinking")) return;
+    $("#chat-empty")?.remove();
+    const bubble = appendChat("assistant", "");
+    if (bubble) {
+      bubble.dataset.liveSealed = "false";
+      showThinkingIndicator(bubble);
+    }
+    return;
+  }
+  const log = $("#session-chat-log");
+  if (!log) return;
+  const lastBubble = log.querySelector(
+    ".session-chat-turn--assistant:last-child .bubble.is-thinking",
+  );
+  if (lastBubble) return;
+  const bubble = appendSessionChat("assistant", "");
+  if (bubble) {
+    const turn = bubble.closest(".session-chat-turn") as HTMLElement | null;
+    if (turn) turn.dataset.sealed = "false";
+    showThinkingIndicator(bubble);
+  }
+}
+
+function clearOrphanLiveThinkingBubbles(): void {
+  document.querySelectorAll<HTMLElement>(".bubble.is-thinking").forEach((host) => {
+    clearThinkingIndicator(host);
+    const turn = host.closest(".session-chat-turn");
+    (turn ?? host).remove();
+  });
 }
 
 function upsertSessionLiveBubble(role: "user" | "assistant", text: string, isFinal: boolean) {
@@ -1772,12 +1822,28 @@ function upsertSessionLiveBubble(role: "user" | "assistant", text: string, isFin
   if (!log) return;
   $("#session-chat-empty")?.remove();
   const last = log.lastElementChild as HTMLElement | null;
+  const thinkingTurn = log.querySelector(
+    ".session-chat-turn--assistant:last-child .bubble.is-thinking",
+  )?.closest(".session-chat-turn") as HTMLElement | null;
+  if (role === "assistant" && thinkingTurn) {
+    const bubble = thinkingTurn.querySelector(".bubble") as HTMLElement | null;
+    if (bubble) {
+      clearThinkingIndicator(bubble);
+      bubble.textContent = text;
+    }
+    thinkingTurn.dataset.sealed = isFinal ? "true" : "false";
+    log.scrollTop = log.scrollHeight;
+    return;
+  }
   if (
     last?.classList.contains(`session-chat-turn--${role}`) &&
     last.dataset.sealed !== "true"
   ) {
     const bubble = last.querySelector(".bubble");
-    if (bubble) bubble.textContent = text;
+    if (bubble) {
+      clearThinkingIndicator(bubble as HTMLElement);
+      bubble.textContent = text;
+    }
     if (isFinal) last.dataset.sealed = "true";
   } else {
     const bubble = appendSessionChat(role, text);
@@ -1792,11 +1858,21 @@ function upsertCopilotLiveBubble(role: "user" | "assistant", text: string, isFin
   if (!log) return;
   $("#chat-empty")?.remove();
   const last = log.lastElementChild as HTMLElement | null;
+  if (role === "assistant" && last?.classList.contains("is-thinking")) {
+    clearThinkingIndicator(last);
+    last.className = "bubble assistant";
+    last.textContent = text;
+    last.dataset.liveSealed = isFinal ? "true" : "false";
+    log.scrollTop = log.scrollHeight;
+    if (isFinal) hasChatReply = true;
+    return;
+  }
   if (
     last?.classList.contains("bubble") &&
     last.classList.contains(role) &&
     last.dataset.liveSealed !== "true"
   ) {
+    clearThinkingIndicator(last);
     last.textContent = text;
     if (isFinal) last.dataset.liveSealed = "true";
   } else {
@@ -1962,16 +2038,29 @@ async function sendSessionChat() {
   companionBusy = true;
   setChatControlsBusy(true);
   appendSessionChat("user", message);
-  const pending = appendSessionChat("assistant", "Thinking…");
+  const pending = appendSessionChat("assistant", "");
+  if (pending) showThinkingIndicator(pending);
+  const stillTimer = window.setTimeout(() => {
+    if (pending?.classList.contains("is-thinking")) {
+      markThinkingProlonged(pending, "Still thinking");
+    }
+  }, 9_000);
   try {
     const reply = await invoke<{ content: string }>("companion_send", {
       message,
       context: collectCompanionContext(),
     });
-    if (pending) pending.textContent = reply.content;
+    if (pending) {
+      clearThinkingIndicator(pending);
+      pending.textContent = reply.content;
+    }
   } catch (err) {
-    if (pending) pending.textContent = chatErrorMessage(err);
+    if (pending) {
+      clearThinkingIndicator(pending);
+      pending.textContent = chatErrorMessage(err);
+    }
   } finally {
+    clearTimeout(stillTimer);
     companionBusy = false;
     setChatControlsBusy(false);
     const sessionLog = $("#session-chat-log");
@@ -2275,7 +2364,7 @@ function closeEndSessionModal() {
 
 function formatVitals(vitals?: VitalsSnapshot | null): string {
   if (!vitals || (!vitals.raw_summary && vitals.source !== "presage" && vitals.source !== "fallback")) {
-    return "Running quietly in the background (not required to lock in)";
+    return "Running quietly in the background.";
   }
   const bits: string[] = [];
   if (typeof vitals.heart_rate === "number") bits.push(`HR ${Math.round(vitals.heart_rate)}`);
@@ -2311,7 +2400,7 @@ function renderSessionCoachLog(prompts: CoachPrompt[]) {
   const recent = prompts.slice(-SESSION_COACH_MAX);
   if (!recent.length) {
     log.innerHTML =
-      '<p class="muted session-coach-empty">Coach messages appear here if you miss the overlay.</p>';
+      '<p class="muted session-coach-empty">Coach messages will show here.</p>';
     return;
   }
   log.innerHTML = recent.map((p) => `<div class="prompt">${escapeHtml(p.text)}</div>`).join("");

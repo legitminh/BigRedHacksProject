@@ -445,24 +445,15 @@ async fn chat_send(state: State<'_, AppState>, message: String) -> Result<ChatMe
     }
 
     let mut context_bits = Vec::new();
-    #[derive(serde::Deserialize)]
-    struct StudyMemResp {
-        study_memory: Option<serde_json::Value>,
-    }
-    if let Ok(mem) = api::authed_json::<StudyMemResp>(
-        &cfg,
-        reqwest::Method::GET,
-        "/v1/study-memory",
-        None,
-    )
-    .await
+    // Local clock first so prioritization can weight near-term calendar/syllabus work.
     {
-        if let Some(blob) = mem.study_memory {
-            context_bits.push(format!(
-                "STUDY MEMORY (synced):\n{}",
-                serde_json::to_string_pretty(&blob).unwrap_or_default()
-            ));
-        }
+        use chrono::{DateTime, Local};
+        let now: DateTime<Local> = Local::now();
+        context_bits.push(format!(
+            "CURRENT LOCAL DATETIME: {} ({})",
+            now.format("%Y-%m-%d %H:%M"),
+            now.format("%A")
+        ));
     }
     let ctx = get_google_context(state.clone()).await?;
     if ctx.connected {
@@ -484,6 +475,25 @@ async fn chat_send(state: State<'_, AppState>, message: String) -> Result<ChatMe
         .await
         {
             context_bits.push(search.summary);
+        }
+    }
+    #[derive(serde::Deserialize)]
+    struct StudyMemResp {
+        study_memory: Option<serde_json::Value>,
+    }
+    if let Ok(mem) = api::authed_json::<StudyMemResp>(
+        &cfg,
+        reqwest::Method::GET,
+        "/v1/study-memory",
+        None,
+    )
+    .await
+    {
+        if let Some(blob) = mem.study_memory {
+            context_bits.push(format!(
+                "STUDY MEMORY (synced; past lock-in habits only — not a to-do list):\n{}",
+                serde_json::to_string_pretty(&blob).unwrap_or_default()
+            ));
         }
     }
 
@@ -515,15 +525,23 @@ async fn chat_send(state: State<'_, AppState>, message: String) -> Result<ChatMe
         "You are Waypoint, a school navigation coach for stressed students.\n\
          Help with priorities, deadlines, study plans, and clarifying what to do next.\n\
          Be concrete and calm. Navigation theme: help them find the next waypoint.\n\
+         When deciding what the student should do next (priorities, study plans, “what do I need to do”), \
+         use this order and weight it heavily: (1) CURRENT LOCAL DATETIME, (2) upcoming Google Calendar \
+         events and real deadlines near that datetime, (3) course syllabi and current-term course materials \
+         from Drive (assignments, exams, reading due soon). Prefer this week’s coursework over distant \
+         applications, career plans, or multi-year goals (e.g. MD-PhD, med school, internships) unless the \
+         calendar/syllabus shows a near-term deadline for that item or the student explicitly asks about it.\n\
+         Distinguish actual deadlines from suggested study times. Attribute course-specific claims to the \
+         supplied file title or calendar event. If calendar and syllabi do not support a suggested task, say \
+         what is actually due soon — or ask one clarifying question — instead of inventing work from STUDY MEMORY.\n\
          Format replies with readable Markdown: short paragraphs, lists for steps, fenced code for code, and tables only when useful.\n\
          Format math in LaTeX using $...$ inline and $$...$$ for display equations. Do not put equations in code fences unless discussing LaTeX source.\n\
          Act as an adaptive tutor: explain the key idea simply and use a concrete worked example when it helps.\n\
          For a practice problem, offer a useful hint and invite an attempt; honor explicit requests for a full worked solution.\n\
          When asked to quiz, ask ONE question and wait for the student's answer. Then give specific feedback, explain misconceptions kindly, and adjust difficulty before the next question. Never reveal the answer in the question.\n\
          When asked for a study plan, give at most three actionable steps with estimated durations and a concrete first action. Ask one focused question if the goal or available time is missing.\n\
-         Use known deadlines to prioritize, distinguishing actual deadlines from suggested study times. Attribute course-specific claims to the supplied file title or calendar event.\n\
          Match the requested depth; avoid long motivational preambles and do not force a quiz or plan into unrelated replies.\n\
-         Prefer STUDY MEMORY when answering about focus habits or past lock-ins.\n\
+         Use STUDY MEMORY only for focus habits or past lock-in patterns — never as the primary source of what is due.\n\
          Google Calendar/Drive are optional — use them only when context below is present.\n\
          Do not invent calendar/drive facts — use only the context provided.\n\
          Report specific retrieval errors and suggested fixes when present; do not claim you lack all Drive access when files are listed.\n\

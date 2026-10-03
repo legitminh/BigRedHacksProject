@@ -272,7 +272,7 @@
                 <div class="copilot-input-wrap">
                   <textarea
                     id="chat-input"
-                    rows="1"
+                    rows="3"
                     aria-label="Message Copilot"
                     aria-describedby="chat-hint"
                     placeholder="Message your copilot…"
@@ -295,9 +295,6 @@
                 Enter to send · Click the microphone to start or stop a voice turn.
               </p>
             </footer>
-            <p class="copilot-responses-foot">
-              Responses always appear as text. Audio is yours to turn on.
-            </p>
           </div>
         </div>
       </section>
@@ -354,7 +351,7 @@
               <label class="mission-toggle-row">
                 <span class="mission-toggle-copy">
                   <strong>Camera signals</strong>
-                  <small>Short webcam clips for wellness estimates (sent to Presage). Off by default.</small>
+                  <small>Short webcam clips for wellness estimates (sent to Presage).</small>
                 </span>
                 <input id="lockin-camera" type="checkbox" class="mission-toggle-input" />
                 <span class="mission-toggle-switch" aria-hidden="true"></span>
@@ -362,7 +359,7 @@
               <label class="mission-toggle-row">
                 <span class="mission-toggle-copy">
                   <strong>Screen sharing</strong>
-                  <small>Read your active app, window title, browser tab, and on-device screen text to catch drift. Off by default.</small>
+                  <small>Reads your active app, window title, browser tab, and on-device screen text to catch drift.</small>
                 </span>
                 <input id="lockin-screen" type="checkbox" class="mission-toggle-input" />
                 <span class="mission-toggle-switch" aria-hidden="true"></span>
@@ -374,8 +371,7 @@
               <span class="mission-launch-label">Launch mission →</span>
             </button>
             <p id="mission-setup-foot" class="mission-setup-foot">
-              Type or speak an objective to enable launch.<br />
-              Screen sharing and camera are off unless you switch them on.
+              Type an objective to enable launch.
             </p>
           </form>
         </div>
@@ -545,7 +541,6 @@
                 Timer paused — coaching is on hold until you resume.
               </p>
               <p id="session-flight-minutes" class="session-flight-minutes">0 of 45 flight minutes earned</p>
-              <p class="session-flight-minutes-hint">Time in session, excluding breaks and resets.</p>
               <div class="session-next-step" id="session-next-step" aria-live="polite">
                 <div class="session-next-step-pill">
                   <svg class="session-next-step-clock" viewBox="0 0 16 16" aria-hidden="true">
@@ -636,7 +631,7 @@
                   aria-live="polite"
                 >
                   <p id="session-chat-empty" class="session-copilot-empty muted">
-                    Talk or type with your companion — separate from Copilot chat.
+                    Talk or type here when you need help on your mission.
                   </p>
                 </div>
                 <footer class="session-copilot-composer copilot-composer">
@@ -651,7 +646,7 @@
                     <div class="copilot-input-wrap">
                       <textarea
                         id="session-chat-input"
-                        rows="1"
+                        rows="3"
                         aria-label="Message your study companion"
                         aria-describedby="session-chat-hint"
                         placeholder="Message your copilot…"
@@ -671,7 +666,7 @@
                     </div>
                   </form>
                   <p id="session-chat-hint" class="composer-hint session-composer-hint">
-                    Talk for live voice · type + Enter for a turn · ends with the mission
+                    Talk for live voice · type + Enter for a turn
                   </p>
                 </footer>
               </div>
@@ -690,7 +685,7 @@
         <p id="session-watch-note" class="session-watch-note visually-hidden"></p>
         <div id="session-vitals" class="vitals-panel visually-hidden" hidden aria-hidden="true">
           <p class="vitals-label">Wellness</p>
-          <p id="vitals-line">Running quietly in the background (not required to lock in)</p>
+          <p id="vitals-line">Running quietly in the background.</p>
         </div>
       </section>
 
@@ -752,7 +747,6 @@
               </button>
               <button type="button" class="ghost wide quest-cta-secondary" id="summary-go-home" aria-label="Return to Mission Control home">Done</button>
             </div>
-            <p class="quest-complete-footer">Mission ended · Camera, screen, and microphone capture stopped.</p>
           </div>
         </div>
       </section>
@@ -895,8 +889,7 @@
                     </li>
                   </ul>
                   <p class="settings-mission-foot">
-                    Camera and screen sharing are off until you turn them on, and the same switches apply to mission setup.<br />
-                    Changes take effect on your next mission. The pills on a mission only show what it launched with — end the mission to stop either input.
+                    Camera and screen sharing stay off until you turn them on here or when you plan a mission.
                   </p>
                   <p id="settings-save-status" class="settings-save-hint" aria-live="polite"></p>
                   <input id="setting-silent-mode" type="checkbox" hidden aria-hidden="true" tabindex="-1" />
@@ -1203,7 +1196,6 @@
               View settings
             </button>
           </div>
-          <p class="mc-perm-modal__foot">Denied access never blocks starting a mission.</p>
         </div>
       </div>
     </div>
