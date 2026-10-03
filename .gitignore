@@ -13,7 +13,6 @@ dist-ssr
 *.local
 .env
 .env.*
-!.env.example
 
 # Build-time secrets (baked into the app; never commit real values)
 src-tauri/secrets.toml
