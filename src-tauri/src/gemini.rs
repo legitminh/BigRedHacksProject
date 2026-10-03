@@ -36,17 +36,39 @@ fn friendly_gemini_error(raw: &str) -> String {
         || (lower.contains("api key") && (lower.contains("invalid") || lower.contains("permission")))
         || lower.contains("consumer_invalid")
     {
-        "Cloud coach couldn’t sign in. Check your Gemini key and rebuild the app.".into()
+        "Cloud coach couldn’t authenticate with the Waypoint API. Sign in again.".into()
     } else if lower.contains("timed out") || lower.contains("timeout") {
         "Cloud coach timed out. Trying again shortly.".into()
     } else if lower.contains("not set") || lower.contains("missing") {
-        "Cloud coach isn’t configured in this build.".into()
+        "Cloud coach isn’t available — check the Waypoint API server.".into()
     } else {
         "Cloud coach hit a snag. Please try again in a moment.".into()
     }
 }
 
-/// Live probe for Settings — tiny generateContent so quota/auth match Copilot.
+/// Live probe for Settings — confirms signed-in JWT can reach the API (Gemini stays server-side).
+pub async fn probe_status_via_api(cfg: &AppConfig) -> (bool, String) {
+    if crate::auth::load_tokens(cfg).is_none() {
+        return (false, "Sign in with Google — cloud coach runs on the Waypoint API.".into());
+    }
+    match crate::api::authed_json::<serde_json::Value>(
+        cfg,
+        reqwest::Method::GET,
+        "/v1/me",
+        None,
+    )
+    .await
+    {
+        Ok(_) => (
+            true,
+            "Cloud coach ready via Waypoint API (Gemini key stays on the server).".into(),
+        ),
+        Err(e) => (false, format!("Couldn’t reach Waypoint API: {e}")),
+    }
+}
+
+/// Legacy direct-Gemini probe (unused in shipped builds — keys must not live in the app).
+#[allow(dead_code)]
 pub async fn probe_status(cfg: &AppConfig) -> (bool, String) {
     let Some(api_key) = cfg.gemini_api_key.as_ref().filter(|k| !k.is_empty()) else {
         return (false, "Cloud coach isn’t configured in this build.".into());
@@ -183,6 +205,9 @@ pub struct GeminiClient {
 }
 
 impl GeminiClient {
+    /// Direct Gemini calls are disabled for shipped builds (keys must not live in the app).
+    /// Prefer `POST /v1/gemini/chat` via the Waypoint API + user JWT.
+    #[allow(dead_code)]
     pub fn from_config(cfg: &AppConfig) -> Result<Self, String> {
         let api_key = cfg
             .gemini_api_key

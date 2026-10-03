@@ -7,8 +7,9 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::api;
+use crate::auth;
 use crate::config::AppConfig;
-use crate::gemini::{ChatMessage, GeminiClient};
 use crate::session::SessionSummary;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -192,7 +193,9 @@ async fn consolidate_with_gemini(
     mem: &ConsolidatedMemory,
     summary: &SessionSummary,
 ) -> Result<String, String> {
-    let client = GeminiClient::from_config(cfg)?;
+    if auth::load_tokens(cfg).is_none() {
+        return Err("Sign in required for cloud consolidation.".into());
+    }
     let stats_json = serde_json::to_string_pretty(&mem.stats).unwrap_or_else(|_| "{}".into());
     let session_json = serde_json::to_string_pretty(summary).unwrap_or_else(|_| "{}".into());
     let system = "You maintain a compact student study memory for Waypoint Copilot.\n\
@@ -211,8 +214,18 @@ async fn consolidate_with_gemini(
         stats_json,
         session_json
     );
-    let history: Vec<ChatMessage> = Vec::new();
-    client.chat(system, &history, &user).await
+    #[derive(serde::Deserialize)]
+    struct ChatReply {
+        content: String,
+    }
+    let body = serde_json::json!({
+        "message": user,
+        "system": system,
+        "history": [],
+    });
+    let out: ChatReply =
+        api::authed_json(cfg, reqwest::Method::POST, "/v1/gemini/chat", Some(&body)).await?;
+    Ok(out.content)
 }
 
 /// Wipe study logs, consolidated memory, sign-in, Google tokens, and settings.

@@ -3,9 +3,11 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, Default)]
 struct EmbeddedSecrets {
+    /// Ignored if present — Gemini keys must never ship in the .app.
     gemini_api_key: String,
     gemini_model: String,
     presage_api_key: String,
+    /// Ignored if present — Google OAuth lives on the API server.
     google_client_id: String,
     google_client_secret: String,
     local_llm_base: String,
@@ -180,24 +182,20 @@ impl AppConfig {
             })
             .unwrap_or_else(|| "http://127.0.0.1:8787".into());
 
+        // Never bake Gemini or Google OAuth into the binary — extractable from Waypoint.app.
+        // Gemini + Google live on the Waypoint API. Optional env overrides are for local
+        // legacy tooling only and are still not written into secrets.toml.
         Self {
-            gemini_api_key: first_nonempty(&[
-                env::var("GEMINI_API_KEY").ok(),
-                Some(baked.gemini_api_key),
-            ]),
+            gemini_api_key: None,
             gemini_model,
             presage_api_key: first_nonempty(&[
                 env::var("PRESAGE_API_KEY").ok(),
                 Some(baked.presage_api_key),
             ]),
-            google_client_id: first_nonempty(&[
-                env::var("GOOGLE_CLIENT_ID").ok(),
-                Some(baked.google_client_id),
-            ]),
-            google_client_secret: first_nonempty(&[
-                env::var("GOOGLE_CLIENT_SECRET").ok(),
-                Some(baked.google_client_secret),
-            ]),
+            google_client_id: env::var("GOOGLE_CLIENT_ID").ok().filter(|s| !s.is_empty()),
+            google_client_secret: env::var("GOOGLE_CLIENT_SECRET")
+                .ok()
+                .filter(|s| !s.is_empty()),
             local_llm_base,
             local_llm_model,
             local_vision_model,

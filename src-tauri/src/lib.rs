@@ -112,8 +112,8 @@ async fn get_status(state: State<'_, AppState>) -> Result<StatusPayload, String>
     };
     let tokens = auth::load_tokens(&cfg);
     let signed_in = tokens.is_some();
-    // Gemini chat goes through the API when signed in; otherwise local key (dev).
-    let gemini_ready = signed_in || cfg.gemini_api_key.is_some();
+    // Gemini is server-side only; ready once the user has a JWT.
+    let gemini_ready = signed_in;
     Ok(StatusPayload {
         signed_in,
         username: auth::current_username(&cfg).filter(|_| signed_in),
@@ -145,7 +145,7 @@ struct GeminiLiveStatus {
 #[tauri::command]
 async fn gemini_status(state: State<'_, AppState>) -> Result<GeminiLiveStatus, String> {
     let cfg = state.config.lock().clone();
-    let (ok, detail) = gemini::probe_status(&cfg).await;
+    let (ok, detail) = gemini::probe_status_via_api(&cfg).await;
     Ok(GeminiLiveStatus { ok, detail })
 }
 
@@ -320,53 +320,51 @@ async fn chat_send(state: State<'_, AppState>, message: String) -> Result<ChatMe
     if message.is_empty() {
         return Err("Enter a message.".into());
     }
+    if auth::load_tokens(&cfg).is_none() {
+        return Err("Sign in with Google to use Copilot.".into());
+    }
 
     let mut context_bits = Vec::new();
-    // Prefer server study memory when signed in; fall back to local cache.
-    if auth::load_tokens(&cfg).is_some() {
-        #[derive(serde::Deserialize)]
-        struct StudyMemResp {
-            study_memory: Option<serde_json::Value>,
+    #[derive(serde::Deserialize)]
+    struct StudyMemResp {
+        study_memory: Option<serde_json::Value>,
+    }
+    if let Ok(mem) = api::authed_json::<StudyMemResp>(
+        &cfg,
+        reqwest::Method::GET,
+        "/v1/study-memory",
+        None,
+    )
+    .await
+    {
+        if let Some(blob) = mem.study_memory {
+            context_bits.push(format!(
+                "STUDY MEMORY (synced):\n{}",
+                serde_json::to_string_pretty(&blob).unwrap_or_default()
+            ));
         }
-        if let Ok(mem) = api::authed_json::<StudyMemResp>(
+    }
+    let ctx = get_google_context(state.clone()).await?;
+    if ctx.connected {
+        context_bits.push(ctx.calendar_summary);
+        context_bits.push(ctx.drive_summary);
+        #[derive(serde::Deserialize)]
+        struct DriveSearch {
+            summary: String,
+        }
+        if let Ok(search) = api::authed_json::<DriveSearch>(
             &cfg,
             reqwest::Method::GET,
-            "/v1/study-memory",
+            &format!(
+                "/v1/drive/search?q={}&limit=5",
+                urlencoding::encode(&message)
+            ),
             None,
         )
         .await
         {
-            if let Some(blob) = mem.study_memory {
-                context_bits.push(format!(
-                    "STUDY MEMORY (synced):\n{}",
-                    serde_json::to_string_pretty(&blob).unwrap_or_default()
-                ));
-            }
+            context_bits.push(search.summary);
         }
-        let ctx = get_google_context(state.clone()).await?;
-        if ctx.connected {
-            context_bits.push(ctx.calendar_summary);
-            context_bits.push(ctx.drive_summary);
-            #[derive(serde::Deserialize)]
-            struct DriveSearch {
-                summary: String,
-            }
-            if let Ok(search) = api::authed_json::<DriveSearch>(
-                &cfg,
-                reqwest::Method::GET,
-                &format!(
-                    "/v1/drive/search?q={}&limit=5",
-                    urlencoding::encode(&message)
-                ),
-                None,
-            )
-            .await
-            {
-                context_bits.push(search.summary);
-            }
-        }
-    } else {
-        context_bits.push(study_memory::chat_context_block(&cfg.data_dir));
     }
 
     let lock_in_active = state.session.lock().is_some();
@@ -420,32 +418,27 @@ async fn chat_send(state: State<'_, AppState>, message: String) -> Result<ChatMe
         }
     );
 
-    let reply = if auth::load_tokens(&cfg).is_some() {
-        #[derive(serde::Deserialize)]
-        struct ChatReply {
-            content: String,
-        }
-        let history_json: Vec<serde_json::Value> = history
-            .iter()
-            .map(|m| {
-                serde_json::json!({
-                    "role": m.role,
-                    "content": m.content,
-                })
+    #[derive(serde::Deserialize)]
+    struct ChatReply {
+        content: String,
+    }
+    let history_json: Vec<serde_json::Value> = history
+        .iter()
+        .map(|m| {
+            serde_json::json!({
+                "role": m.role,
+                "content": m.content,
             })
-            .collect();
-        let body = serde_json::json!({
-            "message": message,
-            "system": system,
-            "history": history_json,
-        });
-        let out: ChatReply =
-            api::authed_json(&cfg, reqwest::Method::POST, "/v1/gemini/chat", Some(&body)).await?;
-        out.content
-    } else {
-        let client = GeminiClient::from_config(&cfg)?;
-        client.chat(&system, &history, &message).await?
-    };
+        })
+        .collect();
+    let body = serde_json::json!({
+        "message": message,
+        "system": system,
+        "history": history_json,
+    });
+    let out: ChatReply =
+        api::authed_json(&cfg, reqwest::Method::POST, "/v1/gemini/chat", Some(&body)).await?;
+    let reply = out.content;
 
     let (content, raw_suggest) = strip_study_suggest_block(&reply);
     let study_suggestion = if may_suggest {
@@ -776,11 +769,18 @@ async fn delete_all_user_data(
     let cfg = state.config.lock().clone();
     let mut removed = Vec::new();
     // Cloud wipe + sign-out while JWT still exists, then erase local files.
+    // Fail hard if cloud wipe fails — otherwise admin still shows the account.
     if auth::load_tokens(&cfg).is_some() {
-        match api::authed_empty(&cfg, reqwest::Method::DELETE, "/v1/me/data", None).await {
-            Ok(()) => removed.push("cloud account data".into()),
-            Err(e) => tracing::warn!("cloud delete: {e}"),
-        }
+        api::authed_empty(&cfg, reqwest::Method::DELETE, "/v1/me/data", None)
+            .await
+            .map_err(|e| {
+                format!(
+                    "Couldn’t delete your cloud account data ({e}). \
+                     Check that the Waypoint API is reachable, then try again. \
+                     Local files were not wiped."
+                )
+            })?;
+        removed.push("cloud account data".into());
         let _ = auth::sign_out_remote(&cfg).await;
         removed.push("Waypoint account session".into());
     }
@@ -886,12 +886,6 @@ pub fn run() {
         .try_init();
 
     let config = AppConfig::load();
-    if config.gemini_api_key.is_none() {
-        panic!(
-            "GEMINI_API_KEY is missing. Set gemini_api_key in src-tauri/secrets.toml \
-             (or export GEMINI_API_KEY) and rebuild."
-        );
-    }
     let initial_settings = settings::load(&config);
 
     tauri::Builder::default()
