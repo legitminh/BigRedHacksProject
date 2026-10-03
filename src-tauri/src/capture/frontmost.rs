@@ -119,15 +119,15 @@ pub fn evaluate_focus(goals: &str) -> Result<FocusEvent, String> {
         }
     }
 
-    // Background (or any) tabs: catch YouTube/Instagram even if URL automation failed on focus.
+    // Background tabs: URL host only — never title keywords (articles about Instagram ≠ Instagram).
     #[cfg(target_os = "macos")]
     {
         for tab in all_browser_tabs().into_iter().take(50) {
             if !info.url.is_empty() && urls_similar(&info.url, &tab.url) {
                 continue;
             }
-            let lower = format!("{} {}", tab.url, tab.title).to_lowercase();
-            if let Some(label) = classify_url(&lower).or_else(|| classify_title_label(&lower)) {
+            let url_lower = tab.url.to_lowercase();
+            if let Some(label) = classify_url_host(&url_lower) {
                 let mut bg = info.clone();
                 // Prefer real browser identity over "Waypoint" when nagging about a tab.
                 if waypoint_focused || bg.app_name.is_empty() {
@@ -147,32 +147,45 @@ pub fn evaluate_focus(goals: &str) -> Result<FocusEvent, String> {
 }
 
 fn classify_focus_label(info: &FrontmostInfo) -> Option<&'static str> {
-    classify_url(&info.url.to_lowercase())
+    // URL host first; title only with brand-chrome patterns (… - Instagram), not loose substrings.
+    classify_url_host(&info.url.to_lowercase())
         .or_else(|| classify_title_label(&info.window_title.to_lowercase()))
-        .or_else(|| classify_url(&info.window_title.to_lowercase()))
 }
 
 fn classify_title_label(title: &str) -> Option<&'static str> {
-    // Chrome/Safari titles look like "Video name - YouTube" or "YouTube".
-    if title.contains("youtube") || title.contains("youtu.be") {
-        return Some("youtube");
+    // Require the brand to be the site chrome, e.g. "Reel title - Instagram", not
+    // "Why Instagram changed its feed" in a news/docs tab.
+    for (brand, label) in [
+        ("youtube", "youtube"),
+        ("instagram", "instagram"),
+        ("tiktok", "tiktok"),
+        ("reddit", "reddit"),
+        ("netflix", "netflix"),
+        ("discord", "discord"),
+    ] {
+        if title_is_brand_chrome(title, brand) {
+            return Some(label);
+        }
     }
-    if title.contains("instagram") {
-        return Some("instagram");
-    }
-    if title.contains("tiktok") {
-        return Some("tiktok");
-    }
-    if title.contains("reddit") {
-        return Some("reddit");
-    }
-    if title.contains("netflix") {
-        return Some("netflix");
-    }
-    if title.contains("gmail") || title.contains("inbox (") {
+    if title.starts_with("inbox (") || title.contains(" - gmail") || title.ends_with("gmail") {
         return Some("email");
     }
     None
+}
+
+fn title_is_brand_chrome(title: &str, brand: &str) -> bool {
+    let t = title.trim();
+    if t == brand {
+        return true;
+    }
+    for sep in [" - ", " | ", " • ", " – ", " — "] {
+        if let Some((_, right)) = t.rsplit_once(sep) {
+            if right.trim() == brand {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn classify_site(
@@ -235,7 +248,7 @@ pub fn open_context_hints(front: &FrontmostInfo) -> String {
         let mut off_task = Vec::new();
         for tab in all_browser_tabs().into_iter().take(40) {
             let lower = tab.url.to_lowercase();
-            if let Some(label) = classify_url(&lower) {
+            if let Some(label) = classify_url_host(&lower) {
                 let host = url_host(&tab.url).unwrap_or(tab.url);
                 let title = truncate(&tab.title, 40);
                 off_task.push(format!("{label}:{host} ({title})"));
@@ -432,14 +445,17 @@ fn hard_app_label(app_name: &str) -> Option<&'static str> {
     None
 }
 
-fn classify_url(text: &str) -> Option<&'static str> {
+/// Host / path evidence only — never bare brand words (avoids "Instagram" in articles).
+fn classify_url_host(text: &str) -> Option<&'static str> {
     const RULES: &[(&str, &str)] = &[
         ("youtube.com", "youtube"),
         ("youtu.be", "youtube"),
         ("instagram.com", "instagram"),
         ("tiktok.com", "tiktok"),
         ("twitter.com", "twitter"),
-        ("x.com", "twitter"),
+        ("https://x.com/", "twitter"),
+        ("http://x.com/", "twitter"),
+        ("www.x.com/", "twitter"),
         ("facebook.com", "facebook"),
         ("reddit.com", "reddit"),
         ("discord.com", "discord"),
@@ -466,12 +482,9 @@ fn classify_url(text: &str) -> Option<&'static str> {
         ("walmart.com", "shopping"),
         ("target.com", "shopping"),
         ("bestbuy.com", "shopping"),
-        ("shopify", "shopping"),
         ("aliexpress.", "shopping"),
         ("newegg.com", "shopping"),
         ("costco.com", "shopping"),
-        ("nike.com", "shopping"),
-        ("adidas.com", "shopping"),
         ("apple.com/shop", "shopping"),
         ("store.steampowered", "shopping"),
     ];
@@ -479,15 +492,6 @@ fn classify_url(text: &str) -> Option<&'static str> {
         if text.contains(needle) {
             return Some(label);
         }
-    }
-    if text.contains("youtube") || text.contains("youtu.be") {
-        return Some("youtube");
-    }
-    if text.contains("instagram") {
-        return Some("instagram");
-    }
-    if text.contains("gmail") || text.contains("inbox (") {
-        return Some("email");
     }
     None
 }

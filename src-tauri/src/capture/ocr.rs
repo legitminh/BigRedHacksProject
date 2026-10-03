@@ -59,34 +59,64 @@ fn ocr_binary() -> Result<PathBuf, String> {
     Err("waypoint-ocr binary missing — rebuild src-tauri".into())
 }
 
-/// Pull distraction labels from OCR / page text without a model.
+/// Strong site evidence only — never bare brand words.
+/// Mentions like “Instagram’s algorithm” in an article must NOT count.
 pub fn labels_in_text(text: &str) -> Vec<&'static str> {
     let lower = text.to_lowercase();
     let mut out = Vec::new();
-    let rules: &[(&str, &str)] = &[
-        ("youtube", "youtube"),
+
+    // Prefer host-like tokens OCR actually saw in the address bar / page chrome.
+    let hosts: &[(&str, &str)] = &[
+        ("instagram.com", "instagram"),
+        ("youtube.com", "youtube"),
         ("youtu.be", "youtube"),
-        ("instagram", "instagram"),
-        ("tiktok", "tiktok"),
-        ("reddit", "reddit"),
-        ("discord", "discord"),
-        ("netflix", "netflix"),
-        ("twitch", "twitch"),
-        ("gmail", "email"),
-        ("inbox", "email"),
-        ("amazon", "shopping"),
-        ("add to cart", "shopping"),
-        ("shopping cart", "shopping"),
-        ("facebook", "facebook"),
-        ("twitter", "twitter"),
-        ("whatsapp", "texting"),
-        ("imessage", "texting"),
-        ("messages", "texting"),
+        ("tiktok.com", "tiktok"),
+        ("reddit.com", "reddit"),
+        ("discord.com", "discord"),
+        ("discordapp.com", "discord"),
+        ("netflix.com", "netflix"),
+        ("twitch.tv", "twitch"),
+        ("mail.google.com", "email"),
+        ("outlook.live.com", "email"),
+        ("amazon.com", "shopping"),
+        ("amazon.", "shopping"),
+        ("facebook.com", "facebook"),
+        ("web.whatsapp.com", "texting"),
     ];
-    for (needle, label) in rules {
+    for (needle, label) in hosts {
         if lower.contains(needle) && !out.contains(label) {
             out.push(*label);
         }
     }
+
+    // Tab/app chrome titles OCR sometimes reads as their own line.
+    for line in lower.lines() {
+        let t = line.trim();
+        if title_is_brand_chrome(t, "instagram") && !out.contains(&"instagram") {
+            out.push("instagram");
+        }
+        if title_is_brand_chrome(t, "youtube") && !out.contains(&"youtube") {
+            out.push("youtube");
+        }
+        if title_is_brand_chrome(t, "tiktok") && !out.contains(&"tiktok") {
+            out.push("tiktok");
+        }
+    }
+
     out
+}
+
+fn title_is_brand_chrome(line: &str, brand: &str) -> bool {
+    if line == brand {
+        return true;
+    }
+    // "Something - Instagram" / "Something | Instagram" / "Something • Instagram"
+    for sep in [" - ", " | ", " • ", " – ", " — "] {
+        if let Some((_, right)) = line.rsplit_once(sep) {
+            if right.trim() == brand {
+                return true;
+            }
+        }
+    }
+    false
 }

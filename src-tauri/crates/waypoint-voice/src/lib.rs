@@ -28,16 +28,18 @@ pub struct Transcript {
 }
 
 /// Speak coach / UI text out loud. Non-blocking.
+/// Always cuts off any previous `say` so lines never stack / talk over each other.
 pub fn speak(text: &str) -> Result<()> {
     let cleaned = text.trim();
     if cleaned.is_empty() {
         return Ok(());
     }
     // Keep utterances short so popups stay snappy.
-    let snippet: String = cleaned.chars().take(280).collect();
+    let snippet: String = cleaned.chars().take(220).collect();
 
     #[cfg(target_os = "macos")]
     {
+        stop_speaking();
         Command::new("say")
             .args(["-v", "Samantha", &snippet])
             .spawn()

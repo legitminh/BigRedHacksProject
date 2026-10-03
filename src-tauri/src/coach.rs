@@ -31,8 +31,13 @@ const MAX_CONTEXT_JUDGMENTS_PER_SESSION: u32 = 120;
 const RATE_LIMIT_COOLDOWN_SECS: u64 = 120;
 /// Soft coach lines (help / stress) — don't spam.
 const PROMPT_COOLDOWN_SECS: i64 = 14;
-/// Off-task nags — keep interrupting while they stay on the distraction.
-const SOCIAL_PROMPT_COOLDOWN_SECS: i64 = 5;
+/// Absolute floor between any popup/voice (including praise).
+const EPHEMERAL_FLOOR_SECS: i64 = 8;
+/// Max spoken/popup reminders for one continuous distraction (e.g. one Instagram stay).
+const MAX_NAGS_PER_EPISODE: u32 = 3;
+/// Seconds to wait after nag 1 → nag 2, then after nag 2 → nag 3.
+const EPISODE_GAP_AFTER_FIRST_SECS: i64 = 14;
+const EPISODE_GAP_AFTER_SECOND_SECS: i64 = 22;
 const PRESAGE_CLIP_SECS: u64 = 22;
 const PRESAGE_FPS: u32 = 12;
 const PRESAGE_GAP_SECS: u64 = 70;
@@ -42,25 +47,113 @@ const PRESAGE_START_DELAY_SECS: u64 = 90;
 /// Shared across local + Gemini loops so both don't fire the same nag.
 static LAST_EPHEMERAL_AT: Mutex<Option<chrono::DateTime<chrono::Utc>>> = Mutex::new(None);
 
+#[derive(Clone)]
+struct DistractionEpisode {
+    key: String,
+    nags: u32,
+    last_nag_at: chrono::DateTime<chrono::Utc>,
+}
+
+static DISTRACTION_EPISODE: Mutex<Option<DistractionEpisode>> = Mutex::new(None);
+
 fn reset_ephemeral_cooldown() {
     if let Ok(mut guard) = LAST_EPHEMERAL_AT.lock() {
         *guard = None;
     }
+    if let Ok(mut guard) = DISTRACTION_EPISODE.lock() {
+        *guard = None;
+    }
 }
 
-/// Returns true if enough time has passed to show another overlay/voice nag.
-fn claim_ephemeral_slot(cooldown_secs: i64) -> bool {
+/// Global floor so voice/overlay never stack, regardless of distraction episode.
+fn claim_global_floor() -> bool {
     let now = chrono::Utc::now();
-    let Ok(mut guard) = LAST_EPHEMERAL_AT.lock() else {
+    let Ok(mut at_guard) = LAST_EPHEMERAL_AT.lock() else {
         return true;
     };
-    if let Some(last) = *guard {
-        if now.signed_duration_since(last).num_seconds() < cooldown_secs {
+    if let Some(last) = *at_guard {
+        if now.signed_duration_since(last).num_seconds() < EPHEMERAL_FLOOR_SECS {
             return false;
         }
     }
-    *guard = Some(now);
+    *at_guard = Some(now);
     true
+}
+
+/// Few spaced reminders per continuous distraction; resets when they leave that behavior.
+fn claim_distraction_nag(key: &str) -> bool {
+    let now = chrono::Utc::now();
+    if !claim_global_floor() {
+        return false;
+    }
+    let Ok(mut guard) = DISTRACTION_EPISODE.lock() else {
+        return true;
+    };
+    match guard.as_mut() {
+        Some(ep) if ep.key == key => {
+            if ep.nags >= MAX_NAGS_PER_EPISODE {
+                // Already reminded enough this stay — stay quiet until they leave.
+                // Undo the global floor claim so praise/other keys aren't blocked forever.
+                if let Ok(mut at) = LAST_EPHEMERAL_AT.lock() {
+                    *at = None;
+                }
+                return false;
+            }
+            let gap = match ep.nags {
+                1 => EPISODE_GAP_AFTER_FIRST_SECS,
+                2 => EPISODE_GAP_AFTER_SECOND_SECS,
+                _ => EPISODE_GAP_AFTER_SECOND_SECS,
+            };
+            if now.signed_duration_since(ep.last_nag_at).num_seconds() < gap {
+                if let Ok(mut at) = LAST_EPHEMERAL_AT.lock() {
+                    *at = None;
+                }
+                return false;
+            }
+            ep.nags += 1;
+            ep.last_nag_at = now;
+            true
+        }
+        _ => {
+            *guard = Some(DistractionEpisode {
+                key: key.to_string(),
+                nags: 1,
+                last_nag_at: now,
+            });
+            true
+        }
+    }
+}
+
+fn clear_distraction_episode() {
+    if let Ok(mut guard) = DISTRACTION_EPISODE.lock() {
+        *guard = None;
+    }
+}
+
+fn distraction_episode_nags(key: &str) -> u32 {
+    let Ok(guard) = DISTRACTION_EPISODE.lock() else {
+        return 0;
+    };
+    match guard.as_ref() {
+        Some(ep) if ep.key == key => ep.nags,
+        _ => 0,
+    }
+}
+
+fn claim_ephemeral_slot_keyed(cooldown_secs: i64, key: Option<&str>) -> bool {
+    let _ = cooldown_secs;
+    // Non-distraction lines (praise / watching) — global floor only.
+    if let Some(k) = key {
+        if matches!(k, "encourage" | "watching" | "on_task") {
+            if matches!(k, "encourage" | "on_task") {
+                clear_distraction_episode();
+            }
+            return claim_global_floor();
+        }
+        return claim_distraction_nag(k);
+    }
+    claim_global_floor()
 }
 
 pub fn spawn_coach_loop(app: AppHandle, session_id: String, use_camera: bool, use_presage: bool) {
@@ -197,13 +290,9 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
         if let Some(event) = event {
             match event {
                 frontmost::FocusEvent::Hard(hit) => {
-                    let fp = format!("hard:{}:{}", hit.label, hit.detail);
-                    let switched = fp != last_fingerprint;
+                    // Key by label only — detail churn was resetting cooldown and stacking voice.
+                    let fp = format!("hard:{}", hit.label);
                     last_fingerprint = fp;
-                    if switched {
-                        // Opening Discord / Instagram / YouTube / shopping → interrupt immediately.
-                        reset_ephemeral_cooldown();
-                    }
                     let result = CoachVisionResult {
                         on_task: false,
                         objects: vec![hit.label.into(), hit.detail.clone()],
@@ -231,7 +320,6 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                         if on_task {
                             if was_distracted && switched {
                                 was_distracted = false;
-                                reset_ephemeral_cooldown();
                                 push_ephemeral(
                                     &app,
                                     "This looks study-related — good. Stay with the material.",
@@ -240,9 +328,6 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                             }
                             mark_local_on_task(&app, &info);
                         } else {
-                            if switched {
-                                reset_ephemeral_cooldown();
-                            }
                             let hit = frontmost::DistractionHit {
                                 label: kind,
                                 detail: info.summary(),
@@ -294,7 +379,6 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                             if on_task {
                                 if was_distracted {
                                     was_distracted = false;
-                                    reset_ephemeral_cooldown();
                                     push_ephemeral(
                                         &app,
                                         "Nice — this fits your lock-in. Keep going.",
@@ -312,7 +396,6 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                     last_fingerprint = fp;
                     if was_distracted {
                         was_distracted = false;
-                        reset_ephemeral_cooldown();
                         push_ephemeral(
                             &app,
                             "Nice — you’re back on your lock-in. Good job, keep it up.",
@@ -354,6 +437,7 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                         .next()
                         .unwrap_or("")
                         .to_string();
+                    // OCR labels are host/chrome-strong only — ignore brand word mentions.
                     if let Some(label) = reading.labels.first().copied() {
                         let study_ok = label == "youtube"
                             && frontmost::local_context_guess(
@@ -362,11 +446,7 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                                 &goals,
                             ) == Some(true);
                         if !study_ok {
-                            let switched = last_fingerprint != format!("ocr:{label}");
-                            if switched {
-                                last_fingerprint = format!("ocr:{label}");
-                                reset_ephemeral_cooldown();
-                            }
+                            last_fingerprint = format!("ocr:{label}");
                             let hit = frontmost::DistractionHit {
                                 label,
                                 detail: truncate_note(&reading.ocr_text.replace('\n', " "), 64),
@@ -408,7 +488,6 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                                     if j.confidence >= local_judge::min_confidence()
                                         && !j.result.on_task
                                     {
-                                        reset_ephemeral_cooldown();
                                         apply_coach_tick(&app, &j.result, &mut last_vitals).await;
                                         was_distracted = true;
                                     }
@@ -439,7 +518,6 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                         Ok((result, conf)) => {
                             tracing::info!("local VLM conf={conf:.2} on_task={}", result.on_task);
                             if !result.on_task {
-                                reset_ephemeral_cooldown();
                                 apply_coach_tick(&app, &result, &mut last_vitals).await;
                                 was_distracted = true;
                             }
@@ -683,7 +761,6 @@ async fn run_gemini_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBoo
                         was_distracted = true;
                     } else if was_distracted {
                         was_distracted = false;
-                        reset_ephemeral_cooldown();
                         push_ephemeral(
                             &app,
                             "Nice — you’re back on your lock-in. Good job, keep it up.",
@@ -860,13 +937,17 @@ fn store_vitals(app: &AppHandle, vitals: &VitalsSnapshot) {
 }
 
 fn social_distraction_label(result: &CoachVisionResult) -> Option<&'static str> {
-    let blob = format!(
-        "{} {} {}",
-        result.objects.join(" "),
-        result.distraction.as_deref().unwrap_or(""),
-        result.coach_line
-    )
-    .to_lowercase();
+    // Trust the explicit distraction field first — never scan coach_line prose
+    // (that caused false "Instagram" hits from sentences mentioning the brand).
+    if let Some(d) = result.distraction.as_deref() {
+        if let Some(label) = static_distraction_label(d) {
+            if label == "youtube" && result.on_task {
+                return None;
+            }
+            return Some(label);
+        }
+    }
+    let blob = result.objects.join(" ").to_lowercase();
     const SITES: &[(&str, &str)] = &[
         ("instagram", "instagram"),
         ("tiktok", "tiktok"),
@@ -880,17 +961,18 @@ fn social_distraction_label(result: &CoachVisionResult) -> Option<&'static str> 
         ("twitch", "twitch"),
         ("gmail", "email"),
         ("outlook", "email"),
-        ("email", "email"),
         ("amazon", "shopping"),
         ("shopping", "shopping"),
         ("imessage", "texting"),
-        ("messages", "texting"),
         ("whatsapp", "texting"),
         ("telegram", "texting"),
         ("texting", "texting"),
     ];
     for (needle, label) in SITES {
-        if blob.contains(needle) {
+        if blob.split_whitespace().any(|w| w == *needle) || blob == *needle {
+            if *label == "youtube" && result.on_task {
+                return None;
+            }
             return Some(*label);
         }
     }
@@ -995,16 +1077,29 @@ async fn apply_coach_tick(
     }
 
     let wants_prompt = !on_task || result.needs_help || last_vitals.stressed || has_phone;
-    let cooldown = if social.is_some() || !on_task {
-        SOCIAL_PROMPT_COOLDOWN_SECS
-    } else {
+    if on_task {
+        clear_distraction_episode();
+    }
+    let nag_key = distraction
+        .as_deref()
+        .or(social)
+        .unwrap_or(if on_task { "on_task" } else { "off_task" });
+    let cooldown = if on_task {
         PROMPT_COOLDOWN_SECS
+    } else {
+        EPHEMERAL_FLOOR_SECS
     };
-    let prompt = if wants_prompt && claim_ephemeral_slot(cooldown) {
+    let prompt = if wants_prompt && claim_ephemeral_slot_keyed(cooldown, Some(nag_key)) {
+        // Vary later reminders so the same Instagram line isn't copy-pasted.
+        let text = match distraction_episode_nags(nag_key) {
+            2 => format!("{prompt_text} Still seeing it — close it and return to your goal."),
+            3 => format!("Last nudge on this: {prompt_text}"),
+            _ => prompt_text,
+        };
         Some(CoachPrompt {
             id: Uuid::new_v4().to_string(),
             at: chrono::Utc::now().to_rfc3339(),
-            text: prompt_text,
+            text,
             kind: format!("{:?}", status).to_lowercase(),
         })
     } else {
@@ -1035,13 +1130,13 @@ async fn apply_coach_tick(
             session.watching_note = if on_task {
                 "Watching your screen".into()
             } else {
-                format!(
-                    "Distracted{}",
-                    distraction
-                        .as_ref()
-                        .map(|d| format!(" · {d}"))
-                        .unwrap_or_default()
-                )
+                let d = distraction.as_deref().unwrap_or("off-task");
+                let nags = distraction_episode_nags(d);
+                if nags >= MAX_NAGS_PER_EPISODE {
+                    format!("Distracted · {d} (quiet until you switch back)")
+                } else {
+                    format!("Distracted · {d}")
+                }
             };
             // Ephemeral coach nags stay off the in-app feed — overlay + voice only.
             session.clone()
@@ -1061,6 +1156,10 @@ fn push_prompt(app: &AppHandle, text: &str, kind: &str) {
 }
 
 fn push_ephemeral(app: &AppHandle, text: &str, kind: &str) {
+    // Praise / watching lines share the same single-slot gate — never stack over a nag.
+    if !claim_ephemeral_slot_keyed(EPHEMERAL_FLOOR_SECS, Some(kind)) {
+        return;
+    }
     let prompt = CoachPrompt {
         id: Uuid::new_v4().to_string(),
         at: chrono::Utc::now().to_rfc3339(),
@@ -1071,6 +1170,8 @@ fn push_ephemeral(app: &AppHandle, text: &str, kind: &str) {
 }
 
 fn deliver_ephemeral(app: &AppHandle, prompt: &CoachPrompt) {
+    // Cut any in-flight speech before starting a new line.
+    waypoint_voice::stop_speaking();
     // Desktop popup only — do not leave a lasting trail in the session feed.
     overlay::show_prompt(app, prompt);
     let silent = app.state::<AppState>().silent_mode.load(Ordering::SeqCst);

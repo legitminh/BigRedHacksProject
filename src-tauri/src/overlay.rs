@@ -54,11 +54,13 @@ pub fn show_prompt(app: &AppHandle, prompt: &CoachPrompt) {
     let _ = window.unminimize();
     let _ = window.set_always_on_top(true);
 
-    let _ = app.emit_to(OVERLAY_LABEL, "overlay-prompt", prompt);
+    // One path only — emitting AND eval was double-firing the toast.
     if let Ok(json) = serde_json::to_string(prompt) {
         let _ = window.eval(&format!(
             "window.__waypointShow && window.__waypointShow({json})"
         ));
+    } else {
+        let _ = app.emit_to(OVERLAY_LABEL, "overlay-prompt", prompt);
     }
 }
 

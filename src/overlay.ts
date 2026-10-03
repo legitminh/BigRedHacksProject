@@ -36,6 +36,8 @@ function showPrompt(prompt: CoachPrompt) {
   const root = toast();
   const line = textEl();
   if (!root || !line) return;
+  // Replace in place — never stack multiple toasts.
+  if (hideTimer) window.clearTimeout(hideTimer);
   line.textContent = prompt.text;
   root.hidden = false;
   root.classList.remove("leaving");
@@ -44,7 +46,6 @@ function showPrompt(prompt: CoachPrompt) {
   root.style.animation = "";
   void passClicksThrough();
 
-  if (hideTimer) window.clearTimeout(hideTimer);
   hideTimer = window.setTimeout(() => {
     root.classList.add("leaving");
     window.setTimeout(() => {
@@ -52,7 +53,7 @@ function showPrompt(prompt: CoachPrompt) {
       root.classList.remove("leaving");
       void hideOverlayWindow();
     }, 280);
-  }, 7000);
+  }, 6500);
 }
 
 function clearPrompt() {
