@@ -1601,7 +1601,7 @@ function updateSessionProgressPill(label: string, finishing = false) {
   text.textContent = finishing
     ? "Finishing up…"
     : label === "paused"
-      ? "On a break"
+      ? "Ⅱ  On a break"
       : label === "distracted"
         ? "Needs focus"
         : "Mission in progress";
@@ -1611,6 +1611,8 @@ function syncPauseControls(paused: boolean) {
   const btn = $("#session-pause") as HTMLButtonElement | null;
   const note = $("#session-pause-note");
   const endBtn = $("#end-session") as HTMLButtonElement | null;
+  const caption = $("#session-timer-caption");
+  $("#view-session")?.classList.toggle("is-session-break", paused);
   if (btn) {
     btn.disabled = false;
     btn.setAttribute("aria-pressed", paused ? "true" : "false");
@@ -1619,6 +1621,9 @@ function syncPauseControls(paused: boolean) {
   }
   if (endBtn) endBtn.disabled = false;
   if (note) note.hidden = !paused;
+  if (caption) {
+    caption.textContent = paused ? "REMAINING · TIMER PAUSED" : "REMAINING IN YOUR FLIGHT";
+  }
 }
 
 /** Captured MM:SS while paused so session-update cannot thaw the display. */

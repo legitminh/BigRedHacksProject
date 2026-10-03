@@ -1387,3 +1387,105 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: scrutinous
 - commit: cc11ce5
 - change: `#view-session.is-session-listening` hides `#session-next-step`; toggled via `setSessionListeningUi` on session mic start/end.
+
+## done: fp-break-ii-glyph
+- screen: active
+- ref: `.cursor/figma-refs/10-on-a-break.png` · live `2:42` · pill `6:760` · badge `8:431`
+- expected: |
+    Live 10 progress pill is “Ⅱ  On a break” (`6:760`); right-card badge is
+    “Ⅱ  ON A BREAK” (`8:431`) — leading double-bar / II glyph before the label.
+    Caption uses middle-dot “REMAINING · TIMER PAUSED” (`6:817`).
+- actual: |
+    `updateSessionProgressPill("paused")` sets plain “On a break” (no Ⅱ);
+    open break-panel work also targets plain “ON A BREAK” without the glyph.
+    Older opens used bullet “•” in the caption; live is “·”.
+- deviation: |
+    Break chrome glyphs/punctuation vs live 10 — distinct from panel shell/copy
+    opens (`fp-break-session-panel` / `fp-break-live-panel-copy`).
+- fix_hint: |
+    When paused: prefix progress label + break-card badge with “Ⅱ  ”; set
+    `.session-timer-caption` to “REMAINING · TIMER PAUSED”. Keep Resume/End.
+- escalate: scrutinous
+- commit: a0902bb
+- change: |
+    Progress pill → “Ⅱ  On a break”; `#session-timer-caption` → “REMAINING · TIMER PAUSED”
+    while paused (restored on resume). Break-card badge deferred — no panel shell yet
+    (`fp-break-session-panel`).
+
+## done: fp-break-hides-session-chrome
+- screen: active
+- ref: `.cursor/figma-refs/10-on-a-break.png` · live `2:42`
+- expected: |
+    Live 10 On a break: left flight card has NO `#session-next-step` /
+    NEXT STEP TIMER row; right break card replaces chat — NO
+    “Set a five-minute timer” suggest chip.
+- actual: |
+    Mid-flight `#session-next-step` + `#session-copilot-suggest` stay mounted
+    while paused (only listening hides next-step via `is-session-listening`).
+- deviation: |
+    Break state must strip secondary-timer + suggest chrome, same pattern as
+    relaunch/connection-lost hides. Complements break panel opens.
+- fix_hint: |
+    When `session.paused` (break): hide `#session-next-step` and
+    `#session-copilot-suggest`; restore on Resume. Keep Pause/End wiring.
+- escalate: scrutinous
+- commit: a0902bb
+- change: |
+    `#view-session.is-session-break` (via `syncPauseControls`) hides
+    `#session-next-step` + `#session-copilot-suggest`; cleared on resume.
+
+## open: fp-relaunch-hides-session-chrome
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41`
+- expected: |
+    Live 09 Reset & relaunch: left card has NO NEXT STEP TIMER row; right is
+    the relaunch card (Next step field + Relaunch) — NO five-minute suggest.
+- actual: |
+    No relaunch surface yet; mid-flight next-step + suggest remain visible
+    whenever those nodes mount. Distinct from open panel/copy work.
+- deviation: |
+    Relaunch state must hide secondary-timer + suggest (metadata: no
+    NEXT STEP TIMER / no “Set a five-minute timer” on `2:41`).
+- fix_hint: |
+    When relaunch UI shows: hide `#session-next-step` +
+    `#session-copilot-suggest`; restore after Relaunch/idle active.
+    Pair with `fp-relaunch-live-panel-copy` / `fp-relaunch-session-panel`.
+- escalate: scrutinous
+
+## open: fp-connection-lost-body-copy
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  title `6:1720` · body `6:1721` · presence `6:1712`
+- expected: |
+    Live 16 callout: title “Connection lost. Your flight keeps going.” plus
+    body “The timer, pause, and end controls still work. Reconnect whenever
+    you're ready.” Presence pill “○  Reconnecting…” (hollow ring + ellipsis).
+    Retry connection under the body.
+- actual: |
+    Open `fp-connection-lost-panel` covers title + Retry + presence word only —
+    no body sentence; app has neither callout nor “○ Reconnecting…”.
+- deviation: |
+    Missing helper paragraph + presence ring glyph vs live `6:1721` / `6:1712`.
+- fix_hint: |
+    In the connection-lost block: add live body copy; set presence to
+    “○  Reconnecting…”. Keep Retry → existing reconnect helpers.
+- escalate: scrutinous
+
+## open: fp-connection-lost-hides-session-chrome
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48`
+- expected: |
+    Live 16 Connection lost: left flight card has NO NEXT STEP TIMER;
+    right keeps chat history + lost callout + composer — NO
+    “Set a five-minute timer” suggest chip.
+- actual: |
+    Mid-flight next-step + suggest stay visible; no connection-lost UI yet
+    (`fp-connection-lost-panel`).
+- deviation: |
+    While disconnected: hide `#session-next-step` + `#session-copilot-suggest`
+    (metadata confirms neither on `2:48`). Pause/End remain.
+- fix_hint: |
+    On coach/Gemini disconnect during a mission, hide next-step + suggest;
+    restore when reconnected. Pair with `fp-connection-lost-panel` /
+    `fp-connection-lost-body-copy`.
+- escalate: scrutinous
