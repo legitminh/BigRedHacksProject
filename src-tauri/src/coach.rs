@@ -37,7 +37,7 @@ const PRESAGE_GAP_SECS: u64 = 70;
 /// Don't touch the camera until coaching has already started.
 const PRESAGE_START_DELAY_SECS: u64 = 90;
 
-/// Shared across local + Gemini loops so both don't fire the same nag.
+/// Shared across local watch ticks so OCR/VLM don't re-fire the same nag.
 static LAST_EPHEMERAL_AT: Mutex<Option<chrono::DateTime<chrono::Utc>>> = Mutex::new(None);
 
 #[derive(Clone)]
@@ -384,7 +384,7 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                         }
                     }
 
-                    // 2) Ambiguous via local model → Gemini text. Retry if a prior attempt failed.
+                    // 2) Ambiguous → local Ollama/Llama judge only (no Gemini in lock-in).
                     if heuristic.is_none()
                         && fp != last_judged_fingerprint
                         && context_judgments < MAX_CONTEXT_JUDGMENTS_PER_SESSION
@@ -690,19 +690,6 @@ fn mark_local_on_task(app: &AppHandle, info: &frontmost::FrontmostInfo) {
     let snap = session.clone();
     drop(guard);
     let _ = app.emit("session-update", &snap);
-}
-
-fn maybe_soft_error(
-    app: &AppHandle,
-    last_notice: &mut chrono::DateTime<chrono::Utc>,
-    message: &str,
-) {
-    let now = chrono::Utc::now();
-    if now.signed_duration_since(*last_notice).num_seconds() < 45 {
-        return;
-    }
-    *last_notice = now;
-    push_ephemeral(app, message, "error");
 }
 
 async fn run_presage_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBool>) {
@@ -1100,8 +1087,40 @@ fn deliver_ephemeral(app: &AppHandle, prompt: &CoachPrompt) {
     if silent {
         return;
     }
-    // `speak` cuts prior `say` processes itself (non-blocking).
-    if let Err(e) = waypoint_voice::speak(&prompt.text) {
+    // Prefer xAI / Grok TTS via API proxy; fall back to local macOS `say`.
+    let text = prompt.text.clone();
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        speak_heads_up(&handle, &text).await;
+    });
+}
+
+/// Study heads-up / nudge spoken output only.
+/// Tries `POST /v1/voice/tts` (xAI key stays on the API host), then macOS `say`.
+async fn speak_heads_up(app: &AppHandle, text: &str) {
+    let cfg = app.state::<AppState>().config.lock().clone();
+    match crate::api::fetch_heads_up_tts(&cfg, text).await {
+        Ok(audio) => {
+            let bytes = audio.bytes;
+            let ext = audio.extension;
+            let play = tokio::task::spawn_blocking(move || {
+                waypoint_voice::play_audio_bytes(&bytes, &ext)
+            })
+            .await;
+            match play {
+                Ok(Ok(())) => {
+                    tracing::debug!("heads-up TTS: xAI/Grok voice");
+                    return;
+                }
+                Ok(Err(e)) => tracing::warn!("heads-up xAI playback failed, falling back: {e}"),
+                Err(e) => tracing::warn!("heads-up xAI playback join failed, falling back: {e}"),
+            }
+        }
+        Err(e) => {
+            tracing::debug!("heads-up xAI TTS unavailable ({e}); using local say");
+        }
+    }
+    if let Err(e) = waypoint_voice::speak(text) {
         tracing::warn!("voice speak: {e}");
     }
 }

@@ -2630,6 +2630,23 @@ button:active {
   background: #ddd0f5;
 }
 
+.view-session .session-companion-talk.is-live {
+  background: #6b4cff;
+  color: #f7f4ff;
+}
+.view-session .session-companion-talk.is-thinking {
+  background: #3d2a99;
+  color: #f7f4ff;
+}
+.view-session .session-companion-talk.is-speaking {
+  background: #2f6b45;
+  color: #f4fff7;
+}
+.view-session .session-companion-talk.is-connecting {
+  background: #5c5348;
+  color: #f6f0e6;
+}
+
 .view-copilot .copilot-send.primary,
 .view-session .session-copilot-composer .copilot-send.primary {
   flex-shrink: 0;
@@ -3579,6 +3596,123 @@ body:has(.view-mission-setup.active) .grain {
 
 #view-session.is-session-break .session-break-card {
   display: flex;
+}
+
+/* Live 08: compact quick check-in card — mirror break panel chrome. */
+.session-checkin-card {
+  display: none;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+}
+
+.session-checkin-badge {
+  margin: 0 0 1rem;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mc-accent-purple);
+  background: var(--mc-surface-lavender);
+  border: 1px solid rgba(107, 76, 255, 0.14);
+}
+
+.session-checkin-title {
+  margin: 0 0 0.65rem;
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--mc-text-primary);
+}
+
+.session-checkin-body {
+  margin: 0 0 1.15rem;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--mc-text-secondary);
+}
+
+.session-checkin-divider {
+  margin: 0 0 1.15rem;
+  border: none;
+  border-top: 1px solid var(--mc-border-subtle);
+}
+
+.session-checkin-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.session-checkin-btn {
+  width: 100%;
+  min-height: 3.25rem;
+  border: none;
+  border-radius: var(--radius-pill);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.15s ease, background 0.15s ease;
+}
+
+.session-checkin-btn--primary {
+  background: var(--mc-accent-purple, #6750a4);
+  color: #fff;
+}
+
+.session-checkin-btn--primary:hover {
+  filter: brightness(1.05);
+}
+
+.session-checkin-btn--secondary {
+  background: var(--mc-surface-lavender, #e9ddfd);
+  color: #4a3d78;
+  border: 1px solid rgba(107, 76, 255, 0.12);
+}
+
+.session-checkin-btn--secondary:hover {
+  filter: brightness(0.98);
+}
+
+.session-checkin-footer {
+  margin: 1rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--mc-text-muted);
+  text-align: center;
+}
+
+#view-session.is-session-checkin .session-layout {
+  align-items: start;
+}
+
+#view-session.is-session-checkin .session-copilot-panel {
+  align-self: start;
+  flex: 0 0 auto;
+  min-height: unset;
+  max-width: 100%;
+  width: 100%;
+  padding: 1.35rem 1.35rem 1.25rem;
+}
+
+#view-session.is-session-checkin .session-copilot-chat {
+  display: none;
+}
+
+#view-session.is-session-checkin .session-checkin-card {
+  display: flex;
+}
+
+/* Break wins if both classes briefly overlap (Take a break from check-in). */
+#view-session.is-session-break .session-checkin-card {
+  display: none !important;
 }
 
 .session-copilot-kicker {

@@ -81,10 +81,6 @@ pub fn clear_tokens(cfg: &AppConfig) {
     let _ = fs::remove_file(legacy_session_path(cfg));
 }
 
-pub fn is_signed_in(cfg: &AppConfig) -> bool {
-    load_tokens(cfg).is_some() || load_session_legacy(cfg).is_some()
-}
-
 pub fn current_username(cfg: &AppConfig) -> Option<String> {
     if let Some(t) = load_tokens(cfg) {
         return Some(
@@ -132,6 +128,7 @@ struct PollBody {
 
 #[derive(Debug, Deserialize)]
 struct PollError {
+    code: Option<String>,
     message: Option<String>,
 }
 
@@ -165,10 +162,18 @@ pub async fn sign_in_with_google(cfg: &AppConfig) -> Result<WaypointSession, Str
         match poll.status.as_str() {
             "pending" => continue,
             "error" => {
-                return Err(poll
-                    .error
-                    .and_then(|e| e.message)
-                    .unwrap_or_else(|| "Google sign-in failed.".into()));
+                let err = poll.error;
+                let message = err
+                    .as_ref()
+                    .and_then(|e| e.message.clone())
+                    .filter(|m| !m.is_empty())
+                    .unwrap_or_else(|| "Google sign-in failed.".into());
+                let code = err.and_then(|e| e.code).unwrap_or_default();
+                return Err(if code.is_empty() {
+                    message
+                } else {
+                    format!("{message} ({code})")
+                });
             }
             "complete" => {
                 let access = poll
@@ -248,13 +253,6 @@ pub fn sign_in_guest(cfg: &AppConfig) -> Result<WaypointSession, String> {
     )
     .map_err(|e| format!("Couldn’t save session: {e}"))?;
     Ok(session)
-}
-
-pub fn is_guest(cfg: &AppConfig) -> bool {
-    load_tokens(cfg).is_none()
-        && load_session_legacy(cfg)
-            .map(|s| s.username.eq_ignore_ascii_case("guest"))
-            .unwrap_or(false)
 }
 
 fn load_session_legacy(cfg: &AppConfig) -> Option<WaypointSession> {

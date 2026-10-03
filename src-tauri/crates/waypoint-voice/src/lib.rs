@@ -1,14 +1,19 @@
 //! Local voice stack for Waypoint.
 //!
-//! - **TTS**: macOS `say`
+//! - **TTS (fallback)**: macOS `say`
+//! - **TTS (study heads-ups)**: xAI / Grok audio played via `afplay` (fetched by coach)
 //! - **STT**: macOS Speech framework via a small Swift helper (AVAudioRecorder +
-//!   SFSpeechRecognizer). `Transcriber` remains the swap point for Grok Voice / Whisper later.
+//!   SFSpeechRecognizer). `Transcriber` remains the swap point for Whisper later.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+/// Bumps whenever a new utterance starts or stop is requested — stale afplay exits early.
+static PLAYBACK_GENERATION: AtomicU64 = AtomicU64::new(1);
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -43,8 +48,8 @@ fn speak_snippet(text: &str) -> String {
     text.trim().chars().take(160).collect()
 }
 
-/// Speak coach / UI text out loud. Non-blocking.
-/// Always cuts off any previous `say` so lines never stack / talk over each other.
+/// Local macOS `say` TTS — Settings “Test speak” and heads-up fallback.
+/// Non-blocking. Always cuts off any previous utterance so lines never stack.
 pub fn speak(text: &str) -> Result<()> {
     let snippet = speak_snippet(text);
     if snippet.is_empty() {
@@ -55,6 +60,7 @@ pub fn speak(text: &str) -> Result<()> {
     {
         // Wait for killall to finish so we don't SIGKILL the new `say`.
         stop_speaking_sync();
+        let _ = PLAYBACK_GENERATION.fetch_add(1, Ordering::SeqCst);
         Command::new("say")
             .args(["-r", "200", &snippet])
             .stdin(Stdio::null())
@@ -72,6 +78,57 @@ pub fn speak(text: &str) -> Result<()> {
             "Local TTS is only wired for macOS `say` right now.".into(),
         ))
     }
+}
+
+/// Play raw audio bytes from xAI / Grok TTS (typically MP3). Non-blocking.
+/// Used only by study heads-up / nudge audio — not Settings test speak.
+pub fn play_audio_bytes(bytes: &[u8], extension: &str) -> Result<()> {
+    if bytes.is_empty() {
+        return Err(VoiceError::Message("empty audio payload".into()));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        stop_speaking_sync();
+        let _ = PLAYBACK_GENERATION.fetch_add(1, Ordering::SeqCst);
+        let ext = if extension.trim().is_empty() {
+            "mp3"
+        } else {
+            extension.trim().trim_start_matches('.')
+        };
+        let path = temp_audio_path(ext)?;
+        std::fs::write(&path, bytes)
+            .map_err(|e| VoiceError::Message(format!("write TTS audio: {e}")))?;
+        let path_owned = path.clone();
+        std::thread::spawn(move || {
+            let _ = Command::new("afplay")
+                .arg(&path_owned)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+            let _ = std::fs::remove_file(&path_owned);
+        });
+        return Ok(());
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = extension;
+        Err(VoiceError::Message(
+            "Grok TTS playback is only wired for macOS `afplay` right now.".into(),
+        ))
+    }
+}
+
+fn temp_audio_path(ext: &str) -> Result<PathBuf> {
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let dir = std::env::temp_dir().join("waypoint-voice");
+    std::fs::create_dir_all(&dir).map_err(|e| VoiceError::Message(e.to_string()))?;
+    Ok(dir.join(format!("heads-up-{ts}.{ext}")))
 }
 
 /// Blocking TTS — used by the Settings “Test speak” button so success means audio finished.
@@ -112,16 +169,19 @@ pub fn speak_wait(text: &str) -> Result<()> {
     }
 }
 
-/// Stop any in-flight `say` and wait until killall returns (so a new speak is safe).
+/// Stop any in-flight `say` / `afplay` and wait until killall returns (so a new speak is safe).
 pub fn stop_speaking_sync() {
     #[cfg(target_os = "macos")]
     {
-        let _ = Command::new("killall")
-            .args(["-9", "say"])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
+        let _ = PLAYBACK_GENERATION.fetch_add(1, Ordering::SeqCst);
+        for bin in ["say", "afplay"] {
+            let _ = Command::new("killall")
+                .args(["-9", bin])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
         // Brief settle — killall can return before the process table updates.
         std::thread::sleep(std::time::Duration::from_millis(40));
     }

@@ -33,6 +33,7 @@ fn main() {
         "gemini_api_key",
         "google_client_id",
         "google_client_secret",
+        "xai_api_key",
     ] {
         for line in raw.lines() {
             let line = line.trim();
@@ -99,13 +100,14 @@ fn compile_ocr_helper(manifest: &PathBuf) {
         .status();
     match status {
         Ok(s) if s.success() => {
-            println!("cargo:warning=compiled local OCR helper → {}", out.display());
+            // Success is silent — cargo:warning would spam every rebuild.
         }
         Ok(s) => {
-            eprintln!("cargo:warning=swiftc failed ({s}) — local OCR disabled until rebuild succeeds");
+            // Real failure: surface so builders know OCR is off.
+            println!("cargo:warning=swiftc failed ({s}) — local OCR disabled until rebuild succeeds");
         }
         Err(e) => {
-            eprintln!("cargo:warning=swiftc not available ({e}) — local OCR disabled");
+            println!("cargo:warning=swiftc not available ({e}) — local OCR disabled");
         }
     }
 }
@@ -144,17 +146,14 @@ fn compile_encode_clip_helper(manifest: &PathBuf) {
         ])
         .status();
     match status {
-        Ok(s) if s.success() => {
+        Ok(s) if s.success() => {}
+        Ok(s) => {
             println!(
-                "cargo:warning=compiled clip encoder → {}",
-                out.display()
+                "cargo:warning=swiftc encode_clip failed ({s}) — will try ffmpeg fallback"
             );
         }
-        Ok(s) => {
-            eprintln!("cargo:warning=swiftc encode_clip failed ({s}) — will try ffmpeg fallback");
-        }
         Err(e) => {
-            eprintln!("cargo:warning=swiftc not available ({e}) — encode_clip disabled");
+            println!("cargo:warning=swiftc not available ({e}) — encode_clip disabled");
         }
     }
 }

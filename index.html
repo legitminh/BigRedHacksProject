@@ -586,23 +586,62 @@
                 </button>
                 <p class="session-break-footer">Your spaceship will continue from right here.</p>
               </div>
+              <div
+                id="session-checkin-card"
+                class="session-checkin-card"
+                hidden
+                aria-hidden="true"
+              >
+                <p class="session-checkin-badge"><span aria-hidden="true">✦</span>&nbsp;&nbsp;QUICK CHECK-IN</p>
+                <h2 class="session-checkin-title">Still working on your mission?</h2>
+                <p class="session-checkin-body">
+                  Your flight is still running. What would help right now?
+                </p>
+                <hr class="session-checkin-divider" />
+                <div class="session-checkin-actions">
+                  <button
+                    type="button"
+                    id="session-checkin-on-task"
+                    class="session-checkin-btn session-checkin-btn--primary"
+                  >
+                    On task
+                  </button>
+                  <button
+                    type="button"
+                    id="session-checkin-distracted"
+                    class="session-checkin-btn session-checkin-btn--secondary"
+                  >
+                    Got distracted
+                  </button>
+                  <button
+                    type="button"
+                    id="session-checkin-break"
+                    class="session-checkin-btn session-checkin-btn--secondary"
+                  >
+                    Take a break
+                  </button>
+                </div>
+                <p class="session-checkin-footer">
+                  No answer needed if you're in the flow. This check-in will close on its own.
+                </p>
+              </div>
               <div class="session-copilot-chat">
                 <header class="session-copilot-head">
-                  <p class="session-copilot-kicker"><span aria-hidden="true">✦</span> Your copilot</p>
-                  <p class="session-copilot-presence">
+                  <p class="session-copilot-kicker"><span aria-hidden="true">✦</span> Study companion</p>
+                  <p class="session-copilot-presence" id="session-companion-presence">
                     <span class="session-copilot-presence-dot" aria-hidden="true"></span>
-                    Here when you need me
+                    <span id="session-companion-phase">Tap Talk to start a live voice turn</span>
                   </p>
                 </header>
                 <div
                   id="session-chat-log"
                   class="chat-log session-copilot-log"
                   role="log"
-                  aria-label="Copilot conversation during mission"
+                  aria-label="Study companion conversation during mission"
                   aria-live="polite"
                 >
                   <p id="session-chat-empty" class="session-copilot-empty muted">
-                    Message your copilot if you hit a roadblock mid-flight.
+                    Talk or type with your companion — separate from Copilot chat.
                   </p>
                 </div>
                 <footer class="session-copilot-composer copilot-composer">
@@ -618,12 +657,18 @@
                       <textarea
                         id="session-chat-input"
                         rows="1"
-                        aria-label="Message your copilot"
+                        aria-label="Message your study companion"
                         aria-describedby="session-chat-hint"
-                        placeholder="Message your copilot…"
+                        placeholder="Ask your companion…"
                       ></textarea>
-                      <button id="session-chat-mic" type="button" class="copilot-mic" aria-label="Microphone">
-                        Mic
+                      <button
+                        id="session-chat-mic"
+                        type="button"
+                        class="copilot-mic session-companion-talk"
+                        aria-label="Start live companion talk"
+                        title="Start / end live voice with companion"
+                      >
+                        Talk
                       </button>
                       <button id="session-chat-send" type="submit" class="primary copilot-send" aria-label="Send message">
                         <span aria-hidden="true">↑</span>
@@ -631,7 +676,7 @@
                     </div>
                   </form>
                   <p id="session-chat-hint" class="composer-hint session-composer-hint">
-                    Enter to send · Click the microphone to start or stop a voice turn
+                    Talk for live voice · type + Enter for a turn · ends with the mission
                   </p>
                 </footer>
               </div>
@@ -873,7 +918,7 @@
               <div class="settings-panel" id="settings-connection" role="tabpanel" hidden>
                 <article class="mc-settings-card">
                   <h2 class="settings-heading">Connection status</h2>
-                  <p class="settings-copy tight">Cloud and local links Copilot and missions rely on.</p>
+                  <p class="settings-copy tight">Live checks from the Waypoint API — refresh to re-probe.</p>
                   <ul id="connection-status-list" class="mc-settings-list" aria-live="polite"></ul>
                   <button id="connection-refresh" class="ghost pill" type="button">Refresh status</button>
                 </article>
@@ -983,6 +1028,41 @@
           <p class="mission-launch__kicker">Mission</p>
           <h2 class="mission-launch__title">Launch</h2>
           <p class="mission-launch__sub">Engines on — stay on course.</p>
+        </div>
+      </div>
+
+      <div
+        id="end-session-modal"
+        class="mc-perm-modal"
+        hidden
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="end-session-modal-title"
+      >
+        <div class="mc-perm-modal__backdrop" data-end-session-dismiss></div>
+        <div class="mc-perm-modal__card">
+          <p class="mc-perm-modal__badge">END MISSION</p>
+          <h2 id="end-session-modal-title" class="mc-perm-modal__title">End this session?</h2>
+          <p id="end-session-modal-body" class="mc-perm-modal__body">
+            Your earned flight minutes will be saved. You can reflect on your objective next.
+          </p>
+          <div class="mc-perm-modal__actions">
+            <button
+              id="end-session-keep"
+              type="button"
+              class="mc-perm-modal__btn mc-perm-modal__btn--secondary"
+              data-end-session-dismiss
+            >
+              Keep working
+            </button>
+            <button
+              id="end-session-confirm"
+              type="button"
+              class="mc-perm-modal__btn mc-perm-modal__btn--primary"
+            >
+              End session
+            </button>
+          </div>
         </div>
       </div>
 

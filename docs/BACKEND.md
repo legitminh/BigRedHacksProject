@@ -1,4 +1,4 @@
-# Waypoint API (sibling repo)
+# Waypoint API + desktop wiring
 
 Desktop and API are **two git repos**. Develop them together in Cursor via `Waypoint.code-workspace`.
 
@@ -7,70 +7,146 @@ Desktop and API are **two git repos**. Develop them together in Cursor via `Wayp
 | Desktop (this) | `~/BigRedHacksProject` | https://github.com/legitminh/BigRedHacksProject |
 | API | `~/BigRedHacksProjectBackend` | https://github.com/legitminh/BigRedHacksProjectBackend |
 
-## Coach / Ollama (no Ollama on end-user Macs)
+**Full production deploy (any powerful server + HTTPS + Ollama + TigerData):**  
+see the API repo’s **[DEPLOY.md](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/DEPLOY.md)**.
 
-1. On the **API machine** (your Mac while developing, or a server in production):
+This file is the short desktop-side companion: local coach wiring and how to **compile Waypoint against any API URL**.
+
+---
+
+## Point this Mac app at any API server
+
+The API base URL is baked into the binary from `src-tauri/secrets.toml` (gitignored).
 
 ```bash
-brew install ollama   # API host only
-ollama serve
-ollama pull qwen2.5:0.5b
-ollama pull moondream
-
-cd ~/BigRedHacksProjectBackend
-npm install
-cp .env.example .env   # if needed
-# Set SESSION_SECRET (≥32 chars), COACH_API_TOKEN, OLLAMA_BASE_URL=http://127.0.0.1:11434
-npm run dev            # http://127.0.0.1:8787
+cd ~/BigRedHacksProject
+cp src-tauri/secrets.example.toml src-tauri/secrets.toml
 ```
 
-2. In the **desktop** `src-tauri/secrets.toml` (no Gemini / Google secrets):
+**Production / remote server** (must match the API’s `PUBLIC_BASE_URL`):
+
+```toml
+waypoint_api_base = "https://api.example.com"
+local_llm_base = "https://api.example.com/v1/coach"
+local_llm_model = "qwen2.5:0.5b"
+local_vision_model = "moondream"
+coach_api_token = ""
+presage_api_key = ""
+```
+
+**Local API on this Mac:**
 
 ```toml
 waypoint_api_base = "http://127.0.0.1:8787"
 local_llm_base = "http://127.0.0.1:8787/v1/coach"
-coach_api_token = "<same as COACH_API_TOKEN>"   # optional; JWT preferred after Google sign-in
 local_llm_model = "qwen2.5:0.5b"
 local_vision_model = "moondream"
+coach_api_token = ""   # or same as backend COACH_API_TOKEN for pre-login coach probes
+presage_api_key = ""
 ```
 
-3. Desktop lock-in calls:
-   - `GET /v1/coach/api/tags`
-   - `POST /v1/coach/api/generate`  
-   with `Authorization: Bearer <user JWT or coach_api_token>`. The API proxies to Ollama.
+Then:
 
-4. Copilot / study-memory consolidation call `POST /v1/gemini/chat` with the user JWT.  
-   `GEMINI_API_KEY` stays in the **backend** `.env` only.
+```bash
+npm run app:dev      # iterate
+# or
+npm run app:build    # ship Waypoint.app
+```
 
-## Friend / teammate clone (both repos)
+### Rules
+
+| Do | Don’t |
+|---|---|
+| Put only the **public API origin** in `secrets.toml` | Put `gemini_api_key` / Google OAuth secrets in the app (build fails if present) |
+| Use **HTTPS** for any non-localhost API | Ship `http://` API URLs for production |
+| Rebuild after changing `waypoint_api_base` | Expect end users to edit config |
+
+Google OAuth, Gemini, Postgres, and Ollama stay on the **API host** (`.env` there). Signed-in users call the API with a JWT.
+
+---
+
+## What the desktop calls on the API
+
+| Feature | Endpoint | Auth |
+|---|---|---|
+| Google sign-in | `POST /v1/auth/google/start` + poll | — |
+| **Connection status** | `GET /v1/status` | Optional JWT (enriches account + Google) |
+| Copilot / study-memory consolidate | `POST /v1/gemini/chat` | User JWT |
+| Study companion Live (Gemini Live proxy) | `WS /v1/companion/live` | User JWT (`?access_token=`) |
+| Study companion typed fallback | `POST /v1/companion/chat` | User JWT |
+| Lock-in coach | `/v1/coach/api/*` | User JWT (or optional `coach_api_token`) |
+| Study heads-up TTS (Grok/xAI) | `POST /v1/voice/tts` | User JWT (or optional `coach_api_token`) |
+| Calendar / Drive / memory | `/v1/google/*`, `/v1/drive/*`, `/v1/study-memory`, … | User JWT |
+| Delete everything | `DELETE /v1/me/data` | User JWT |
+
+Settings → Connection is a thin client of `/v1/status` (Tauri `service_status`). Indicator meanings: API repo [docs/STATUS.md](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/docs/STATUS.md).
+
+**Copilot chat provider** (`LOCAL_CHAT_PROVIDER` on the API):
+- `gemini` / `cloud` (default) — Gemini first; silent Ollama fallback on quota/outage (`OLLAMA_CHAT_MODEL`, default `qwen2.5:7b`). Cloud companion stays on this path.
+- `ollama` / `llama` / `local` — always Ollama; Gemini is never called for chat.
+
+Lock-in coaching always uses Ollama via `/v1/coach` (never Gemini). The Mac UI should not show “cloud coach hit the limit” when the local path works.
+
+### Study heads-up voice (Grok / xAI)
+
+Lock-in overlays still show instantly. Spoken nudges try **xAI TTS** through the API so `XAI_API_KEY` never ships in Waypoint.app:
+
+| Env (API `.env`) | Purpose |
+|---|---|
+| `XAI_API_KEY` | Required for Grok TTS. Blank → desktop uses macOS `say`. |
+| `XAI_TTS_VOICE` | Optional voice id (default `eve`). |
+
+**Latency / fallback:** the desktop budgets ~3.8s for `POST /v1/voice/tts` (API waits up to ~4s on xAI). On timeout, 503 (key unset), auth failure, or playback error, coach falls back to local macOS `say`. Settings “Test speak” stays on local `say` only.
+
+---
+
+## Local API + Ollama (dev)
+
+On the **API machine** (can be the same laptop):
+
+```bash
+# API host only
+ollama serve
+ollama pull qwen2.5:0.5b
+ollama pull moondream
+ollama pull qwen2.5:7b    # Copilot fallback
+
+cd ~/BigRedHacksProjectBackend
+npm install
+cp .env.example .env
+# SESSION_SECRET (≥32), Google web client, GEMINI_API_KEY, XAI_API_KEY (heads-up TTS),
+# OLLAMA_*, optional DATABASE_URL
+npm run dev               # http://127.0.0.1:8787
+```
+
+Then `npm run app:dev` in this repo with `waypoint_api_base = "http://127.0.0.1:8787"`.
+
+---
+
+## Friend / teammate clone
 
 ```bash
 cd ~
 git clone https://github.com/legitminh/BigRedHacksProject.git
 git clone https://github.com/legitminh/BigRedHacksProjectBackend.git
-cd BigRedHacksProject
+
+cd BigRedHacksProjectBackend
+npm install && cp .env.example .env
+# fill .env — see DEPLOY.md for production, or local values for laptop
+npm run dev
+
+cd ~/BigRedHacksProject
 git checkout cursor/waypoint-rust-study-nav-bd7b
 npm install
 cp src-tauri/secrets.example.toml src-tauri/secrets.toml
-# set waypoint_api_base + optional coach_api_token — never Gemini/Google keys
-
-cd ~/BigRedHacksProjectBackend
-npm install
-cp .env.example .env
-# fill SESSION_SECRET, GEMINI_API_KEY, Google web client, DATABASE_URL…
-# production on the website host: BIND_HOST=0.0.0.0 PUBLIC_BASE_URL=https://yoursite.com
-npm run dev   # :8787
-
-cd ~/BigRedHacksProject
+# set waypoint_api_base to that API (local or https://…)
 npm run app:dev
 ```
 
-Shipped `Waypoint.app` users do **not** need local Rust, Node, Ollama, or ffmpeg — only the app, macOS permissions, and network to **your API host** (Gemini runs there).
+Shipped `Waypoint.app` users need only the app, macOS permissions, and network to **your** API host.
 
 ## Open both in Cursor
 
 ```bash
 open ~/BigRedHacksProject/Waypoint.code-workspace
 ```
-
-Or **File → Open Workspace from File…**.

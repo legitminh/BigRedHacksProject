@@ -2,6 +2,7 @@ mod api;
 mod auth;
 mod capture;
 mod coach;
+mod companion;
 mod config;
 mod gemini;
 mod google;
@@ -17,11 +18,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use parking_lot::Mutex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 
 use config::AppConfig;
-use gemini::{ChatMessage, GeminiClient, StudySessionSuggestion};
+use gemini::{ChatMessage, StudySessionSuggestion};
 use google::GoogleContext;
 use presage::PresageClient;
 use session::{LockInSession, SessionSummary};
@@ -31,6 +32,8 @@ pub struct AppState {
     pub config: Mutex<AppConfig>,
     pub session: Mutex<Option<LockInSession>>,
     pub chat_history: Mutex<Vec<ChatMessage>>,
+    /// Separate from Copilot — study companion typed fallback history.
+    pub companion_history: Mutex<Vec<ChatMessage>>,
     pub coach_stop: Mutex<Option<Arc<AtomicBool>>>,
     pub silent_mode: AtomicBool,
     /// When the current pause began (UTC), if any.
@@ -154,9 +157,70 @@ struct GeminiLiveStatus {
     detail: String,
 }
 
+/// Backend-owned Connection status panel (`GET /v1/status`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ServiceIndicator {
+    id: String,
+    label: String,
+    state: String,
+    status: String,
+    detail: String,
+    optional: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ServiceStatusPayload {
+    ok: bool,
+    checked_at: String,
+    cache_ttl_seconds: u64,
+    services: Vec<ServiceIndicator>,
+}
+
+#[tauri::command]
+async fn service_status(state: State<'_, AppState>) -> Result<ServiceStatusPayload, String> {
+    let cfg = state.config.lock().clone();
+    // Prefer authed so account + Google rows enrich; fall back to public probes.
+    if auth::load_tokens(&cfg).is_some() {
+        match api::authed_json::<ServiceStatusPayload>(
+            &cfg,
+            reqwest::Method::GET,
+            "/v1/status",
+            None,
+        )
+        .await
+        {
+            Ok(body) => return Ok(body),
+            Err(e) => {
+                tracing::warn!("authed /v1/status failed, retrying anonymous: {e}");
+            }
+        }
+    }
+    api::get_json::<ServiceStatusPayload>(&cfg, "/v1/status", None).await
+}
+
 #[tauri::command]
 async fn gemini_status(state: State<'_, AppState>) -> Result<GeminiLiveStatus, String> {
     let cfg = state.config.lock().clone();
+    // Prefer the aggregated status probe (real Gemini list-models check on the API).
+    match api::get_json::<ServiceStatusPayload>(
+        &cfg,
+        "/v1/status",
+        auth::load_tokens(&cfg)
+            .as_ref()
+            .map(|t| t.access_token.as_str()),
+    )
+    .await
+    {
+        Ok(body) => {
+            if let Some(row) = body.services.iter().find(|s| s.id == "gemini") {
+                return Ok(GeminiLiveStatus {
+                    ok: row.state == "ok",
+                    detail: row.detail.clone(),
+                });
+            }
+        }
+        Err(e) => tracing::warn!("gemini_status via /v1/status failed: {e}"),
+    }
     let (ok, detail) = gemini::probe_status_via_api(&cfg).await;
     Ok(GeminiLiveStatus { ok, detail })
 }
@@ -695,7 +759,7 @@ async fn start_lock_in(
         tracing::info!("starting lock-in without camera; Presage wellness will stay offline");
     }
 
-    let modality = GeminiClient::infer_modality(&goals);
+    let modality = gemini::infer_modality(&goals);
 
     let session = LockInSession::start(
         goals,
@@ -706,6 +770,7 @@ async fn start_lock_in(
     );
     let id = session.id.clone();
     *state.session.lock() = Some(session.clone());
+    companion::clear_history(&state);
 
     coach::spawn_coach_loop(app, id, camera_ready, presage_ready);
     Ok(session)
@@ -717,6 +782,8 @@ async fn stop_lock_in(
     state: State<'_, AppState>,
 ) -> Result<Option<SessionSummary>, String> {
     coach::stop_coach(&app);
+    companion::clear_history(&state);
+    waypoint_voice::stop_speaking();
     *state.pause_started.lock() = None;
     let summary = {
         let mut guard = state.session.lock();
@@ -776,6 +843,8 @@ async fn delete_all_user_data(
     *state.pause_started.lock() = None;
     *state.session.lock() = None;
     state.chat_history.lock().clear();
+    companion::clear_history(&state);
+    waypoint_voice::stop_speaking();
     state.silent_mode.store(true, Ordering::SeqCst);
 
     let cfg = state.config.lock().clone();
@@ -906,6 +975,7 @@ pub fn run() {
             config: Mutex::new(config),
             session: Mutex::new(None),
             chat_history: Mutex::new(Vec::new()),
+            companion_history: Mutex::new(Vec::new()),
             coach_stop: Mutex::new(None),
             silent_mode: AtomicBool::new(initial_settings.silent_mode),
             pause_started: Mutex::new(None),
@@ -935,6 +1005,7 @@ pub fn run() {
             get_system_permissions,
             request_camera_permission,
             local_llm_status,
+            service_status,
             gemini_status,
             sign_in_waypoint,
             sign_in_waypoint_google,
@@ -945,6 +1016,10 @@ pub fn run() {
             get_google_context,
             chat_send,
             clear_chat,
+            companion::companion_send,
+            companion::companion_clear,
+            companion::companion_live_info,
+            companion::voice_stop,
             start_lock_in,
             stop_lock_in,
             set_lock_in_paused,

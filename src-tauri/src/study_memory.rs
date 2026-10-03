@@ -248,36 +248,3 @@ pub fn delete_all_user_data(cfg: &AppConfig) -> Result<Vec<String>, String> {
     }
     Ok(removed)
 }
-
-/// Snippet injected into Copilot chat system context.
-pub fn chat_context_block(data_dir: &Path) -> String {
-    let mem = load_consolidated(data_dir);
-    if mem.narrative.is_empty() && mem.stats.total_sessions == 0 {
-        return "No prior lock-in memory yet.".into();
-    }
-    let top = mem
-        .stats
-        .distraction_totals
-        .iter()
-        .take(4)
-        .map(|(k, v)| format!("{k}×{v}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!(
-        "STUDY MEMORY (from local lock-in logs; trust this over guesses):\n\
-         Sessions: {} · Flight minutes: {} · On-task minutes ≈ {:.0} · Avg focus {:.0}% · Longest flight {} min\n\
-         Top distractions: {}\n\
-         Consolidated notes: {}",
-        mem.stats.total_sessions,
-        mem.stats.total_flight_minutes,
-        mem.stats.total_on_task_minutes,
-        mem.stats.avg_on_task_ratio * 100.0,
-        mem.stats.longest_flight_minutes,
-        if top.is_empty() { "none".into() } else { top },
-        if mem.narrative.is_empty() {
-            "(stats only)".into()
-        } else {
-            mem.narrative
-        }
-    )
-}

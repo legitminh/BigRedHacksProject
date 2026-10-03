@@ -4,6 +4,11 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { renderMarkdown } from "./markdown.ts";
 import { retryChat } from "./chat-retry.ts";
 import {
+  CompanionLiveSession,
+  type CompanionContext,
+  type CompanionPhase,
+} from "./companion-live.ts";
+import {
   initShipUI,
   onMissionCompleted,
   onMissionStarted,
@@ -899,6 +904,23 @@ async function renderPermissionsStatus() {
 
 type ConnState = "ok" | "warn" | "err";
 
+/** Backend `GET /v1/status` — Connection panel is a thin renderer of this payload. */
+interface ServiceIndicator {
+  id: string;
+  label: string;
+  state: ConnState | string;
+  status: string;
+  detail: string;
+  optional: boolean;
+}
+
+interface ServiceStatusPayload {
+  ok: boolean;
+  checked_at: string;
+  cache_ttl_seconds: number;
+  services: ServiceIndicator[];
+}
+
 function connectionRow(
   label: string,
   detail: string,
@@ -917,70 +939,39 @@ function connectionRow(
   </li>`;
 }
 
-async function renderConnectionStatus(status: StatusPayload) {
+function asConnState(value: string): ConnState {
+  if (value === "ok" || value === "warn" || value === "err") return value;
+  return "warn";
+}
+
+async function renderConnectionStatus(_status?: StatusPayload) {
   const list = $("#connection-status-list");
   if (!list) return;
   list.innerHTML = `<li class="mc-conn-row mc-conn-row--loading"><span class="muted">Checking links…</span></li>`;
 
-  let localLine = "Coach";
-  if (status.local_llm_enabled !== false) {
-    try {
-      localLine = await invoke<string>("local_llm_status");
-    } catch {
-      localLine = `Coach: ${status.local_llm_model || "qwen2.5:0.5b"} (checking…)`;
+  try {
+    const payload = await invoke<ServiceStatusPayload>("service_status");
+    if (!payload.services?.length) {
+      list.innerHTML = `<li class="mc-conn-row"><span class="muted">No status indicators from API.</span></li>`;
+      return;
     }
-  } else {
-    localLine = "Coach off in config";
+    list.innerHTML = payload.services
+      .map((s) => {
+        const state = asConnState(String(s.state));
+        return connectionRow(s.label, s.detail, state === "ok", {
+          state,
+          status: s.status,
+        });
+      })
+      .join("");
+  } catch (e) {
+    list.innerHTML = connectionRow(
+      "Waypoint API",
+      connectionErrorMessage(e),
+      false,
+      { state: "err", status: "Offline" },
+    );
   }
-  const localOk = /ready|online|running/i.test(localLine);
-
-  const googleDetail = status.google_connected
-    ? "Calendar and Drive linked for Copilot"
-    : status.signed_in
-      ? "Required — re-link Calendar and Drive"
-      : "Required — sign in with Google on the welcome screen";
-
-  let geminiDetail = status.gemini_ready
-    ? "API key present — verifying live…"
-    : "Missing API key";
-  let geminiOk = false;
-  let geminiState: ConnState = status.gemini_ready ? "warn" : "err";
-  let geminiStatus = status.gemini_ready ? "Checking" : "Offline";
-  if (status.gemini_ready) {
-    try {
-      const live = await invoke<{ ok: boolean; detail: string }>("gemini_status");
-      geminiOk = live.ok;
-      geminiDetail = live.detail;
-      const quota = /quota|rate limit/i.test(live.detail);
-      geminiState = live.ok ? "ok" : quota ? "err" : "warn";
-      geminiStatus = live.ok ? "Connected" : quota ? "Quota" : "Offline";
-    } catch (e) {
-      geminiDetail = connectionErrorMessage(e);
-      geminiState = "err";
-      geminiStatus = "Offline";
-    }
-  }
-
-  list.innerHTML = [
-    connectionRow("Gemini coach", geminiDetail, geminiOk, {
-      state: geminiState,
-      status: geminiStatus,
-    }),
-    connectionRow("Google", googleDetail, status.google_connected),
-    connectionRow(
-      "Presage wellness",
-      status.presage_ready ? "Webcam stress API key present" : "Optional — add Presage key for HR checks",
-      status.presage_ready,
-    ),
-    connectionRow("Lock-in coach", localLine, localOk),
-    connectionRow(
-      "Waypoint account",
-      status.signed_in
-        ? `Signed in as ${status.email || status.username || "you"}`
-        : "Sign in with Google to unlock the app",
-      status.signed_in,
-    ),
-  ].join("");
 }
 
 async function renderMissionControlSettings(status: StatusPayload) {
@@ -1365,17 +1356,141 @@ async function sendChat() {
   );
 }
 
+/** Live companion session — backend-mediated Gemini Live (never talks to Google directly). */
+let companionLive: CompanionLiveSession | null = null;
+let companionBusy = false;
+
+const COMPANION_PHASE_COPY: Record<CompanionPhase, string> = {
+  idle: "Tap Talk to start a live voice turn",
+  connecting: "Connecting companion…",
+  listening: "Listening — talk or type",
+  thinking: "Companion is answering…",
+  speaking: "Companion speaking — talk to interrupt",
+};
+
+function setCompanionPhaseUi(phase: CompanionPhase) {
+  const label = $("#session-companion-phase");
+  if (label) label.textContent = COMPANION_PHASE_COPY[phase] ?? phase;
+  const mic = $("#session-chat-mic") as HTMLButtonElement | null;
+  if (mic) {
+    mic.classList.toggle("is-live", phase === "listening");
+    mic.classList.toggle("is-thinking", phase === "thinking");
+    mic.classList.toggle("is-speaking", phase === "speaking");
+    mic.classList.toggle("is-connecting", phase === "connecting");
+    mic.textContent = phase === "idle" ? "Talk" : phase === "connecting" ? "…" : "Live";
+    mic.setAttribute(
+      "aria-label",
+      phase === "idle" ? "Start live companion talk" : "End live companion talk",
+    );
+  }
+  setSessionListeningUi(phase === "listening" || phase === "connecting");
+}
+
+function upsertSessionLiveBubble(role: "user" | "assistant", text: string, isFinal: boolean) {
+  const log = $("#session-chat-log");
+  if (!log) return;
+  $("#session-chat-empty")?.remove();
+  const last = log.lastElementChild as HTMLElement | null;
+  if (
+    last?.classList.contains(`session-chat-turn--${role}`) &&
+    last.dataset.sealed !== "true"
+  ) {
+    const bubble = last.querySelector(".bubble");
+    if (bubble) bubble.textContent = text;
+    if (isFinal) last.dataset.sealed = "true";
+  } else {
+    const bubble = appendSessionChat(role, text);
+    const turn = bubble?.closest(".session-chat-turn") as HTMLElement | null;
+    if (turn) turn.dataset.sealed = isFinal ? "true" : "false";
+  }
+  log.scrollTop = log.scrollHeight;
+}
+
+function collectCompanionContext(): CompanionContext {
+  const goals = ($("#session-goals")?.textContent ?? "").trim();
+  const timer = $("#session-timer")?.textContent ?? "00:00";
+  const [mm, ss] = timer.split(":").map((p) => Number(p));
+  const remainingMins =
+    Number.isFinite(mm) && Number.isFinite(ss) ? mm + ss / 60 : undefined;
+  let nextStepSecs: number | undefined;
+  if (nextStepEndsAtMs != null && !nextStepPaused) {
+    nextStepSecs = Math.max(0, Math.ceil((nextStepEndsAtMs - Date.now()) / 1000));
+  } else if (nextStepPaused) {
+    nextStepSecs = Math.max(0, Math.ceil(nextStepRemainingMs / 1000));
+  }
+  const paused =
+    ($("#session-pause") as HTMLButtonElement | null)?.getAttribute("aria-pressed") ===
+    "true";
+  return {
+    goals: goals || undefined,
+    remaining_mins: remainingMins,
+    duration_mins: currentSessionDurationSecs
+      ? currentSessionDurationSecs / 60
+      : undefined,
+    next_step_secs: nextStepSecs,
+    paused,
+  };
+}
+
+function teardownCompanionLive() {
+  if (companionLive) {
+    companionLive.end(true);
+    companionLive = null;
+  }
+  companionBusy = false;
+  setCompanionPhaseUi("idle");
+  void invoke("voice_stop").catch(() => {});
+  void invoke("companion_clear").catch(() => {});
+}
+
+async function ensureCompanionLive(): Promise<CompanionLiveSession> {
+  if (companionLive?.active) return companionLive;
+  companionLive = new CompanionLiveSession({
+    onPhase: (phase) => setCompanionPhaseUi(phase),
+    onUser: (text, isFinal) => upsertSessionLiveBubble("user", text, isFinal),
+    onAssistant: (text, isFinal) =>
+      upsertSessionLiveBubble("assistant", text, isFinal),
+    onError: (message) => {
+      setComposerMicHint(message, "session");
+      setCompanionPhaseUi("idle");
+    },
+  });
+  await companionLive.start(collectCompanionContext());
+  return companionLive;
+}
+
 async function sendSessionChat() {
   const input = $<HTMLTextAreaElement>("#session-chat-input");
-  if (chatBusy || !input?.value.trim()) return;
-  const message = input.value;
+  if (companionBusy || chatBusy || !input?.value.trim()) return;
+  const message = input.value.trim();
   input.value = "";
-  await dispatchChatMessage(
-    message,
-    (text) => appendSessionChat("user", text),
-    (text) => appendSessionChat("assistant", text),
-    input,
-  );
+
+  // Prefer Live socket when already open (demo-style typed turn).
+  if (companionLive?.active) {
+    companionLive.sendText(message);
+    return;
+  }
+
+  // Typed fallback via backend-mediated /v1/companion/chat (not main Copilot history).
+  companionBusy = true;
+  setChatControlsBusy(true);
+  appendSessionChat("user", message);
+  const pending = appendSessionChat("assistant", "Thinking…");
+  try {
+    const reply = await invoke<{ content: string }>("companion_send", {
+      message,
+      context: collectCompanionContext(),
+    });
+    if (pending) pending.textContent = reply.content;
+  } catch (err) {
+    if (pending) pending.textContent = chatErrorMessage(err);
+  } finally {
+    companionBusy = false;
+    setChatControlsBusy(false);
+    const sessionLog = $("#session-chat-log");
+    if (sessionLog) sessionLog.scrollTop = sessionLog.scrollHeight;
+    input.focus();
+  }
 }
 
 function formatRemaining(endsAt: string): string {
@@ -1548,8 +1663,28 @@ function setSessionListeningUi(listening: boolean) {
 const SESSION_CHECKIN_HIDE_MS = 6780;
 let sessionCheckinHideTimer: number | undefined;
 
+function syncCopilotPanelAriaLabel() {
+  const panel = $(".session-copilot-panel");
+  if (!panel) return;
+  const view = $("#view-session");
+  if (view?.classList.contains("is-session-break")) {
+    panel.setAttribute("aria-label", "On a break");
+  } else if (view?.classList.contains("is-session-checkin")) {
+    panel.setAttribute("aria-label", "Quick check-in");
+  } else {
+    panel.setAttribute("aria-label", "Mission copilot");
+  }
+}
+
 function setSessionCheckinUi(active: boolean) {
-  $("#view-session")?.classList.toggle("is-session-checkin", active);
+  const view = $("#view-session");
+  view?.classList.toggle("is-session-checkin", active);
+  const checkinCard = $("#session-checkin-card");
+  if (checkinCard) {
+    checkinCard.hidden = !active;
+    checkinCard.setAttribute("aria-hidden", active ? "false" : "true");
+  }
+  syncCopilotPanelAriaLabel();
   if (sessionCheckinHideTimer) {
     window.clearTimeout(sessionCheckinHideTimer);
     sessionCheckinHideTimer = undefined;
@@ -1563,6 +1698,33 @@ function setSessionCheckinUi(active: boolean) {
 
 function setSessionEndingUi(ending: boolean) {
   $("#view-session")?.classList.toggle("is-session-ending", ending);
+}
+
+function currentEarnedFlightMinutes(): number {
+  if (!currentEndsAt || currentSessionDurationSecs <= 0) return 0;
+  return flightMinutesEarned(
+    currentEndsAt,
+    currentSessionDurationSecs,
+    currentOnTaskTicks,
+    currentTotalTicks,
+  );
+}
+
+function openEndSessionModal() {
+  const modal = $("#end-session-modal");
+  const body = $("#end-session-modal-body");
+  if (body) {
+    const earned = currentEarnedFlightMinutes();
+    body.textContent = `Your ${earned} earned flight minutes will be saved. You can reflect on your objective next.`;
+  }
+  setSessionEndingUi(true);
+  if (modal) modal.hidden = false;
+}
+
+function closeEndSessionModal() {
+  const modal = $("#end-session-modal");
+  if (modal) modal.hidden = true;
+  setSessionEndingUi(false);
 }
 
 function formatVitals(vitals?: VitalsSnapshot | null): string {
@@ -1641,7 +1803,6 @@ function syncPauseControls(paused: boolean) {
   const endBtn = $("#end-session") as HTMLButtonElement | null;
   const caption = $("#session-timer-caption");
   const breakCard = $("#session-break-card");
-  const panel = $(".session-copilot-panel");
   $("#view-session")?.classList.toggle("is-session-break", paused);
   if (btn) {
     btn.disabled = false;
@@ -1656,9 +1817,7 @@ function syncPauseControls(paused: boolean) {
     breakCard.hidden = !paused;
     breakCard.setAttribute("aria-hidden", paused ? "false" : "true");
   }
-  if (panel) {
-    panel.setAttribute("aria-label", paused ? "On a break" : "Mission copilot");
-  }
+  syncCopilotPanelAriaLabel();
   if (caption) {
     caption.textContent = paused ? "REMAINING · TIMER PAUSED" : "REMAINING IN YOUR FLIGHT";
   }
@@ -2511,23 +2670,33 @@ async function bootApp() {
     pauseBtn.click();
   });
 
-  $("#end-session")?.addEventListener("click", async () => {
+  $("#session-checkin-on-task")?.addEventListener("click", () => {
+    setSessionCheckinUi(false);
+  });
+
+  $("#session-checkin-distracted")?.addEventListener("click", () => {
+    setSessionCheckinUi(false);
+    // Soft local acknowledge — backend still owns coach status ticks.
+    applySessionOrbitState("distracted");
+    updateSessionProgressPill("distracted");
+  });
+
+  $("#session-checkin-break")?.addEventListener("click", () => {
+    setSessionCheckinUi(false);
+    const pauseBtn = $("#session-pause") as HTMLButtonElement | null;
+    if (!pauseBtn || pauseBtn.disabled) return;
+    if (pauseBtn.getAttribute("aria-pressed") === "true") return;
+    pauseBtn.click();
+  });
+
+  const confirmEndSession = async () => {
+    closeEndSessionModal();
     const btn = $("#end-session") as HTMLButtonElement | null;
-    if (btn?.disabled) return;
-    // Native confirm for now — hide next-step to match live 11 underlying chrome.
-    setSessionEndingUi(true);
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-    });
-    const confirmed = window.confirm("End this mission? Screen watching will stop.");
-    setSessionEndingUi(false);
-    if (!confirmed) {
-      return;
-    }
     if (btn) btn.disabled = true;
     const pauseBtn = $("#session-pause") as HTMLButtonElement | null;
     if (pauseBtn) pauseBtn.disabled = true;
     try {
+      teardownCompanionLive();
       stopTimer();
       const summary = await invoke<SessionSummary | null>("stop_lock_in");
       syncPauseControls(false);
@@ -2543,6 +2712,22 @@ async function bootApp() {
       if (btn) btn.disabled = false;
       if (pauseBtn) pauseBtn.disabled = false;
     }
+  };
+
+  $("#end-session")?.addEventListener("click", () => {
+    const btn = $("#end-session") as HTMLButtonElement | null;
+    if (btn?.disabled) return;
+    openEndSessionModal();
+  });
+
+  $("#end-session-modal")
+    ?.querySelectorAll("[data-end-session-dismiss]")
+    .forEach((el) => {
+      el.addEventListener("click", () => closeEndSessionModal());
+    });
+
+  $("#end-session-confirm")?.addEventListener("click", () => {
+    void confirmEndSession();
   });
 
   document.querySelectorAll<HTMLButtonElement>("[data-settings-tab]").forEach((button) => {
@@ -2636,42 +2821,31 @@ async function bootApp() {
     }
   });
   $("#session-chat-mic")?.addEventListener("click", async () => {
-    if (chatBusy || chatMicListening) return;
-    const input = $<HTMLTextAreaElement>("#session-chat-input");
-    const mic = $("#session-chat-mic") as HTMLButtonElement | null;
-    chatMicListening = true;
-    setSessionListeningUi(true);
-    if (mic) {
-      mic.disabled = true;
-      mic.textContent = "…";
+    if (chatBusy || companionBusy) return;
+    // Toggle Live companion (demo-style Start/End) — not dictation into the composer.
+    if (companionLive?.active) {
+      teardownCompanionLive();
+      setComposerMicHint(
+        "Live companion ended. Tap Talk to start again, or type a turn.",
+        "session",
+      );
+      return;
     }
-    setComposerMicHint("Listening for 4 seconds… speak now.", "session");
+    const mic = $("#session-chat-mic") as HTMLButtonElement | null;
+    if (mic) mic.disabled = true;
     try {
-      const transcript = await listenForTranscript(4);
-      const text = transcript.text?.trim();
-      if (text && input) {
-        input.value = input.value.trim() ? `${input.value.trim()} ${text}` : text;
-        input.focus();
-        setComposerMicHint(`Heard: “${text}”. Edit if needed, then send.`, "session");
-      } else {
-        setComposerMicHint(
-          transcript.note?.trim()
-            ? `No speech detected. ${transcript.note}`
-            : "No speech detected. Click Mic and speak for about 4 seconds.",
-          "session",
-        );
-      }
+      await ensureCompanionLive();
+      setComposerMicHint(
+        "Live companion open — talk freely or type a line. Tap Live to end.",
+        "session",
+      );
       void renderPermissionsStatus();
     } catch (err) {
       console.error(err);
-      setComposerMicHint(String(err), "session");
+      teardownCompanionLive();
+      setComposerMicHint(chatErrorMessage(err), "session");
     } finally {
-      chatMicListening = false;
-      setSessionListeningUi(false);
-      if (mic) {
-        mic.disabled = false;
-        mic.textContent = "Mic";
-      }
+      if (mic) mic.disabled = false;
     }
   });
   $("#setting-copilot-audio")?.addEventListener("change", () => {
@@ -2692,13 +2866,8 @@ async function bootApp() {
     applyReduceMotionPref();
   });
   applyReduceMotionPref();
-  $("#connection-refresh")?.addEventListener("click", async () => {
-    try {
-      const status = await invoke<StatusPayload>("get_status");
-      await renderConnectionStatus(status);
-    } catch (err) {
-      console.error(err);
-    }
+  $("#connection-refresh")?.addEventListener("click", () => {
+    void renderConnectionStatus();
   });
   $("#permissions-refresh")?.addEventListener("click", () => {
     void renderPermissionsStatus();
@@ -2825,6 +2994,7 @@ async function bootApp() {
     if (note) note.textContent = `Wellness check: ${event.payload}`;
   });
   await listen<SessionSummary>("session-ended", (event) => {
+    teardownCompanionLive();
     stopTimer();
     setSessionCheckinUi(false);
     setSessionEndingUi(false);

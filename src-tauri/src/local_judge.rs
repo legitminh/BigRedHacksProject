@@ -1,5 +1,5 @@
-//! On-device on-task classifier via a small quantized model (Ollama).
-//! Prefer this over Gemini text/vision whenever it is available and confident.
+//! On-device on-task classifier via a small quantized model (Ollama / Llama).
+//! Lock-in never calls Gemini — local provider only.
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
