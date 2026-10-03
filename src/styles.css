@@ -4321,7 +4321,15 @@ body:has(.view-quest-complete.active) .grain {
   display: block;
   height: auto;
   object-fit: contain;
+  object-position: left center;
+  background: transparent;
   transform-origin: center center;
+}
+
+/* Figma Space artwork SVGs — never show export plate / white border */
+img[src*="/assets/figma/"],
+img[src*="assets/figma/"] {
+  background: transparent;
 }
 
 .ship-sprite.ship-figma {

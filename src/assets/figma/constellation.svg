@@ -1,7 +1,7 @@
 <svg width="1440" height="960" viewBox="0 0 1440 960" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="1440" height="960" fill="#E5E5E5"/>
+
 <g id="01 &#226;&#128;&#162; Welcome aboard" clip-path="url(#clip0_0_1)">
-<rect width="1440" height="960" fill="#F7F2FF"/>
+
 <g id="Cosmic / constellation background">
 <path id="Vector" d="M1005 155L1106 134L1175 190L1277 163L1367 244M45 643L112 699L68 775L170 818" stroke="#B8A5D6" stroke-opacity="0.32"/>
 <g id="Group">
@@ -57,7 +57,7 @@
 </g>
 <defs>
 <clipPath id="clip0_0_1">
-<rect width="1440" height="960" fill="white"/>
+
 </clipPath>
 </defs>
 </svg>
