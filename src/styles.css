@@ -4,32 +4,35 @@
 .bubble.assistant .katex { font-size: 1.1em; }
 
 :root {
-  /* Mission Control — surfaces */
-  --mc-bg-void: #070b14;
-  --mc-bg-deep: #0a1020;
-  --mc-bg-base: #0f1629;
-  --mc-bg-elevated: #151d32;
-  --mc-bg-card: #1a2340;
-  --mc-surface-glass: rgba(15, 22, 41, 0.72);
-  --mc-border-subtle: rgba(148, 163, 184, 0.12);
-  --mc-border-default: rgba(148, 163, 184, 0.22);
-  --mc-border-strong: rgba(124, 58, 237, 0.38);
+  /* Mission Control — surfaces (Figma light lavender / cream) */
+  --mc-bg-page: #e8e0f5;
+  --mc-bg-page-alt: #f3eef9;
+  --mc-bg-void: #e8e0f5;
+  --mc-bg-deep: #e0d8ef;
+  --mc-bg-base: #e8e0f5;
+  --mc-bg-elevated: #fbf8f3;
+  --mc-bg-card: #fffdf8;
+  --mc-surface-glass: #fbf8f3;
+  --mc-surface-lavender: #ebe4f8;
+  --mc-border-subtle: rgba(42, 36, 64, 0.08);
+  --mc-border-default: rgba(42, 36, 64, 0.12);
+  --mc-border-strong: rgba(107, 76, 255, 0.32);
 
   /* Mission Control — accents */
-  --mc-accent-purple: #7c3aed;
-  --mc-accent-purple-bright: #9333ea;
-  --mc-accent-purple-glow: rgba(124, 58, 237, 0.45);
-  --mc-accent-cyan: #22d3ee;
-  --mc-accent-cyan-dim: #0891b2;
-  --mc-accent-cyan-glow: rgba(34, 211, 238, 0.35);
-  --mc-accent-green: #34d399;
-  --mc-accent-green-dim: #10b981;
+  --mc-accent-purple: #6b4cff;
+  --mc-accent-purple-bright: #7c5cff;
+  --mc-accent-purple-glow: rgba(107, 76, 255, 0.22);
+  --mc-accent-cyan: #43968f;
+  --mc-accent-cyan-dim: #357870;
+  --mc-accent-cyan-glow: rgba(67, 150, 143, 0.25);
+  --mc-accent-green: #43968f;
+  --mc-accent-green-dim: #357870;
 
   /* Mission Control — text */
-  --mc-text-primary: #f1f5f9;
-  --mc-text-secondary: #cbd5e1;
-  --mc-text-muted: #94a3b8;
-  --mc-text-label: #a5b4c8;
+  --mc-text-primary: #2a2440;
+  --mc-text-secondary: #4a4560;
+  --mc-text-muted: #7a7494;
+  --mc-text-label: #8b849e;
   --mc-text-on-accent: #ffffff;
 
   /* Mission Control — semantic */
@@ -73,36 +76,35 @@
   --mc-space-xl: 1.5rem;
 
   /* Mission Control — effects */
-  --mc-shadow-soft: 0 8px 32px rgba(0, 0, 0, 0.4);
-  --mc-shadow-glow-purple: 0 0 28px var(--mc-accent-purple-glow);
-  --mc-shadow-glow-cyan: 0 0 22px var(--mc-accent-cyan-glow);
+  --mc-shadow-soft: 0 8px 32px rgba(42, 36, 64, 0.08);
+  --mc-shadow-glow-purple: 0 4px 20px rgba(107, 76, 255, 0.28);
+  --mc-shadow-glow-cyan: 0 2px 12px rgba(67, 150, 143, 0.18);
 
   /* Ship gamification (feature views) */
-  --ship-glow: #6ee7d8;
-  --ship-hull: #f1f5f9;
-  --ship-accent: #a78bfa;
+  --ship-glow: #43968f;
+  --ship-hull: #2a2440;
+  --ship-accent: #7c5cff;
 
   /* Legacy aliases — existing views keep working */
-  --ink: var(--mc-bg-deep);
+  --ink: var(--mc-bg-page);
   --foam: var(--mc-text-primary);
   --mist: var(--mc-text-label);
   --amber: var(--mc-accent-purple);
   --violet: var(--mc-accent-purple);
   --violet-soft: var(--mc-accent-purple-glow);
-  --cyan-glow: var(--mc-accent-cyan);
-  --card: var(--mc-surface-glass);
-  --glass: var(--mc-surface-glass);
+  --cyan-glow: var(--mc-accent-purple-bright);
+  --card: var(--mc-bg-card);
+  --glass: var(--mc-bg-card);
   --text: var(--mc-text-primary);
   --muted: var(--mc-text-muted);
 }
 
 /* Mission Control shared primitives (reuse in feature views) */
 .mc-card {
-  background: var(--mc-surface-glass);
+  background: var(--mc-bg-card);
   border: 1px solid var(--mc-border-default);
   border-radius: var(--radius-lg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  box-shadow: var(--mc-shadow-soft);
 }
 
 .mc-input,
@@ -112,7 +114,7 @@ textarea.mc-input {
   box-sizing: border-box;
   font: inherit;
   color: var(--mc-text-primary);
-  background: rgba(7, 11, 20, 0.72);
+  background: var(--mc-surface-lavender);
   border: 1px solid var(--mc-border-default);
   border-radius: var(--radius-md);
   padding: 0.75rem 0.9rem;
@@ -149,7 +151,7 @@ textarea.mc-input {
 }
 
 .mc-btn--primary {
-  background: linear-gradient(135deg, var(--mc-accent-purple-bright) 0%, var(--mc-accent-purple) 100%);
+  background: var(--mc-accent-purple);
   color: var(--mc-text-on-accent);
   box-shadow: var(--mc-shadow-glow-purple);
 }
@@ -159,19 +161,19 @@ textarea.mc-input {
 }
 
 .mc-btn--secondary {
-  background: transparent;
+  background: var(--mc-surface-lavender);
   color: var(--mc-text-primary);
-  border: 1px solid rgba(34, 211, 238, 0.45);
+  border: 1px solid var(--mc-border-default);
 }
 
 .mc-btn--secondary:hover {
-  border-color: var(--mc-accent-cyan);
-  box-shadow: var(--mc-shadow-glow-cyan);
+  border-color: var(--mc-border-strong);
+  background: var(--mc-bg-page-alt);
 }
 
 .mc-btn--ghost {
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--mc-text-label);
+  background: transparent;
+  color: var(--mc-text-secondary);
   border: 1px solid var(--mc-border-default);
   padding: 0.5rem 0.85rem;
   font-size: var(--mc-text-sm);
@@ -189,21 +191,21 @@ textarea.mc-input {
 }
 
 .pill--purple {
-  background: rgba(124, 58, 237, 0.22);
-  color: #ddd6fe;
-  border: 1px solid var(--mc-border-strong);
+  background: var(--mc-surface-lavender);
+  color: var(--mc-accent-purple);
+  border: 1px solid rgba(107, 76, 255, 0.2);
 }
 
 .pill--cyan {
-  background: rgba(34, 211, 238, 0.12);
-  color: #a5f3fc;
-  border: 1px solid rgba(34, 211, 238, 0.35);
+  background: rgba(67, 150, 143, 0.12);
+  color: var(--mc-accent-cyan-dim);
+  border: 1px solid rgba(67, 150, 143, 0.28);
 }
 
 .pill--green {
-  background: rgba(52, 211, 153, 0.14);
-  color: #6ee7b7;
-  border: 1px solid rgba(52, 211, 153, 0.4);
+  background: rgba(67, 150, 143, 0.12);
+  color: var(--mc-accent-green-dim);
+  border: 1px solid rgba(67, 150, 143, 0.32);
 }
 
 
@@ -228,11 +230,10 @@ body {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 85% 55% at 12% 8%, rgba(124, 58, 237, 0.28), transparent 58%),
-    radial-gradient(ellipse 70% 45% at 88% 18%, rgba(34, 211, 238, 0.16), transparent 52%),
-    radial-gradient(ellipse 55% 40% at 72% 78%, rgba(52, 211, 153, 0.08), transparent 55%),
-    radial-gradient(ellipse 90% 70% at 50% 100%, rgba(10, 16, 32, 0.95), transparent 62%),
-    linear-gradient(168deg, var(--mc-bg-void) 0%, var(--mc-bg-base) 42%, var(--mc-bg-deep) 100%);
+    radial-gradient(ellipse 75% 50% at 88% 12%, rgba(124, 92, 255, 0.12), transparent 55%),
+    radial-gradient(ellipse 60% 45% at 8% 85%, rgba(107, 76, 255, 0.08), transparent 52%),
+    radial-gradient(ellipse 50% 40% at 50% 50%, rgba(255, 253, 248, 0.45), transparent 70%),
+    linear-gradient(180deg, var(--mc-bg-page-alt) 0%, var(--mc-bg-page) 48%, var(--mc-bg-deep) 100%);
   z-index: 0;
   animation: drift 18s ease-in-out infinite alternate;
 }
@@ -242,7 +243,8 @@ body {
   inset: 0;
   pointer-events: none;
   z-index: 1;
-  opacity: 0.12;
+  opacity: 0.045;
+  mix-blend-mode: multiply;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
 }
 
@@ -278,8 +280,8 @@ body {
   pointer-events: none;
   z-index: -1;
   background:
-    radial-gradient(ellipse 55% 45% at 78% 22%, var(--violet-soft), transparent 55%),
-    radial-gradient(ellipse 40% 35% at 12% 80%, rgba(34, 211, 238, 0.12), transparent 50%);
+    radial-gradient(ellipse 55% 45% at 78% 22%, rgba(107, 76, 255, 0.1), transparent 55%),
+    radial-gradient(ellipse 40% 35% at 12% 80%, rgba(124, 92, 255, 0.06), transparent 50%);
 }
 
 .mc-nav {
@@ -316,7 +318,7 @@ body {
   font-size: 0.72rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--cyan-glow);
+  color: var(--mc-accent-purple);
   font-weight: 600;
 }
 
@@ -370,14 +372,15 @@ body {
 }
 
 .mc-guest-cta .primary.pill {
-  background: linear-gradient(135deg, #a78bfa, var(--violet));
-  color: #f5f3ff;
+  background: var(--mc-accent-purple);
+  color: var(--mc-text-on-accent);
   border: none;
-  box-shadow: 0 0 22px rgba(124, 58, 237, 0.45);
+  box-shadow: var(--mc-shadow-glow-purple);
 }
 
 .mc-guest-cta .secondary.pill {
-  border-color: rgba(34, 211, 238, 0.35);
+  border-color: var(--mc-border-default);
+  background: var(--mc-surface-lavender);
   color: var(--foam);
 }
 
@@ -610,15 +613,16 @@ body {
 }
 
 .mc-mission-actions .primary.pill {
-  background: linear-gradient(135deg, #a78bfa, var(--violet));
-  color: #f5f3ff;
+  background: var(--mc-accent-purple);
+  color: var(--mc-text-on-accent);
   border: none;
-  box-shadow: 0 0 22px rgba(124, 58, 237, 0.45);
+  box-shadow: var(--mc-shadow-glow-purple);
 }
 
 .mc-mission-actions .secondary.pill {
   border-radius: 999px;
-  border-color: rgba(34, 211, 238, 0.35);
+  border-color: var(--mc-border-default);
+  background: var(--mc-surface-lavender);
   color: var(--foam);
 }
 
@@ -686,7 +690,7 @@ body {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid var(--mc-border-default);
-  background: rgba(7, 11, 20, 0.72);
+  background: var(--mc-surface-lavender);
   color: var(--foam);
   padding: 0.65rem 0.75rem;
   border-radius: var(--radius-md);
@@ -995,7 +999,7 @@ button:active {
 }
 
 .primary {
-  background: linear-gradient(135deg, var(--mc-accent-purple-bright) 0%, var(--mc-accent-purple) 100%);
+  background: var(--mc-accent-purple);
   color: var(--mc-text-on-accent);
   font-weight: var(--mc-weight-bold);
   padding: 0.9rem 1.3rem;
@@ -1008,21 +1012,21 @@ button:active {
 }
 
 .secondary {
-  background: transparent;
+  background: var(--mc-surface-lavender);
   color: var(--foam);
-  border: 1px solid rgba(34, 211, 238, 0.45);
+  border: 1px solid var(--mc-border-default);
   padding: 0.9rem 1.3rem;
   font-weight: var(--mc-weight-semibold);
   border-radius: var(--radius-pill);
 }
 
 .secondary:hover {
-  border-color: var(--mc-accent-cyan);
-  box-shadow: var(--mc-shadow-glow-cyan);
+  border-color: var(--mc-border-strong);
+  background: var(--mc-bg-page-alt);
 }
 
 .ghost {
-  background: rgba(255, 255, 255, 0.04);
+  background: transparent;
   color: var(--mist);
   border: 1px solid var(--mc-border-default);
   padding: 0.45rem 0.75rem;
@@ -1335,7 +1339,7 @@ button:active {
 .lockin-form input,
 .lockin-form textarea {
   width: 100%;
-  background: rgba(7, 11, 20, 0.72);
+  background: var(--mc-surface-lavender);
   border: 1px solid var(--mc-border-default);
   color: var(--text);
   padding: 0.85rem 0.95rem;
@@ -1355,7 +1359,7 @@ button:active {
 .composer-hint { margin: 0.4rem 0 0; color: var(--muted); font-size: 0.75rem; }
 button:disabled { opacity: 0.5; cursor: wait; }
 button:focus-visible, a:focus-visible, .table-scroll:focus-visible {
-  outline: 2px solid var(--mc-accent-cyan);
+  outline: 2px solid var(--mc-accent-purple-bright);
   outline-offset: 3px;
 }
 .bubble.assistant > :first-child { margin-top: 0; }
@@ -1641,12 +1645,10 @@ button:focus-visible, a:focus-visible, .table-scroll:focus-visible {
 .view-session.active ~ .atmosphere,
 body:has(.view-session.active) .atmosphere {
   background:
-    radial-gradient(ellipse 80% 55% at 50% 35%, rgba(124, 58, 237, 0.22), transparent 58%),
-    radial-gradient(ellipse 60% 45% at 20% 80%, rgba(34, 211, 238, 0.12), transparent 50%),
-    radial-gradient(ellipse 90% 60% at 15% 10%, rgba(47, 120, 118, 0.35), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 85% 20%, rgba(226, 163, 90, 0.12), transparent 50%),
-    radial-gradient(ellipse 80% 70% at 50% 100%, rgba(18, 60, 70, 0.9), transparent 60%),
-    linear-gradient(165deg, #050810 0%, #0f1628 45%, #0b1c24 100%);
+    radial-gradient(ellipse 70% 50% at 50% 30%, rgba(107, 76, 255, 0.14), transparent 58%),
+    radial-gradient(ellipse 55% 45% at 15% 75%, rgba(124, 92, 255, 0.08), transparent 52%),
+    radial-gradient(ellipse 50% 40% at 85% 20%, rgba(67, 150, 143, 0.08), transparent 50%),
+    linear-gradient(180deg, var(--mc-bg-page-alt) 0%, var(--mc-bg-page) 55%, var(--mc-bg-deep) 100%);
 }
 
 .session-head-brand {
