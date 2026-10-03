@@ -1,6 +1,7 @@
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 
 fn toml_string_value(raw: &str, key: &str) -> Option<String> {
     for line in raw.lines() {
@@ -83,6 +84,50 @@ fn main() {
     println!("cargo:rerun-if-changed=secrets.toml");
     println!("cargo:rerun-if-changed=secrets.example.toml");
     println!("cargo:rerun-if-changed=Info.plist");
+    println!("cargo:rerun-if-changed=tools/ocr_vision.swift");
     println!("cargo:rerun-if-env-changed=GEMINI_API_KEY");
+
+    compile_ocr_helper(&manifest);
+
     tauri_build::build()
+}
+
+fn compile_ocr_helper(manifest: &PathBuf) {
+    let swift = manifest.join("tools/ocr_vision.swift");
+    let bin_dir = manifest.join("bin");
+    let _ = fs::create_dir_all(&bin_dir);
+    let out = bin_dir.join("waypoint-ocr");
+    // Always expose a path so ocr.rs can compile even if swiftc is missing on CI.
+    println!("cargo:rustc-env=WAYPOINT_OCR_BIN={}", out.display());
+
+    if !swift.exists() {
+        eprintln!("cargo:warning=OCR swift source missing at {}", swift.display());
+        return;
+    }
+    if cfg!(not(target_os = "macos")) {
+        return;
+    }
+    let status = Command::new("swiftc")
+        .args([
+            "-O",
+            "-framework",
+            "Vision",
+            "-framework",
+            "AppKit",
+            "-o",
+            out.to_str().unwrap_or("waypoint-ocr"),
+            swift.to_str().unwrap_or("ocr_vision.swift"),
+        ])
+        .status();
+    match status {
+        Ok(s) if s.success() => {
+            println!("cargo:warning=compiled local OCR helper → {}", out.display());
+        }
+        Ok(s) => {
+            eprintln!("cargo:warning=swiftc failed ({s}) — local OCR disabled until rebuild succeeds");
+        }
+        Err(e) => {
+            eprintln!("cargo:warning=swiftc not available ({e}) — local OCR disabled");
+        }
+    }
 }

@@ -4,6 +4,8 @@ mod coach;
 mod config;
 mod gemini;
 mod google;
+mod local_judge;
+mod local_vision;
 mod overlay;
 mod presage;
 mod session;
@@ -39,6 +41,8 @@ struct StatusPayload {
     gemini_ready: bool,
     google_oauth_ready: bool,
     presage_ready: bool,
+    local_llm_model: String,
+    local_llm_enabled: bool,
     session: Option<LockInSession>,
 }
 
@@ -52,8 +56,16 @@ fn get_status(state: State<'_, AppState>) -> StatusPayload {
         gemini_ready: cfg.gemini_api_key.is_some(),
         google_oauth_ready: cfg.google_oauth_ready(),
         presage_ready: cfg.presage_api_key.is_some(),
+        local_llm_model: cfg.local_llm_model.clone(),
+        local_llm_enabled: cfg.local_llm_enabled,
         session: state.session.lock().clone(),
     }
+}
+
+#[tauri::command]
+async fn local_llm_status(state: State<'_, AppState>) -> Result<String, String> {
+    let cfg = state.config.lock().clone();
+    Ok(local_judge::status_line(&cfg).await)
 }
 
 #[tauri::command]
@@ -339,6 +351,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_status,
+            local_llm_status,
             sign_in_waypoint,
             sign_out_waypoint,
             connect_google,

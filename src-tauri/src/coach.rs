@@ -7,6 +7,8 @@ use uuid::Uuid;
 
 use crate::capture::{self, camera, frontmost, screen};
 use crate::gemini::{self, CoachVisionResult, GeminiClient};
+use crate::local_judge;
+use crate::local_vision;
 use crate::overlay;
 use crate::presage::{self, PresageClient, VitalsSnapshot};
 use crate::session::{CoachPrompt, SessionStatusKind};
@@ -14,19 +16,23 @@ use crate::AppState;
 
 /// Poll for app/tab switches — free OS signals, so stay snappy.
 const LOCAL_TICK_SECS: u64 = 1;
-/// Full-desktop Gemini when on-task. Free tier ~250 RPD; ~50s ≈ 70/hr with chat headroom.
-const GEMINI_TICK_ON_TASK_SECS: u64 = 50;
-/// While local already knows you're distracted, vision is only a rare double-check.
-const GEMINI_TICK_OFF_TASK_SECS: u64 = 90;
-/// Cap vision calls per lock-in so a long session can't burn the daily quota.
-const MAX_VISION_PER_SESSION: u32 = 100;
-/// Text context judgments (YouTube titles) are cheap — still cap per session.
-const MAX_CONTEXT_JUDGMENTS_PER_SESSION: u32 = 80;
+/// Apple Vision OCR on a small window capture (cheap, no cloud).
+const OCR_TICK_SECS: u64 = 3;
+/// Rare tiny local VLM (moondream) when OCR/OS signals are inconclusive.
+const LOCAL_VLM_TICK_SECS: u64 = 45;
+/// Full-desktop Gemini is a last resort. Prefer local model + OS signals.
+const GEMINI_TICK_ON_TASK_SECS: u64 = 120;
+/// While already distracted locally, skip vision almost entirely.
+const GEMINI_TICK_OFF_TASK_SECS: u64 = 180;
+/// Hard cap — screenshots should be rare when the local model is healthy.
+const MAX_VISION_PER_SESSION: u32 = 24;
+/// Ambiguous context judgments per session (local model first, Gemini text fallback).
+const MAX_CONTEXT_JUDGMENTS_PER_SESSION: u32 = 120;
 const RATE_LIMIT_COOLDOWN_SECS: u64 = 120;
 /// Soft coach lines (help / stress) — don't spam.
 const PROMPT_COOLDOWN_SECS: i64 = 14;
-/// Off-task nags — matches overlay display so the next toast lands as the last fades.
-const SOCIAL_PROMPT_COOLDOWN_SECS: i64 = 7;
+/// Off-task nags — keep interrupting while they stay on the distraction.
+const SOCIAL_PROMPT_COOLDOWN_SECS: i64 = 5;
 const PRESAGE_CLIP_SECS: u64 = 22;
 const PRESAGE_FPS: u32 = 12;
 const PRESAGE_GAP_SECS: u64 = 70;
@@ -61,7 +67,7 @@ pub fn spawn_coach_loop(app: AppHandle, session_id: String, use_camera: bool, us
     reset_ephemeral_cooldown();
     push_prompt(
         &app,
-        "I'm watching your full screen against your goals — off-task apps and sites get called out.",
+        "I'm watching apps and tabs against your goals — local checks first, screenshots only rarely.",
         "watching",
     );
 
@@ -70,12 +76,39 @@ pub fn spawn_coach_loop(app: AppHandle, session_id: String, use_camera: bool, us
         let mut guard = state.session.lock();
         if let Some(session) = guard.as_mut() {
             session.watching_note =
-                "Watching full screen · wellness runs later in the background".into();
+                "Watching apps/tabs · checking for local model…".into();
             session.status = SessionStatusKind::OnTask;
             let snap = session.clone();
             drop(guard);
             let _ = app.emit("session-update", &snap);
         }
+    }
+
+    // Probe Ollama in the background so the UI can show if on-device judging is live.
+    {
+        let probe_app = app.clone();
+        let probe_id = session_id.clone();
+        tauri::async_runtime::spawn(async move {
+            let cfg = probe_app.state::<AppState>().config.lock().clone();
+            let text_line = local_judge::status_line(&cfg).await;
+            let vlm_line = local_vision::vlm_status_line(&cfg).await;
+            let ocr_line = if std::path::Path::new(env!("WAYPOINT_OCR_BIN")).is_file() {
+                "OCR ready"
+            } else {
+                "OCR missing (rebuild)"
+            };
+            let state = probe_app.state::<AppState>();
+            let mut guard = state.session.lock();
+            if let Some(session) = guard.as_mut() {
+                if session.active && session.id == probe_id {
+                    session.watching_note =
+                        format!("Local watch · {ocr_line} · {text_line} · {vlm_line}");
+                    let snap = session.clone();
+                    drop(guard);
+                    let _ = probe_app.emit("session-update", &snap);
+                }
+            }
+        });
     }
 
     let stop = Arc::new(AtomicBool::new(false));
@@ -115,6 +148,9 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
     let mut last_fingerprint = String::new();
     let mut last_judged_fingerprint = String::new();
     let mut context_judgments: u32 = 0;
+    let mut last_ocr_at = chrono::Utc::now() - chrono::Duration::seconds(OCR_TICK_SECS as i64);
+    let mut last_vlm_at = chrono::Utc::now() - chrono::Duration::seconds(LOCAL_VLM_TICK_SECS as i64);
+    let mut last_ocr_snippet = String::new();
 
     while !stop.load(Ordering::SeqCst) {
         let (active, remaining, goals) = {
@@ -133,10 +169,30 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
             break;
         }
 
-        let event = tokio::task::spawn_blocking(frontmost::evaluate_focus)
-            .await
-            .ok()
-            .and_then(|r| r.ok());
+        let goals_for_scan = goals.clone();
+        let scanned = tokio::task::spawn_blocking(move || frontmost::evaluate_focus(&goals_for_scan))
+            .await;
+        let event = match scanned {
+            Ok(Ok(event)) => Some(event),
+            Ok(Err(e)) => {
+                tracing::warn!("focus scan: {e}");
+                let state = app.state::<AppState>();
+                let mut guard = state.session.lock();
+                if let Some(session) = guard.as_mut() {
+                    session.watching_note = format!(
+                        "Can’t read screen focus ({e}). Allow Accessibility + Automation for Waypoint in System Settings."
+                    );
+                    let snap = session.clone();
+                    drop(guard);
+                    let _ = app.emit("session-update", &snap);
+                }
+                None
+            }
+            Err(e) => {
+                tracing::warn!("focus scan join: {e}");
+                None
+            }
+        };
 
         if let Some(event) = event {
             match event {
@@ -145,7 +201,7 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                     let switched = fp != last_fingerprint;
                     last_fingerprint = fp;
                     if switched {
-                        // Opening Discord / Instagram / shopping → interrupt immediately.
+                        // Opening Discord / Instagram / YouTube / shopping → interrupt immediately.
                         reset_ephemeral_cooldown();
                     }
                     let result = CoachVisionResult {
@@ -169,10 +225,9 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                     let switched = fp != last_fingerprint;
                     last_fingerprint = fp.clone();
 
-                    // Instant local guess for obvious study vs entertainment titles.
-                    if let Some(on_task) =
-                        frontmost::local_context_guess(kind, &page_text, &goals)
-                    {
+                    // 1) Instant keyword guess for obvious study vs entertainment.
+                    let heuristic = frontmost::local_context_guess(kind, &page_text, &goals);
+                    if let Some(on_task) = heuristic {
                         if on_task {
                             if was_distracted && switched {
                                 was_distracted = false;
@@ -205,8 +260,7 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                             apply_coach_tick(&app, &result, &mut last_vitals).await;
                             was_distracted = true;
                         }
-                    } else {
-                        // Unclear — hold status lightly until text Gemini returns.
+                    } else if switched {
                         let state = app.state::<AppState>();
                         let mut guard = state.session.lock();
                         if let Some(session) = guard.as_mut() {
@@ -218,13 +272,16 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                         }
                     }
 
-                    // Cheap text Gemini confirm on open/switch (not every poll).
-                    if switched && fp != last_judged_fingerprint
+                    // 2) Ambiguous (or confirm) via local quantized model, then Gemini text.
+                    //    Skip cloud when heuristics already decided.
+                    if heuristic.is_none()
+                        && switched
+                        && fp != last_judged_fingerprint
                         && context_judgments < MAX_CONTEXT_JUDGMENTS_PER_SESSION
                     {
                         last_judged_fingerprint = fp;
                         context_judgments = context_judgments.saturating_add(1);
-                        let judged = judge_context_with_gemini(
+                        let judged = judge_context_cascade(
                             &app,
                             &goals,
                             kind,
@@ -263,6 +320,132 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                         );
                     }
                     mark_local_on_task(&app, &info);
+                    // Always show what we think is focused so detection failures are obvious.
+                    let state = app.state::<AppState>();
+                    let mut guard = state.session.lock();
+                    if let Some(session) = guard.as_mut() {
+                        if matches!(session.status, SessionStatusKind::OnTask) {
+                            let ocr_bit = if last_ocr_snippet.is_empty() {
+                                String::new()
+                            } else {
+                                format!(" · OCR: {}", truncate_note(&last_ocr_snippet, 48))
+                            };
+                            session.watching_note =
+                                format!("On task · {}{ocr_bit}", info.summary());
+                            let snap = session.clone();
+                            drop(guard);
+                            let _ = app.emit("session-update", &snap);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Local OCR pass — sees the actual webpage pixels when AppleScript URL fails.
+        let now = chrono::Utc::now();
+        if now.signed_duration_since(last_ocr_at).num_seconds() >= OCR_TICK_SECS as i64 {
+            last_ocr_at = now;
+            let ocr_result = tokio::task::spawn_blocking(local_vision::read_screen_ocr).await;
+            match ocr_result {
+                Ok(Ok(reading)) => {
+                    last_ocr_snippet = reading
+                        .ocr_text
+                        .lines()
+                        .next()
+                        .unwrap_or("")
+                        .to_string();
+                    if let Some(label) = reading.labels.first().copied() {
+                        let study_ok = label == "youtube"
+                            && frontmost::local_context_guess(
+                                "youtube",
+                                &reading.ocr_text,
+                                &goals,
+                            ) == Some(true);
+                        if !study_ok {
+                            let switched = last_fingerprint != format!("ocr:{label}");
+                            if switched {
+                                last_fingerprint = format!("ocr:{label}");
+                                reset_ephemeral_cooldown();
+                            }
+                            let hit = frontmost::DistractionHit {
+                                label,
+                                detail: truncate_note(&reading.ocr_text.replace('\n', " "), 64),
+                                focused: true,
+                            };
+                            let result = CoachVisionResult {
+                                on_task: false,
+                                objects: vec![label.into(), "ocr".into()],
+                                distraction: Some(label.into()),
+                                needs_help: false,
+                                stress_cue: last_vitals.stressed,
+                                coach_line: frontmost::distraction_coach_line(&hit),
+                                modality: Some("computer".into()),
+                            };
+                            apply_coach_tick(&app, &result, &mut last_vitals).await;
+                            was_distracted = true;
+                        }
+                    } else if !reading.ocr_text.is_empty() {
+                        // Feed OCR into local text model when OS signals were Clear/ambiguous.
+                        let unclear = !was_distracted
+                            && context_judgments < MAX_CONTEXT_JUDGMENTS_PER_SESSION
+                            && now.signed_duration_since(last_vlm_at).num_seconds()
+                                >= (LOCAL_VLM_TICK_SECS as i64 / 2);
+                        if unclear {
+                            let cfg = app.state::<AppState>().config.lock().clone();
+                            if local_judge::is_available(&cfg).await {
+                                context_judgments = context_judgments.saturating_add(1);
+                                if let Ok(j) = local_judge::judge_on_task(
+                                    &cfg,
+                                    &goals,
+                                    "screen",
+                                    "Screen",
+                                    &last_ocr_snippet,
+                                    "",
+                                    &reading.ocr_text,
+                                )
+                                .await
+                                {
+                                    if j.confidence >= local_judge::min_confidence()
+                                        && !j.result.on_task
+                                    {
+                                        reset_ephemeral_cooldown();
+                                        apply_coach_tick(&app, &j.result, &mut last_vitals).await;
+                                        was_distracted = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Ok(Err(e)) => tracing::warn!("ocr: {e}"),
+                Err(e) => tracing::warn!("ocr join: {e}"),
+            }
+        }
+
+        // Rare tiny VLM — only when still looking "on task" (OCR found nothing bad).
+        if !was_distracted
+            && now.signed_duration_since(last_vlm_at).num_seconds() >= LOCAL_VLM_TICK_SECS as i64
+        {
+            last_vlm_at = now;
+            let cfg = app.state::<AppState>().config.lock().clone();
+            if local_vision::vlm_available(&cfg).await {
+                let frame = tokio::task::spawn_blocking(local_vision::grab_judge_jpeg)
+                    .await
+                    .ok()
+                    .and_then(|r| r.ok());
+                if let Some(jpeg) = frame {
+                    match local_vision::judge_frame(&cfg, &goals, &jpeg, &last_ocr_snippet).await
+                    {
+                        Ok((result, conf)) => {
+                            tracing::info!("local VLM conf={conf:.2} on_task={}", result.on_task);
+                            if !result.on_task {
+                                reset_ephemeral_cooldown();
+                                apply_coach_tick(&app, &result, &mut last_vitals).await;
+                                was_distracted = true;
+                            }
+                        }
+                        Err(e) => tracing::warn!("local VLM: {e}"),
+                    }
                 }
             }
         }
@@ -271,7 +454,18 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
     }
 }
 
-async fn judge_context_with_gemini(
+fn truncate_note(s: &str, max: usize) -> String {
+    let flat = s.split_whitespace().collect::<Vec<_>>().join(" ");
+    if flat.chars().count() <= max {
+        flat
+    } else {
+        let cut: String = flat.chars().take(max.saturating_sub(1)).collect();
+        format!("{cut}…")
+    }
+}
+
+/// Prefer on-device quantized model; fall back to Gemini text only if needed. No screenshots.
+async fn judge_context_cascade(
     app: &AppHandle,
     goals: &str,
     kind: &str,
@@ -280,7 +474,7 @@ async fn judge_context_with_gemini(
     last_vitals: &mut VitalsSnapshot,
 ) -> Option<bool> {
     let cfg = app.state::<AppState>().config.lock().clone();
-    let client = GeminiClient::from_config(&cfg).ok()?;
+
     // Enrich YouTube with oEmbed title when page JS is blocked.
     let mut text = page_text.to_string();
     if kind == "youtube" && !info.url.is_empty() {
@@ -291,6 +485,43 @@ async fn judge_context_with_gemini(
         }
     }
 
+    // Local quantized model (Ollama) first.
+    if local_judge::is_available(&cfg).await {
+        match local_judge::judge_on_task(
+            &cfg,
+            goals,
+            kind,
+            &info.app_name,
+            &info.window_title,
+            &info.url,
+            &text,
+        )
+        .await
+        {
+            Ok(judgment) if judgment.confidence >= local_judge::min_confidence() => {
+                tracing::info!(
+                    "local judge ({}) conf={:.2} on_task={}",
+                    judgment.model,
+                    judgment.confidence,
+                    judgment.result.on_task
+                );
+                let on_task =
+                    judgment.result.on_task && judgment.result.distraction.is_none();
+                apply_coach_tick(app, &judgment.result, last_vitals).await;
+                return Some(on_task);
+            }
+            Ok(judgment) => {
+                tracing::info!(
+                    "local judge low confidence ({:.2}) — trying Gemini text",
+                    judgment.confidence
+                );
+            }
+            Err(e) => tracing::warn!("local judge: {e}"),
+        }
+    }
+
+    // Gemini text fallback (still no vision).
+    let client = GeminiClient::from_config(&cfg).ok()?;
     match client
         .judge_focus_context(
             goals,
@@ -313,7 +544,7 @@ async fn judge_context_with_gemini(
             Some(on_task)
         }
         Err(e) => {
-            tracing::warn!("context judge: {e}");
+            tracing::warn!("gemini text judge: {e}");
             None
         }
     }

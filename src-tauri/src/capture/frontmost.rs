@@ -61,7 +61,7 @@ pub fn frontmost_info() -> Result<FrontmostInfo, String> {
             r#"tell application "System Events" to get name of first application process whose frontmost is true"#,
         )?;
         let app = app.trim().to_string();
-        let title = osascript(
+        let mut title = osascript(
             r#"tell application "System Events"
   tell (first application process whose frontmost is true)
     if (count of windows) > 0 then
@@ -75,6 +75,12 @@ end tell"#,
         .trim()
         .to_string();
         let url = browser_active_url(&app).unwrap_or_default();
+        // Browser tab title is often more reliable than the process window name.
+        if let Some(tab_title) = browser_active_title(&app) {
+            if !tab_title.is_empty() {
+                title = tab_title;
+            }
+        }
         Ok(FrontmostInfo {
             app_name: app,
             window_title: title,
@@ -89,74 +95,132 @@ end tell"#,
 }
 
 /// Classify the current focus for the coach (hard vs needs context vs clear).
-pub fn evaluate_focus() -> Result<FocusEvent, String> {
+/// `goals` lets YouTube study lectures pass; everything else YouTube interrupts.
+pub fn evaluate_focus(goals: &str) -> Result<FocusEvent, String> {
     let info = frontmost_info()?;
 
-    if info.app_name.to_lowercase().contains("waypoint") {
-        return Ok(FocusEvent::Clear(info));
-    }
+    // Still scan browser tabs while Waypoint is focused (session UI / overlay).
+    let waypoint_focused = info.app_name.to_lowercase().contains("waypoint");
 
-    if let Some(label) = hard_app_label(&info.app_name) {
-        return Ok(FocusEvent::Hard(DistractionHit {
-            label,
-            detail: info.summary(),
-            focused: true,
-        }));
-    }
-
-    // Focused browser URL / title.
-    let focused_label = classify_url(&info.url.to_lowercase())
-        .or_else(|| classify_url(&info.window_title.to_lowercase()));
-
-    if let Some(label) = focused_label {
-        if is_ambiguous(label) {
-            let page_text = page_context_blob(&info);
-            return Ok(FocusEvent::NeedsJudgment {
-                kind: label,
-                info,
-                page_text,
-            });
+    if !waypoint_focused {
+        if let Some(label) = hard_app_label(&info.app_name) {
+            return Ok(FocusEvent::Hard(DistractionHit {
+                label,
+                detail: info.summary(),
+                focused: true,
+            }));
         }
-        return Ok(FocusEvent::Hard(DistractionHit {
-            label,
-            detail: info.summary(),
-            focused: true,
-        }));
+
+        // Focused browser URL / window / tab title.
+        let focused_label = classify_focus_label(&info);
+
+        if let Some(label) = focused_label {
+            return classify_site(label, info, goals, true);
+        }
     }
 
-    // Background tabs: hard sites nag; ambiguous (YouTube) also get judgment.
+    // Background (or any) tabs: catch YouTube/Instagram even if URL automation failed on focus.
     #[cfg(target_os = "macos")]
     {
-        for tab in all_browser_tabs().into_iter().take(40) {
+        for tab in all_browser_tabs().into_iter().take(50) {
             if !info.url.is_empty() && urls_similar(&info.url, &tab.url) {
                 continue;
             }
-            let lower = tab.url.to_lowercase();
-            if let Some(label) = classify_url(&lower) {
-                if is_ambiguous(label) {
-                    let mut page_text = format!("{}\n{}", tab.title, tab.url);
-                    if page_text.trim().len() < 8 {
-                        page_text = tab.url.clone();
-                    }
-                    let mut bg = info.clone();
-                    bg.url = tab.url;
-                    bg.window_title = tab.title;
-                    return Ok(FocusEvent::NeedsJudgment {
-                        kind: label,
-                        info: bg,
-                        page_text,
-                    });
+            let lower = format!("{} {}", tab.url, tab.title).to_lowercase();
+            if let Some(label) = classify_url(&lower).or_else(|| classify_title_label(&lower)) {
+                let mut bg = info.clone();
+                // Prefer real browser identity over "Waypoint" when nagging about a tab.
+                if waypoint_focused || bg.app_name.is_empty() {
+                    bg.app_name = "Browser".into();
                 }
-                return Ok(FocusEvent::Hard(DistractionHit {
-                    label,
-                    detail: url_host(&tab.url).unwrap_or(tab.url),
-                    focused: false,
-                }));
+                bg.url = tab.url.clone();
+                bg.window_title = tab.title.clone();
+                let focused = !waypoint_focused
+                    && !info.url.is_empty()
+                    && urls_similar(&info.url, &tab.url);
+                return classify_site(label, bg, goals, focused);
             }
         }
     }
 
     Ok(FocusEvent::Clear(info))
+}
+
+fn classify_focus_label(info: &FrontmostInfo) -> Option<&'static str> {
+    classify_url(&info.url.to_lowercase())
+        .or_else(|| classify_title_label(&info.window_title.to_lowercase()))
+        .or_else(|| classify_url(&info.window_title.to_lowercase()))
+}
+
+fn classify_title_label(title: &str) -> Option<&'static str> {
+    // Chrome/Safari titles look like "Video name - YouTube" or "YouTube".
+    if title.contains("youtube") || title.contains("youtu.be") {
+        return Some("youtube");
+    }
+    if title.contains("instagram") {
+        return Some("instagram");
+    }
+    if title.contains("tiktok") {
+        return Some("tiktok");
+    }
+    if title.contains("reddit") {
+        return Some("reddit");
+    }
+    if title.contains("netflix") {
+        return Some("netflix");
+    }
+    if title.contains("gmail") || title.contains("inbox (") {
+        return Some("email");
+    }
+    None
+}
+
+fn classify_site(
+    label: &'static str,
+    info: FrontmostInfo,
+    goals: &str,
+    focused: bool,
+) -> Result<FocusEvent, String> {
+    // YouTube: interrupt by default. Only allow through when title clearly matches study goals.
+    if label == "youtube" || label == "video" {
+        let page_text = if focused {
+            page_context_blob(&info)
+        } else {
+            format!("{}\n{}", info.window_title, info.url)
+        };
+        if local_context_guess("youtube", &page_text, goals) == Some(true) {
+            return Ok(FocusEvent::NeedsJudgment {
+                kind: "youtube",
+                info,
+                page_text,
+            });
+        }
+        // Unknown / entertainment → hard nag (do not wait on a tiny model that may say on-task).
+        return Ok(FocusEvent::Hard(DistractionHit {
+            label: "youtube",
+            detail: if info.window_title.is_empty() {
+                info.summary()
+            } else {
+                truncate(&info.window_title, 64)
+            },
+            focused,
+        }));
+    }
+
+    if is_ambiguous(label) {
+        let page_text = page_context_blob(&info);
+        return Ok(FocusEvent::NeedsJudgment {
+            kind: label,
+            info,
+            page_text,
+        });
+    }
+
+    Ok(FocusEvent::Hard(DistractionHit {
+        label,
+        detail: info.summary(),
+        focused,
+    }))
 }
 
 /// Compact hint list for Gemini vision.
@@ -416,13 +480,15 @@ fn classify_url(text: &str) -> Option<&'static str> {
             return Some(label);
         }
     }
+    if text.contains("youtube") || text.contains("youtu.be") {
+        return Some("youtube");
+    }
     if text.contains("instagram") {
         return Some("instagram");
     }
     if text.contains("gmail") || text.contains("inbox (") {
         return Some("email");
     }
-    // Avoid classifying every title that mentions "youtube" elsewhere; URL rules cover it.
     None
 }
 
@@ -623,41 +689,117 @@ end tell"#;
 #[cfg(target_os = "macos")]
 fn browser_active_url(app_name: &str) -> Option<String> {
     let app = app_name.to_lowercase();
-    let script = if app.contains("google chrome") || app == "chrome" {
-        r#"tell application "Google Chrome"
+    let (apple_script, jxa) = if app.contains("google chrome") || app == "chrome" {
+        (
+            r#"tell application "Google Chrome"
   if (count of windows) is 0 then return ""
   return URL of active tab of front window
-end tell"#
+end tell"#,
+            Some(r#"Application("Google Chrome").windows[0].activeTab().url()"#),
+        )
     } else if app.contains("safari") {
-        r#"tell application "Safari"
+        (
+            r#"tell application "Safari"
   if (count of windows) is 0 then return ""
   return URL of current tab of front window
-end tell"#
+end tell"#,
+            Some(r#"Application("Safari").windows[0].currentTab().url()"#),
+        )
     } else if app.contains("brave") {
-        r#"tell application "Brave Browser"
+        (
+            r#"tell application "Brave Browser"
   if (count of windows) is 0 then return ""
   return URL of active tab of front window
-end tell"#
+end tell"#,
+            None,
+        )
     } else if app.contains("arc") {
-        r#"tell application "Arc"
+        (
+            r#"tell application "Arc"
   if (count of windows) is 0 then return ""
   return URL of active tab of front window
-end tell"#
+end tell"#,
+            None,
+        )
     } else if app.contains("microsoft edge") || app.contains("edge") {
-        r#"tell application "Microsoft Edge"
+        (
+            r#"tell application "Microsoft Edge"
   if (count of windows) is 0 then return ""
   return URL of active tab of front window
-end tell"#
+end tell"#,
+            None,
+        )
     } else {
         return None;
     };
 
-    let url = osascript(script).ok()?.trim().to_string();
-    if url.is_empty() || url == "missing value" {
+    if let Ok(url) = osascript(apple_script) {
+        let url = url.trim().to_string();
+        if !url.is_empty() && url != "missing value" {
+            return Some(url);
+        }
+    }
+    if let Some(jxa) = jxa {
+        if let Ok(url) = osascript_jxa(jxa) {
+            let url = url.trim().to_string();
+            if !url.is_empty() && url != "undefined" && url != "null" {
+                return Some(url);
+            }
+        }
+    }
+    None
+}
+
+#[cfg(target_os = "macos")]
+fn browser_active_title(app_name: &str) -> Option<String> {
+    let app = app_name.to_lowercase();
+    let script = if app.contains("google chrome") || app == "chrome" {
+        r#"tell application "Google Chrome"
+  if (count of windows) is 0 then return ""
+  return title of active tab of front window
+end tell"#
+    } else if app.contains("safari") {
+        r#"tell application "Safari"
+  if (count of windows) is 0 then return ""
+  return name of current tab of front window
+end tell"#
+    } else if app.contains("brave") {
+        r#"tell application "Brave Browser"
+  if (count of windows) is 0 then return ""
+  return title of active tab of front window
+end tell"#
+    } else if app.contains("arc") {
+        r#"tell application "Arc"
+  if (count of windows) is 0 then return ""
+  return title of active tab of front window
+end tell"#
+    } else if app.contains("microsoft edge") || app.contains("edge") {
+        r#"tell application "Microsoft Edge"
+  if (count of windows) is 0 then return ""
+  return title of active tab of front window
+end tell"#
+    } else {
+        return None;
+    };
+    let title = osascript(script).ok()?.trim().to_string();
+    if title.is_empty() || title == "missing value" {
         None
     } else {
-        Some(url)
+        Some(title)
     }
+}
+
+#[cfg(target_os = "macos")]
+fn osascript_jxa(source: &str) -> Result<String, String> {
+    let output = Command::new("osascript")
+        .args(["-l", "JavaScript", "-e", source])
+        .output()
+        .map_err(|e| format!("osascript jxa failed: {e}"))?;
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("osascript jxa error: {err}"));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
 fn urls_similar(a: &str, b: &str) -> bool {
@@ -710,10 +852,9 @@ fn osascript(source: &str) -> Result<String, String> {
 /// Kept for any leftover callers.
 #[allow(dead_code)]
 pub fn scan_distractions(front: &FrontmostInfo) -> Option<DistractionHit> {
-    match evaluate_focus() {
+    match evaluate_focus("") {
         Ok(FocusEvent::Hard(hit)) => Some(hit),
         Ok(FocusEvent::NeedsJudgment { kind, info, .. }) => {
-            // Ambiguous — don't hard-flag from the legacy helper.
             let _ = (kind, info, front);
             None
         }
