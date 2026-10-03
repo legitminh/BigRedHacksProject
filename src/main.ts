@@ -271,6 +271,59 @@ function appendChat(role: "user" | "assistant", content: string) {
 let chatBusy = false;
 let hasChatReply = false;
 
+const CHAT_FAIL_MSG =
+  "Sorry, I couldn’t get a reply right now. Please try again in a moment.";
+
+function setChatControlsBusy(busy: boolean) {
+  $("#chat-log")?.setAttribute("aria-busy", busy ? "true" : "false");
+  document
+    .querySelectorAll<HTMLButtonElement>("#chat-send, [data-study], #new-chat")
+    .forEach((button) => {
+      button.disabled = busy;
+    });
+}
+
+function showChatFailure(bubble: HTMLElement, userMessage: string) {
+  bubble.replaceChildren();
+  bubble.append(document.createTextNode(`${CHAT_FAIL_MSG} `));
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className = "ghost chat-retry";
+  retry.textContent = "Retry";
+  retry.addEventListener("click", () => {
+    void retryChatAssistant(userMessage, bubble);
+  });
+  bubble.appendChild(retry);
+}
+
+async function retryChatAssistant(userMessage: string, bubble: HTMLElement) {
+  if (chatBusy) return;
+  bubble.textContent = "Thinking…";
+  chatBusy = true;
+  setChatControlsBusy(true);
+  try {
+    const reply = await retryChat(
+      userMessage,
+      (original) => invoke<ChatMessage>("chat_send", { message: original }),
+      () => {
+        bubble.textContent =
+          "Sorry, there’s a slight delay. Still working on your reply…";
+      },
+    );
+    renderMarkdown(bubble, reply.content);
+    hasChatReply = true;
+  } catch {
+    showChatFailure(bubble, userMessage);
+  } finally {
+    chatBusy = false;
+    setChatControlsBusy(false);
+    const log = $("#chat-log");
+    if (log) log.scrollTop = log.scrollHeight;
+    const input = $<HTMLTextAreaElement>("#chat-input");
+    if ($("#view-chat")?.classList.contains("active")) input?.focus();
+  }
+}
+
 async function sendChat() {
   const input = $<HTMLTextAreaElement>("#chat-input");
   if (chatBusy || !input?.value.trim()) return;
@@ -279,8 +332,7 @@ async function sendChat() {
   appendChat("user", message);
   const pending = appendChat("assistant", "Thinking…");
   chatBusy = true;
-  $("#chat-log")?.setAttribute("aria-busy", "true");
-  document.querySelectorAll<HTMLButtonElement>("#chat-send, [data-study], #new-chat").forEach((button) => button.disabled = true);
+  setChatControlsBusy(true);
   try {
     const reply = await retryChat(message,
       original => invoke<ChatMessage>("chat_send", { message: original }),
@@ -291,12 +343,10 @@ async function sendChat() {
     if (pending) renderMarkdown(pending, reply.content);
     hasChatReply = true;
   } catch {
-    if (pending) pending.textContent = "Sorry, I couldn’t get a reply right now. Please try again in a moment.";
-    if (!input.value) input.value = message;
+    if (pending) showChatFailure(pending, message);
   } finally {
     chatBusy = false;
-    $("#chat-log")?.setAttribute("aria-busy", "false");
-    document.querySelectorAll<HTMLButtonElement>("#chat-send, [data-study], #new-chat").forEach((button) => button.disabled = false);
+    setChatControlsBusy(false);
     const log = $("#chat-log");
     if (log) log.scrollTop = log.scrollHeight;
     if ($("#view-chat")?.classList.contains("active")) input.focus();
@@ -580,6 +630,17 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   $("#new-chat")?.addEventListener("click", async () => {
     if (chatBusy) return;
+    const hasUserMessages = Boolean(
+      $("#chat-log")?.querySelector(".bubble.user"),
+    );
+    if (
+      hasUserMessages &&
+      !window.confirm(
+        "Start a new chat? This clears the conversation.",
+      )
+    ) {
+      return;
+    }
     chatBusy = true;
     try {
       await invoke("clear_chat");
@@ -612,12 +673,33 @@ window.addEventListener("DOMContentLoaded", async () => {
     e.preventDefault();
     const goalsInput = $("#goals") as HTMLTextAreaElement | null;
     const goals = goalsInput?.value.trim() ?? "";
-    const duration = Number(($("#duration") as HTMLInputElement | null)?.value || 45);
+    const durationInput = $("#duration") as HTMLInputElement | null;
+    const rawDuration = durationInput?.value.trim() ?? "";
+    const parsedDuration = Number(rawDuration);
     const startBtn = $("#lockin-start") as HTMLButtonElement | null;
     const errEl = $("#lockin-error");
     if (errEl) {
       errEl.hidden = true;
       errEl.textContent = "";
+    }
+    let duration = Math.min(180, Math.max(1, parsedDuration || 45));
+    let durationAdjusted = false;
+    if (rawDuration === "" || Number.isNaN(parsedDuration)) {
+      duration = 45;
+      durationAdjusted = true;
+      if (errEl) {
+        errEl.hidden = false;
+        errEl.textContent = "Enter 1–180 minutes; using 45.";
+      }
+    } else if (parsedDuration < 1 || parsedDuration > 180) {
+      durationAdjusted = true;
+      if (errEl) {
+        errEl.hidden = false;
+        errEl.textContent = `Duration must be 1–180 minutes; using ${duration}.`;
+      }
+    }
+    if (durationInput && durationAdjusted) {
+      durationInput.value = String(duration);
     }
     if (!goals) {
       if (errEl) {
