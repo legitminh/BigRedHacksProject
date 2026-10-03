@@ -1192,14 +1192,14 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     “Sign in →”; “Continue as guest”; foot “Just here to focus? Guest
     mode has everything you need for your first mission.”
 - actual: |
-    Tick12: CTA solid `#6750a4` Medium 14 + foot muted `#645d73`/13px
-    tokens verified (a947816). Form still Google-only — no Email/Password
-    fields; lead Calendar/Drive sync; CTA label “Sign in with Google →”;
-    foot Google-approval sentence (not live guest sentence).
+    Tick13: card 24px stack + labeled-field tokens (10/94/64) verified
+    (`d63cd52` / `af0dc1d`); CTA solid + foot muted still OK. Form still
+    Google-only — no Email/Password fields; lead Calendar/Drive sync;
+    CTA “Sign in with Google →”; foot Google-approval sentence.
 - deviation: |
     Form structure/copy vs live `5:58` (fields + lead + CTA/foot strings).
     Distinct from verified guest Quiet / title Medium 32 / CTA solid /
-    foot muted tokens.
+    foot muted / card-stack-gap / labeled-field-stack tokens.
 - fix_hint: |
     Match live card chrome/copy (lead, Email/Password placeholders,
     “Sign in →”, guest foot). Keep Google auth wired — e.g. Sign in →
@@ -1668,15 +1668,15 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     “Fly on your own terms.”; sub “Optional signals. Clear controls.
     No recordings.”; left ringed planet + right ship art.
 - actual: |
-    Tick12: modal shell/copy/surface + title Medium 30 + stack
-    pad 32 / gap 22 verified (b7ea57b / 69037e0 / b0e40e8 / a947816
-    `.mc-perm-modal__card`). Modals still mount as fixed overlays over
-    setup/Settings — no “YOUR CHOICE” / “Fly on your own terms.”
+    Tick13: handoff modal shell + tick26 generic Share-an-optional-input
+    title/body/foot verified (`1b68ff1` / `*-live`); surface/title Medium
+    30 + pad 32 / gap 22 still OK. Modals still mount as fixed overlays
+    over setup/Settings — no “YOUR CHOICE” / “Fly on your own terms.”
     interstitial page or art plane under them.
 - deviation: |
     Missing interstitial permissions-choice page that hosts the handoff
     and denied modals in Figma. Distinct from verified modal shell/copy/
-    surface/title-scale/stack-gap.
+    surface/title-scale/stack-gap / tick26 live handoff strings.
 - fix_hint: |
     Add a lightweight MC “YOUR CHOICE” view (or setup substate) matching
     live intro + art; show handoff/denied modals over it. Keep five-tab
@@ -3218,7 +3218,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Not now · Continue + camera copy wiring unchanged.
 - verified: 2026-10-03T19:12:40-04:00
 
-## done: fp-copilot-composer-vertical-gap
+## verified: fp-copilot-composer-vertical-gap
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · Conversation `5:232` ·
   composer `5:248` · chips `5:240`
@@ -3227,8 +3227,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `.copilot-composer` → `margin-top: 6.5625rem` (+ `.copilot-main` gap
     1.25rem ≈ 125px clear under chips, live `5:240`→`5:248`). Mic/Send +
     chip wiring untouched; title/intro/Mic/hint/foot copy preserved.
+- verified: 2026-10-03T19:33:15-04:00
 
-## done: fp-copilot-responses-foot-placement
+## verified: fp-copilot-responses-foot-placement
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · foot `5:257` ·
   composer `5:248`
@@ -3238,8 +3239,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `.copilot-responses-foot` → `margin-top: auto` so foot pins toward
     bottom of main (~76px under composer on live stage). Enter/mic hint
     stays under input; copy string unchanged.
+- verified: 2026-10-03T19:33:15-04:00
 
-## done: fp-welcome-card-stack-gap
+## verified: fp-welcome-card-stack-gap
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · card `5:58`
 - commit: d63cd52
@@ -3248,8 +3250,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     title/lead/CTA/foot margin overrides that fought the stack. Google-only
     form path left open (`fp-welcome-signin-form`); guest Quiet + foot/CTA
     tokens preserved.
+- verified: 2026-10-03T19:33:15-04:00
 
-## done: fp-permission-handoff-live-copy
+## verified: fp-permission-handoff-live-copy
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   title `7:418` · body `7:419` · foot `7:427`
@@ -3260,6 +3263,11 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     (“Allow camera signals?” / “Nothing is recorded…”); only body moved
     under `fp-permission-handoff-body-browser-copy`. Do not apply tick24
     generic Share-an-optional-input title/foot rewrite.
+- note: |
+    Superseded — tick26 live `7:418`/`7:419`/`7:427` are generic Share-an-
+    optional-input; covered by verified `fp-permission-handoff-*-live`
+    (`1b68ff1`). No reopen (siblings fully cover).
+- verified: 2026-10-03T19:33:15-04:00
 
 ## open: fp-connection-lost-panel-stack-gap
 - screen: active
@@ -3308,7 +3316,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Pause/End on normal active; do not change intentional LTR orbit.
 - escalate: scrutinous
 
-## done: fp-welcome-labeled-field-stack
+## verified: fp-welcome-labeled-field-stack
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` ·
   Email `5:63` · Password `5:67` · crop `_verify/tick25-welcome-card-crop.png`
@@ -3319,6 +3327,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     match live `5:63`/`5:67` when Email/Password remount. Google-only
     form path left open (`fp-welcome-signin-form`); card 24px / foot /
     CTA tokens untouched.
+- verified: 2026-10-03T19:33:15-04:00
 
 ## open: fp-permissions-choice-intro-gap
 - screen: overlay
@@ -3365,7 +3374,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     gaps; Preserve Pause/End.
 - escalate: scrutinous
 
-## done: fp-permission-handoff-body-browser-copy
+## verified: fp-permission-handoff-body-browser-copy
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   modal `7:415` · body · crop `_verify/tick25-handoff-modal-crop.png`
@@ -3375,8 +3384,13 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     your camera. Camera signals may inform a gentle check-in; they never
     prove you’re distracted.” Title “Allow camera signals?” + foot
     “Nothing is recorded…” + Not now · Continue unchanged.
+- note: |
+    Superseded — tick26 live `7:419` is generic camera/screen decline body;
+    covered by verified `fp-permission-handoff-body-live` (`1b68ff1`).
+    No reopen (sibling live open fully covers).
+- verified: 2026-10-03T19:33:15-04:00
 
-## done: fp-permission-handoff-title-live
+## verified: fp-permission-handoff-title-live
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   title `7:418` · crop `_verify/tick26-handoff-modal-crop.png`
@@ -3385,8 +3399,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `#permission-handoff-title` → “Share an optional input?”; badge →
     “PERMISSION HANDOFF”. Not now · Continue wiring kept; pad/gap 32/22
     from a947816 unchanged.
+- verified: 2026-10-03T19:33:15-04:00
 
-## done: fp-permission-handoff-body-live
+## verified: fp-permission-handoff-body-live
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   body `7:419` · crop `_verify/tick26-handoff-modal-crop.png`
@@ -3395,8 +3410,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Handoff body → “Your browser will ask for camera or screen access.
     You can decline and still launch.” Supersedes tick25 camera-signals
     body; Continue → permission request still wired.
+- verified: 2026-10-03T19:33:15-04:00
 
-## done: fp-permission-handoff-foot-live
+## verified: fp-permission-handoff-foot-live
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   foot `7:427` · crop `_verify/tick26-handoff-modal-crop.png`
@@ -3406,6 +3422,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     permission UI.” (inbox/tick26 expected; live crop still showed
     camera mission-controls line — preferred inbox string). Pad/gap +
     CTAs preserved.
+- note: |
+    Live metadata `7:427` confirms Design-reference foot (screenshot OCR
+    that still reported camera mission-controls was stale).
+- verified: 2026-10-03T19:33:15-04:00
 
 ## open: fp-copilot-conversation-stack-gap
 - screen: copilot
