@@ -1239,7 +1239,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Change the button label to “Open copilot  ↗” (match live spacing/glyph). Keep
     `show("view-chat")` wiring. Complements `fp-home-copilot-shortcut-row`.
 - escalate: none
-- commit: PENDING
+- commit: 5873ecf
 - change: Home copilot CTA label is “Open copilot  ↗” (northeast arrow).
 
 ## done: fp-home-best-extraneous-moon
@@ -1255,7 +1255,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Remove `.mc-home-moon` from the personal-best card (and related CSS). Keep
     `.mc-home-moon-sm` on destination art + bottom-rail satellite.
 - escalate: none
-- commit: PENDING
+- commit: 5873ecf
 - change: Removed `.mc-home-moon` from personal-best card (+ unused CSS); dest-art moon kept.
 
 ## done: fp-copilot-responses-footnote
@@ -1273,5 +1273,5 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `.copilot-responses-foot` (or equivalent) under the composer matching live
     placement. Leave Mic/Send/listening wiring alone.
 - escalate: none
-- commit: PENDING
+- commit: 5873ecf
 - change: `#chat-hint` keeps Enter/mic only; Responses/Audio moved to `.copilot-responses-foot`.
