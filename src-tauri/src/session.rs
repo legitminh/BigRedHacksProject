@@ -43,6 +43,12 @@ pub struct LockInSession {
     pub stress_spikes: u32,
     pub camera_ready: bool,
     pub presage_ready: bool,
+    /// User consented to screen-based watching (app/title/URL, OCR, local VLM) for this mission.
+    #[serde(default)]
+    pub screen_enabled: bool,
+    /// User consented to camera wellness signals for this mission.
+    #[serde(default)]
+    pub camera_enabled: bool,
     pub watching_note: String,
 }
 
@@ -65,15 +71,20 @@ impl LockInSession {
         goals: String,
         duration_mins: u64,
         modality: String,
+        screen_enabled: bool,
+        camera_enabled: bool,
         camera_ready: bool,
         presage_ready: bool,
     ) -> Self {
         let now = chrono::Utc::now();
         let duration_secs = duration_mins.saturating_mul(60).max(60);
-        let watching_note = if camera_ready && presage_ready {
-            "Watching full screen · wellness later in background".into()
+        let camera_ready = camera_enabled && camera_ready;
+        let watching_note = if !screen_enabled {
+            "Screen sharing off · timer and check-ins only".into()
+        } else if camera_ready && presage_ready {
+            "Watching your screen · wellness later in background".into()
         } else {
-            "Watching full screen".into()
+            "Watching your screen".into()
         };
         Self {
             id: Uuid::new_v4().to_string(),
@@ -94,6 +105,8 @@ impl LockInSession {
             stress_spikes: 0,
             camera_ready,
             presage_ready,
+            screen_enabled,
+            camera_enabled,
             watching_note,
         }
     }
@@ -104,6 +117,30 @@ impl LockInSession {
         } else {
             0
         }
+    }
+
+    /// Remaining time as the student experiences it: frozen while paused. `ends_at` is only
+    /// pushed out when the pause is folded in (resume/end), so a paused session whose
+    /// wall-clock `ends_at` has passed must not be treated as expired.
+    pub fn remaining_secs_with_pause(
+        &self,
+        pause_started: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> i64 {
+        let Ok(ends) = chrono::DateTime::parse_from_rfc3339(&self.ends_at) else {
+            return 0;
+        };
+        let ends = ends.with_timezone(&chrono::Utc);
+        let reference = if self.paused {
+            pause_started.unwrap_or_else(chrono::Utc::now)
+        } else {
+            chrono::Utc::now()
+        };
+        (ends - reference).num_seconds()
+    }
+
+    /// True only for a natural timer expiry — never while on a break.
+    pub fn is_expired(&self, pause_started: Option<chrono::DateTime<chrono::Utc>>) -> bool {
+        self.active && self.remaining_secs_with_pause(pause_started) <= 0
     }
 
     /// Fold an open pause into `paused_accum_secs` and extend `ends_at` so remaining
@@ -210,6 +247,8 @@ mod tests {
             "code".into(),
             25,
             "coding".into(),
+            true,
+            false,
             false,
             false,
         );
@@ -225,5 +264,50 @@ mod tests {
         );
         assert!(summary.duration_secs >= 60);
         assert_ne!(summary.duration_secs, session.duration_secs);
+    }
+
+    fn test_session() -> LockInSession {
+        LockInSession::start("code".into(), 25, "coding".into(), true, false, false, false)
+    }
+
+    #[test]
+    fn paused_session_past_ends_at_is_not_expired() {
+        let mut session = test_session();
+        // Wall-clock deadline passed 5 min ago, but the break began 10 min before it.
+        let now = chrono::Utc::now();
+        session.ends_at = (now - chrono::Duration::minutes(5)).to_rfc3339();
+        session.paused = true;
+        let pause_started = Some(now - chrono::Duration::minutes(15));
+        assert!(!session.is_expired(pause_started));
+        assert!(session.remaining_secs_with_pause(pause_started) > 9 * 60);
+        // Same session not paused really is expired.
+        session.paused = false;
+        assert!(session.is_expired(None));
+    }
+
+    #[test]
+    fn resume_extends_ends_at_by_pause_length() {
+        let mut session = test_session();
+        let now = chrono::Utc::now();
+        session.ends_at = (now + chrono::Duration::minutes(2)).to_rfc3339();
+        session.paused = true;
+        let started = now - chrono::Duration::minutes(10);
+        session.finalize_open_pause(Some(started));
+        session.paused = false;
+        assert!(session.paused_accum_secs >= 600);
+        let remaining = session.remaining_secs();
+        assert!(
+            (remaining - 12 * 60).abs() <= 2,
+            "expected ~12m remaining after resume, got {remaining}s"
+        );
+        assert!(!session.is_expired(None));
+    }
+
+    #[test]
+    fn consent_flags_gate_camera_ready() {
+        let s = LockInSession::start("x".into(), 5, "m".into(), false, false, true, true);
+        assert!(!s.camera_ready && !s.screen_enabled);
+        let s = LockInSession::start("x".into(), 5, "m".into(), true, true, true, true);
+        assert!(s.camera_ready && s.camera_enabled && s.screen_enabled);
     }
 }

@@ -62,7 +62,8 @@
                 <p class="welcome-signin-kicker"><span aria-hidden="true">✦</span> Welcome aboard</p>
                 <h2 class="welcome-signin-title">Your seat is ready.</h2>
                 <p class="welcome-signin-lead">
-                  Waypoint requires Google. One sign-in links your account, Calendar, Drive, and study memory.
+                  Sign in with Google to link your account, Calendar, Drive, and study memory.
+                  Or continue as a guest: everything stays on this device, with no cloud sync, Live voice, or mission copilot chat.
                 </p>
                 <p class="signin-error" id="wp-signin-error" hidden></p>
                 <button
@@ -76,7 +77,7 @@
                   Continue as guest
                 </button>
                 <p class="welcome-signin-foot">
-                  You’ll approve Google access in your browser, then return here.
+                  Google sign-in opens in your browser, then returns here. Guest mode needs no account.
                 </p>
               </div>
             </aside>
@@ -356,7 +357,7 @@
               <label class="mission-toggle-row">
                 <span class="mission-toggle-copy">
                   <strong>Camera signals</strong>
-                  <small>Optional gentle check-ins. Off by default.</small>
+                  <small>Short webcam clips for wellness estimates (sent to Presage). Off by default.</small>
                 </span>
                 <input id="lockin-camera" type="checkbox" class="mission-toggle-input" />
                 <span class="mission-toggle-switch" aria-hidden="true"></span>
@@ -364,7 +365,7 @@
               <label class="mission-toggle-row">
                 <span class="mission-toggle-copy">
                   <strong>Screen sharing</strong>
-                  <small>Optional context for your mission. Off by default.</small>
+                  <small>Read your active app, window title, browser tab, and on-device screen text to catch drift. Off by default.</small>
                 </span>
                 <input id="lockin-screen" type="checkbox" class="mission-toggle-input" />
                 <span class="mission-toggle-switch" aria-hidden="true"></span>
@@ -377,7 +378,7 @@
             </button>
             <p id="mission-setup-foot" class="mission-setup-foot">
               Type or speak an objective to enable launch.<br />
-              Both optional inputs are off.
+              Screen sharing and camera are off unless you switch them on.
             </p>
           </form>
         </div>
@@ -865,7 +866,7 @@
                     <li class="settings-toggle-row">
                       <div class="settings-toggle-copy">
                         <strong>Camera signals</strong>
-                        <span>Optional. Camera cues can suggest a gentle check-in.</span>
+                        <span>Optional. Records short webcam clips during a mission and uploads them to Presage for wellness estimates.</span>
                       </div>
                       <label class="mc-switch">
                         <input id="setting-camera-signals" type="checkbox" />
@@ -876,7 +877,7 @@
                     <li class="settings-toggle-row">
                       <div class="settings-toggle-copy">
                         <strong>Screen sharing</strong>
-                        <span>Optional. Check visible activity against your stated objective.</span>
+                        <span>Optional. Reads your active app, window title, browser tab, and on-device screen text (OCR) to check against your objective.</span>
                       </div>
                       <label class="mc-switch">
                         <input id="setting-screen-sharing" type="checkbox" />
@@ -897,8 +898,8 @@
                     </li>
                   </ul>
                   <p class="settings-mission-foot">
-                    Camera and screen sharing start off for every new mission.<br />
-                    You can stop either input instantly from the session’s top bar.
+                    Camera and screen sharing are off until you turn them on, and the same switches apply to mission setup.<br />
+                    Changes take effect on your next mission. The pills on a mission only show what it launched with — end the mission to stop either input.
                   </p>
                   <p id="settings-save-status" class="settings-save-hint" aria-live="polite"></p>
                   <input id="setting-silent-mode" type="checkbox" hidden aria-hidden="true" tabindex="-1" />
@@ -907,7 +908,10 @@
                 <section class="settings-privacy" aria-labelledby="settings-privacy-title">
                   <h2 id="settings-privacy-title" class="settings-privacy-title">Your session, not a recording.</h2>
                   <p class="settings-privacy-copy">
-                    Only session events and summaries are saved. No raw video, screenshots, or audio.
+                    Mission summaries and study notes are saved to your account. Screen text and window checks stay on
+                    your Mac, and only run when Screen sharing is on. When Copilot Live asks to see your screen, Waypoint
+                    sends a screenshot to Google Gemini through the Waypoint API. If Camera signals is on, short webcam
+                    clips are uploaded to Presage for wellness estimates.
                   </p>
                 </section>
               </div>
@@ -932,14 +936,14 @@
                     <li class="mc-perm-row">
                       <div class="mc-perm-copy">
                         <strong>Screen Recording</strong>
-                        <span>Required — reads your screen to see if you stay on mission objectives.</span>
+                        <span>Needed for screen sharing during a mission and for Copilot Live screen context. Not needed if both stay off.</span>
                       </div>
                       <span id="perm-screen" class="mc-perm-badge" data-state="unknown">Checking…</span>
                     </li>
                     <li class="mc-perm-row">
                       <div class="mc-perm-copy">
                         <strong>Camera</strong>
-                        <span>Optional — short webcam checks for wellness and stress signals.</span>
+                        <span>Optional — only used when Camera signals is on (short clips for wellness estimates).</span>
                       </div>
                       <span id="perm-camera" class="mc-perm-badge" data-state="unknown">Checking…</span>
                     </li>
@@ -1142,8 +1146,8 @@
           <p class="mc-perm-modal__badge">Permission handoff</p>
           <h2 id="permission-handoff-title" class="mc-perm-modal__title">Allow camera signals?</h2>
           <p class="mc-perm-modal__body">
-            Your browser asks to use your camera. Camera signals may inform a gentle check-in; they
-            never prove you’re distracted.
+            macOS will ask to let Waypoint use your camera. During a mission, short clips are uploaded to
+            Presage for a wellness estimate; they never prove you’re distracted.
           </p>
           <div class="mc-perm-modal__actions">
             <button

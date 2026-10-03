@@ -67,17 +67,27 @@ struct SystemPermissions {
     microphone: String,
 }
 
+/// Screen Recording status WITHOUT capturing pixels (opening Settings must not screenshot).
+#[cfg(target_os = "macos")]
+fn screen_recording_preflight() -> bool {
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGPreflightScreenCaptureAccess() -> bool;
+    }
+    // SAFETY: plain C call with no arguments; reads the TCC grant state only.
+    unsafe { CGPreflightScreenCaptureAccess() }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn screen_recording_preflight() -> bool {
+    true
+}
+
 #[tauri::command]
 async fn get_system_permissions() -> Result<SystemPermissions, String> {
-    let screen_recording = match tokio::time::timeout(
-        std::time::Duration::from_secs(4),
-        tokio::task::spawn_blocking(capture::screen::grab_desktop_jpeg),
-    )
-    .await
-    {
-        Ok(Ok(Ok(_))) => true,
-        _ => false,
-    };
+    let screen_recording = tokio::task::spawn_blocking(screen_recording_preflight)
+        .await
+        .unwrap_or(false);
     let camera = capture::camera::permission_granted();
     let accessibility = match tokio::task::spawn_blocking(capture::frontmost::frontmost_info).await {
         Ok(Ok(_)) => true,
@@ -746,7 +756,12 @@ async fn start_lock_in(
     state: State<'_, AppState>,
     goals: String,
     duration_mins: u64,
+    screen_enabled: Option<bool>,
+    camera_enabled: Option<bool>,
 ) -> Result<LockInSession, String> {
+    // Consent is explicit per mission — omitted means off.
+    let screen_enabled = screen_enabled.unwrap_or(false);
+    let camera_enabled = camera_enabled.unwrap_or(false);
     let goals = {
         let trimmed = goals.trim().to_string();
         if trimmed.is_empty() {
@@ -766,31 +781,36 @@ async fn start_lock_in(
     // Lock-in coaching is local/API only — Gemini is not required to start.
     let presage_ready = PresageClient::configured(&cfg);
 
-    // Screen watch is required — timeout so a stuck permission prompt can't freeze the UI.
-    let _screen_probe = match tokio::time::timeout(
-        std::time::Duration::from_secs(12),
-        tokio::task::spawn_blocking(capture::screen::grab_primary_jpeg),
-    )
-    .await
-    {
-        Ok(Ok(Ok(bytes))) => bytes,
-        Ok(Ok(Err(e))) => return Err(e),
-        Ok(Err(e)) => return Err(format!("Screen capture task failed: {e}")),
-        Err(_) => {
-            return Err(
-                "Screen capture timed out. Allow Screen Recording for Waypoint in System Settings → Privacy & Security → Screen Recording, then quit and reopen the app."
-                    .into(),
-            );
+    // Screen watching is opt-in. Only probe Screen Recording when the student turned it on;
+    // timeout so a stuck permission prompt can't freeze the UI.
+    if screen_enabled {
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(12),
+            tokio::task::spawn_blocking(capture::screen::grab_primary_jpeg),
+        )
+        .await
+        {
+            Ok(Ok(Ok(_bytes))) => {}
+            Ok(Ok(Err(e))) => return Err(e),
+            Ok(Err(e)) => return Err(format!("Screen capture task failed: {e}")),
+            Err(_) => {
+                return Err(
+                    "Screen capture timed out. Allow Screen Recording for Waypoint in System Settings → Privacy & Security → Screen Recording, then quit and reopen the app. Or turn Screen sharing off to start without it."
+                        .into(),
+                );
+            }
         }
-    };
+    }
 
-    // Camera is optional. Only a short probe — do not wait on the system dialog.
-    let camera_ready = capture::camera::permission_granted()
-        || capture::camera::request_permission_timeout(std::time::Duration::from_secs(2))
-            .await
-            .is_ok();
-    if !camera_ready {
-        tracing::info!("starting lock-in without camera; Presage wellness will stay offline");
+    // Camera is opt-in and optional. Only probe when enabled, with a short wait —
+    // do not block on the system dialog.
+    let camera_ready = camera_enabled
+        && (capture::camera::permission_granted()
+            || capture::camera::request_permission_timeout(std::time::Duration::from_secs(2))
+                .await
+                .is_ok());
+    if camera_enabled && !camera_ready {
+        tracing::info!("camera signals on but unavailable; Presage wellness will stay offline");
     }
 
     let modality = gemini::infer_modality(&goals);
@@ -799,6 +819,8 @@ async fn start_lock_in(
         goals,
         duration_mins.max(1),
         modality,
+        screen_enabled,
+        camera_enabled,
         camera_ready,
         presage_ready,
     );
@@ -806,7 +828,7 @@ async fn start_lock_in(
     *state.session.lock() = Some(session.clone());
     companion::clear_history(&state);
 
-    coach::spawn_coach_loop(app, id, camera_ready, presage_ready);
+    coach::spawn_coach_loop(app, id, screen_enabled, camera_ready, presage_ready);
     Ok(session)
 }
 

@@ -42,6 +42,7 @@ const PRESAGE_START_DELAY_SECS: u64 = 90;
 const TRACKING_WARMUP_SECS: i64 = 15;
 /// Fixed opener — never LLM/system-prompt text (tiny models regurgitate prompts).
 const SESSION_OPENER: &str = "You're locked in. I'll check in if you drift.";
+const SESSION_OPENER_NO_SCREEN: &str = "You're locked in. Screen sharing is off, so I'm just keeping time.";
 
 /// Shared across local watch ticks so OCR/VLM don't re-fire the same nag.
 static LAST_EPHEMERAL_AT: Mutex<Option<chrono::DateTime<chrono::Utc>>> = Mutex::new(None);
@@ -173,13 +174,27 @@ fn claim_ephemeral_slot_keyed(cooldown_secs: i64, key: Option<&str>) -> bool {
     claim_global_floor()
 }
 
-pub fn spawn_coach_loop(app: AppHandle, session_id: String, use_camera: bool, use_presage: bool) {
+/// `use_screen`: the student opted in to screen watching (frontmost app/title/URL, OCR, local VLM).
+/// When false none of those run — the loop only keeps the timer honest.
+/// `use_camera`: camera opted in AND permission available; gates Presage.
+pub fn spawn_coach_loop(
+    app: AppHandle,
+    session_id: String,
+    use_screen: bool,
+    use_camera: bool,
+    use_presage: bool,
+) {
     reset_ephemeral_cooldown();
     {
         let greet_app = app.clone();
         tauri::async_runtime::spawn(async move {
             // Short fixed phrase only — never compose/LLM (avoids reading the prompt aloud).
-            push_prompt(&greet_app, SESSION_OPENER, "watching");
+            let line = if use_screen {
+                SESSION_OPENER
+            } else {
+                SESSION_OPENER_NO_SCREEN
+            };
+            push_prompt(&greet_app, line, "watching");
         });
     }
 
@@ -187,9 +202,11 @@ pub fn spawn_coach_loop(app: AppHandle, session_id: String, use_camera: bool, us
         let state = app.state::<AppState>();
         let mut guard = state.session.lock();
         if let Some(session) = guard.as_mut() {
-            session.watching_note = format!(
-                "Settling in — tracking starts in {TRACKING_WARMUP_SECS}s…"
-            );
+            session.watching_note = if use_screen {
+                format!("Settling in — tracking starts in {TRACKING_WARMUP_SECS}s…")
+            } else {
+                "Screen sharing off · timer and check-ins only".into()
+            };
             session.status = SessionStatusKind::OnTask;
             let snap = session.clone();
             drop(guard);
@@ -198,7 +215,8 @@ pub fn spawn_coach_loop(app: AppHandle, session_id: String, use_camera: bool, us
     }
 
     // Probe Ollama in the background so the UI can show if on-device judging is live.
-    {
+    // Skipped entirely when screen watching is off (nothing local would be judging).
+    if use_screen {
         let probe_app = app.clone();
         let probe_id = session_id.clone();
         tauri::async_runtime::spawn(async move {
@@ -234,9 +252,10 @@ pub fn spawn_coach_loop(app: AppHandle, session_id: String, use_camera: bool, us
     let local_id = session_id.clone();
     let local_stop = stop.clone();
     tauri::async_runtime::spawn(async move {
-        run_local_watch_loop(local_app, local_id, local_stop).await;
+        run_local_watch_loop(local_app, local_id, local_stop, use_screen).await;
     });
 
+    // Presage only with camera consent + permission (use_camera already folds both in).
     if use_camera && use_presage {
         let vitals_app = app;
         let vitals_id = session_id;
@@ -248,7 +267,12 @@ pub fn spawn_coach_loop(app: AppHandle, session_id: String, use_camera: bool, us
 }
 
 /// Primary interrupter: reacts to app/tab open/switch events; YouTube gets text context.
-async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBool>) {
+async fn run_local_watch_loop(
+    app: AppHandle,
+    session_id: String,
+    stop: Arc<AtomicBool>,
+    use_screen: bool,
+) {
     let mut last_vitals = VitalsSnapshot::default();
     let mut was_distracted = false;
     let mut last_fingerprint = String::new();
@@ -261,28 +285,35 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
     let mut announced_tracking = false;
 
     while !stop.load(Ordering::SeqCst) {
-        let (active, remaining, goals, paused) = {
+        let (active, expired, goals, paused) = {
             let state = app.state::<AppState>();
+            let pause_started = *state.pause_started.lock();
             let guard = state.session.lock();
             match guard.as_ref() {
                 Some(s) if s.active && s.id == session_id => {
                     last_vitals = s.vitals.clone();
-                    (true, s.remaining_secs(), s.goals.clone(), s.paused)
+                    // Pause-aware: a break must never trip natural expiry.
+                    (true, s.is_expired(pause_started), s.goals.clone(), s.paused)
                 }
-                _ => (false, 0, String::new(), false),
+                _ => (false, false, String::new(), false),
             }
         };
-        if !active || remaining <= 0 {
+        if !active || expired {
             // Only a natural timer expiry finishes here. A user "End" goes through
             // `stop_lock_in`, which owns the summary — emitting `session-ended` too would
             // double-count the mission and could report pre-pause-fold elapsed time.
-            if active && remaining <= 0 && !stop.load(Ordering::SeqCst) {
+            if active && expired && !stop.load(Ordering::SeqCst) {
                 finish_session(&app, &session_id).await;
             }
             break;
         }
         if paused {
             tokio::time::sleep(Duration::from_millis(500)).await;
+            continue;
+        }
+        if !use_screen {
+            // No consent for screen watching: no frontmost/title/URL reads, OCR, or VLM.
+            tokio::time::sleep(Duration::from_secs(1)).await;
             continue;
         }
 
@@ -749,7 +780,11 @@ async fn run_presage_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBo
             let state = app.state::<AppState>();
             let guard = state.session.lock();
             match guard.as_ref() {
-                Some(s) if s.active && s.id == session_id && s.remaining_secs() > 25 => {
+                Some(s)
+                    if s.active
+                        && s.id == session_id
+                        && (s.paused || s.remaining_secs() > 25) =>
+                {
                     (true, s.paused)
                 }
                 _ => (false, false),
@@ -872,10 +907,15 @@ fn store_vitals(app: &AppHandle, vitals: &VitalsSnapshot) {
             session.status = SessionStatusKind::Stressed;
         }
         session.vitals = vitals.clone();
-        session.watching_note = if vitals.stressed {
-            "Screen watch active · Presage: stress elevated".into()
+        let prefix = if session.screen_enabled {
+            "Screen watch active"
         } else {
-            "Screen watch active · Presage: steady".into()
+            "Camera wellness on"
+        };
+        session.watching_note = if vitals.stressed {
+            format!("{prefix} · Presage: stress elevated")
+        } else {
+            format!("{prefix} · Presage: steady")
         };
         let snap = session.clone();
         drop(guard);

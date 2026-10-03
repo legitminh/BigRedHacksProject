@@ -5887,3 +5887,34 @@ img[src*="assets/figma/"] {
     order: -1;
   }
 }
+
+/* Persistent mission-running bar (nav guard) */
+.mission-running-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 1.25rem;
+  transform: translateX(-50%);
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.6rem 0.5rem 1rem;
+  border: 1px solid rgba(34, 211, 238, 0.4);
+  border-radius: 999px;
+  background: rgba(24, 20, 44, 0.92);
+  color: #f1ecff;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  font-size: 0.875rem;
+}
+
+.mission-running-banner[hidden] {
+  display: none;
+}
+
+.mission-running-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #22d3ee;
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.8);
+}

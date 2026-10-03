@@ -167,3 +167,9 @@ Verifier appends pass/fail notes after each 10m check.
 - pass: fp-welcome-card-surface, fp-permission-handoff-modal-surface, fp-welcome-guest-button-chrome
 - fail: (none)
 - notes: Live get_screenshot/metadata 2:33/5:58 + 2:49/7:415 — 69037e0 welcome card 510/#fffbff/#c8bfd7/28/37 + handoff modal 580/#fffbff/#c8bfd7/28/33 match. Promoted guest Quiet pill (254b24b) → verified. Rewrote fp-permissions-choice-surface (modal surface done; YOUR CHOICE page still missing). Other scrutinous still accurate. Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true, #app padding:0. No code edits; no push.
+
+## check: 2026-10-03T18:52:40-04:00
+- reviewed: fp-copilot-mic-idle-label, fp-copilot-composer-hint-copy, fp-copilot-responses-foot-copy, fp-copilot-mic-live-phase-chrome, fp-welcome-title-scale, fp-welcome-title-medium-32; spot escalate:scrutinous (fp-listening-session-ui, fp-relaunch-panel-compact, fp-gentle-checkin-progress-pill, fp-session-at-launch-chrome, fp-permissions-choice-surface, fp-welcome-signin-form)
+- pass: fp-copilot-mic-idle-label, fp-copilot-composer-hint-copy, fp-copilot-responses-foot-copy, fp-copilot-mic-live-phase-chrome, fp-welcome-title-scale, fp-welcome-title-medium-32
+- fail: (none)
+- notes: Live get_screenshot 2:35/10:667/2:33 + metadata 5:251/5:256/5:61 — c00ab73 Copilot Mic tonal + sticky “Mic” + Enter/mic hint + Responses foot + listening placeholder; bb10d7d welcome title Medium 32px/500/1.4. Rewrote scrutinous fp-listening-session-ui (session ■ still open; Copilot Mic verified) + fp-relaunch-panel-compact (→ not ↗). Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true, #app padding:0. No code edits; no push.

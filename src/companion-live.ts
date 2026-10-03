@@ -32,9 +32,19 @@ export type CompanionLiveHandlers = {
   onAssistant?: (text: string, isFinal: boolean) => void;
   onError?: (message: string) => void;
   onLevel?: (rms: number) => void;
+  /**
+   * Whether the user currently consents to sharing a screen frame. Missing → denied.
+   * Checked on every screencap request (not cached) so toggling the pref takes effect live.
+   */
+  screenConsent?: () => boolean | Promise<boolean>;
+  /** True while a screen frame is being captured/sent; false when done or refused. */
+  onScreenShare?: (sharing: boolean) => void;
 };
 
-type LiveInfo = { ws_url: string; access_token: string };
+/** ws_url has no query string; protocols = ["waypoint.live.v1", "bearer.<jwt>"]. */
+type LiveInfo = { ws_url: string; protocols: string[] };
+
+const SCREEN_OFF_MESSAGE = "Screen sharing is off.";
 
 const AUDIO_PROTOCOL = "wp1";
 const AUDIO_KIND_DOWNLINK = 1;
@@ -378,9 +388,23 @@ export class CompanionLiveSession {
   }
 
   private async handleScreencapRequest(id: string) {
-    this.setPhase("thinking");
+    let consent = false;
     try {
-      const jpeg_base64 = await invoke<string>("companion_grab_screencap");
+      consent = (await this.handlers.screenConsent?.()) === true;
+    } catch {
+      consent = false;
+    }
+    if (!consent) {
+      // Refuse without touching the capture path; never send a frame.
+      this.sendJson({ type: "screencap", id, ok: false, error: SCREEN_OFF_MESSAGE });
+      return;
+    }
+    this.setPhase("thinking");
+    this.handlers.onScreenShare?.(true);
+    try {
+      const jpeg_base64 = await invoke<string>("companion_grab_screencap", {
+        screenConsent: true,
+      });
       this.sendJson({
         type: "screencap",
         id,
@@ -392,8 +416,10 @@ export class CompanionLiveSession {
         type: "screencap",
         id,
         ok: false,
-        error: err instanceof Error ? err.message : String(err),
+        error: typeof err === "string" ? err : err instanceof Error ? err.message : String(err),
       });
+    } finally {
+      this.handlers.onScreenShare?.(false);
     }
   }
 
@@ -408,8 +434,9 @@ export class CompanionLiveSession {
     this.uplinkSeq = 0;
     this.epoch = 1;
 
-    const url = `${info.ws_url}?access_token=${encodeURIComponent(info.access_token)}`;
-    this.socket = new WebSocket(url);
+    // JWT rides in Sec-WebSocket-Protocol (bearer.<jwt>), never the URL. The API selects
+    // "waypoint.live.v1" and does not echo the token. Don't log ws_url/protocols.
+    this.socket = new WebSocket(info.ws_url, info.protocols);
     this.socket.binaryType = "arraybuffer";
     await new Promise<void>((resolve, reject) => {
       if (!this.socket) return reject(new Error("No socket"));

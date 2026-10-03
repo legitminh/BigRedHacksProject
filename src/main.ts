@@ -71,12 +71,27 @@ function applyReduceMotionPref() {
   if (input) input.checked = on;
 }
 
+/** Same prefs drive mission setup and Settings (and what start_lock_in receives). */
 function syncSessionPreferenceToggles() {
-  const camera = $("#setting-camera-signals") as HTMLInputElement | null;
-  const screen = $("#setting-screen-sharing") as HTMLInputElement | null;
-  if (camera) camera.checked = readBoolPref(PREF_CAMERA_SIGNALS, false);
-  if (screen) screen.checked = readBoolPref(PREF_SCREEN_SHARING, false);
+  const camOn = readBoolPref(PREF_CAMERA_SIGNALS, false);
+  const screenOn = readBoolPref(PREF_SCREEN_SHARING, false);
+  for (const id of ["setting-camera-signals", "lockin-camera"]) {
+    const el = $(`#${id}`) as HTMLInputElement | null;
+    if (el) el.checked = camOn;
+  }
+  for (const id of ["setting-screen-sharing", "lockin-screen"]) {
+    const el = $(`#${id}`) as HTMLInputElement | null;
+    if (el) el.checked = screenOn;
+  }
   applyReduceMotionPref();
+}
+
+/** Consent flags for start_lock_in — persisted prefs are the source of truth. */
+function lockInConsentArgs() {
+  return {
+    screenEnabled: readBoolPref(PREF_SCREEN_SHARING, false),
+    cameraEnabled: readBoolPref(PREF_CAMERA_SIGNALS, false),
+  };
 }
 
 function renderNavAvatar(status: StatusPayload) {
@@ -183,6 +198,9 @@ interface LockInSession {
   vitals?: VitalsSnapshot;
   camera_ready?: boolean;
   presage_ready?: boolean;
+  /** Consent captured at launch (status pills mirror these, not the live toggles). */
+  screen_enabled?: boolean;
+  camera_enabled?: boolean;
   watching_note?: string;
   on_task_ticks?: number;
   total_ticks?: number;
@@ -281,10 +299,36 @@ async function applyAccountLocalScope(status: StatusPayload): Promise<void> {
   refreshAllShipViews();
 }
 
+/** Relaunch count for the current mission chain (integer in sessionStorage). */
+function readRelaunchCount(): number {
+  try {
+    const n = Number.parseInt(sessionStorage.getItem(RELAUNCH_FLAG_KEY) ?? "0", 10);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function bumpRelaunchCount(): void {
+  try {
+    sessionStorage.setItem(RELAUNCH_FLAG_KEY, String(readRelaunchCount() + 1));
+  } catch {
+    // ignore private mode / quota
+  }
+}
+
+/** Cleared whenever the user returns Home (fresh chain) or the account changes. */
+function resetRelaunchCount(): void {
+  try {
+    sessionStorage.removeItem(RELAUNCH_FLAG_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/** Count stays until Home so chained relaunches read "2 times", "3 times", … */
 function consumeRelaunchFlag(): number {
-  const fromRelaunch = sessionStorage.getItem(RELAUNCH_FLAG_KEY) === "1";
-  sessionStorage.removeItem(RELAUNCH_FLAG_KEY);
-  return fromRelaunch ? 1 : 0;
+  return readRelaunchCount();
 }
 
 function personalBestMinutes(
@@ -501,8 +545,14 @@ function show(view: ViewId) {
   if (!appUnlocked && view !== "view-home") {
     view = "view-home";
   }
+  // A mission is already running — never open a second launch form; resume it instead.
+  if (view === "view-lockin" && isMissionRunning()) {
+    view = "view-session";
+  }
+  if (view === "view-home") resetRelaunchCount();
   document.querySelectorAll(".view").forEach((el) => el.classList.remove("active"));
   $(`#${view}`)?.classList.add("active");
+  updateMissionBanner();
   if (view === "view-home" && lastHomeStatus && appUnlocked) {
     // Re-paint first-flight vs dashboard from current ship progress (mission complete
     // updates localStorage but used to leave the stale first-flight panel visible).
@@ -564,10 +614,21 @@ function missionLaunchLabel(loading: boolean) {
   return loading ? "Launching…" : "Launch mission →";
 }
 
-const SETUP_FOOT_EMPTY =
-  "Type an objective to enable launch.<br />Both optional inputs are off.";
-const SETUP_FOOT_READY =
-  "You can fly with both inputs off. Nothing starts capturing until you give permission.";
+function setupConsentSummary(): string {
+  const screen = readBoolPref(PREF_SCREEN_SHARING, false);
+  const camera = readBoolPref(PREF_CAMERA_SIGNALS, false);
+  if (!screen && !camera) return "Screen sharing and camera are both off.";
+  if (screen && camera) return "Screen sharing and camera are on for this mission.";
+  return screen
+    ? "Screen sharing is on; camera is off."
+    : "Camera is on; screen sharing is off.";
+}
+function setupFootEmpty(): string {
+  return `Type an objective to enable launch.<br />${setupConsentSummary()}`;
+}
+function setupFootReady(): string {
+  return `${setupConsentSummary()} Waypoint only uses what you switch on.`;
+}
 
 let missionLaunchLoading = false;
 
@@ -586,8 +647,8 @@ function syncMissionSetupLaunchUi(): void {
   if (startBtn) startBtn.disabled = !canLaunch;
 
   if (foot) {
-    if (goalsHasObjective()) foot.textContent = SETUP_FOOT_READY;
-    else foot.innerHTML = SETUP_FOOT_EMPTY;
+    if (goalsHasObjective()) foot.textContent = setupFootReady();
+    else foot.innerHTML = setupFootEmpty();
   }
 }
 
@@ -597,6 +658,16 @@ function setMissionLaunchButton(loading: boolean) {
 }
 
 let googleSignInInFlight = false;
+
+/** Re-arm the welcome Google button (after failure, success, sign-out, or delete). */
+function resetWelcomeSignInState() {
+  googleSignInInFlight = false;
+  const btn = $("#welcome-google-signin") as HTMLButtonElement | null;
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = "Sign in with Google →";
+  }
+}
 
 async function submitWelcomeGoogle() {
   if (googleSignInInFlight) return;
@@ -633,12 +704,9 @@ async function submitWelcomeGoogle() {
     } else {
       alert(nice);
     }
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "Sign in with Google →";
-    }
   } finally {
-    if (!appUnlocked) googleSignInInFlight = false;
+    // Always clear — otherwise sign-out → sign-in again is a silent no-op.
+    resetWelcomeSignInState();
   }
 }
 
@@ -791,6 +859,8 @@ function renderHome(status: StatusPayload) {
   lastHomeStatus = status;
   const unlocked = isAppUnlocked(status);
   appUnlocked = unlocked;
+  guestCloudLocked = Boolean(status.guest_mode && !status.signed_in);
+  applyGuestCloudLocks();
 
   const home = $("#view-home");
   home?.classList.toggle("view-home--signed-in", unlocked);
@@ -851,11 +921,14 @@ function renderHome(status: StatusPayload) {
 }
 
 function renderAccountSettings(status: StatusPayload) {
+  const isGuest = Boolean(status.guest_mode && !status.signed_in);
   const userEl = $("#account-waypoint-user");
   if (userEl) {
     userEl.textContent = status.signed_in
       ? status.username || status.email || "Signed in with Google"
-      : "Not signed in";
+      : isGuest
+        ? "Guest · local only"
+        : "Not signed in";
   }
   const emailEl = $("#account-waypoint-email");
   if (emailEl) {
@@ -865,15 +938,17 @@ function renderAccountSettings(status: StatusPayload) {
   const accountActions = $("#account-waypoint-actions");
   if (accountActions) {
     accountActions.innerHTML = "";
-    if (status.signed_in) {
+    if (status.signed_in || isGuest) {
       const signOut = document.createElement("button");
       signOut.className = "ghost pill";
       signOut.type = "button";
-      signOut.textContent = "Sign out";
+      signOut.textContent = isGuest ? "Leave Guest mode" : "Sign out";
       signOut.addEventListener("click", async () => {
         signOut.disabled = true;
         try {
+          await endActivityBeforeAccountChange();
           await invoke("sign_out_waypoint");
+          resetWelcomeSignInState();
           await refreshStatus();
         } catch (e) {
           alert(String(e));
@@ -890,7 +965,9 @@ function renderAccountSettings(status: StatusPayload) {
       ? "Linked"
       : status.signed_in
         ? "Not linked — re-sign in with Google"
-        : "Sign in required";
+        : isGuest
+          ? "Not available in Guest mode"
+          : "Sign in required";
   }
 
   const actions = $("#account-google-actions");
@@ -1174,7 +1251,7 @@ function appendChat(role: "user" | "assistant", content: string) {
 
 /** True when the user is already inside an active lock-in mission UI. */
 function isLockInSessionActive(): boolean {
-  return Boolean($("#view-session")?.classList.contains("active"));
+  return isMissionRunning() || Boolean($("#view-session")?.classList.contains("active"));
 }
 
 function parseStudySuggestion(
@@ -1277,6 +1354,7 @@ function appendStudySuggestionCard(
         const session = await invoke<LockInSession>("start_lock_in", {
           goals: goalsText,
           durationMins: mins,
+          ...lockInConsentArgs(),
         });
         try {
           sessionStorage.setItem("lockin-last-duration", String(mins));
@@ -1328,8 +1406,55 @@ let hasChatReply = false;
 /** Live companion — backend-mediated Gemini Live (Copilot tab or lock-in session). */
 type LiveSurface = "copilot" | "session";
 let companionLive: CompanionLiveSession | null = null;
+/** Mutex for companion start/stop and typed companion turns. */
 let companionBusy = false;
 let liveSurface: LiveSurface | null = null;
+/** Guest is local-only: cloud Live voice + mission companion chat are unavailable. */
+let guestCloudLocked = false;
+
+const GUEST_LIVE_HINT =
+  "Live voice needs a Google account — Guest mode is local-only. Sign out and sign in with Google to use it.";
+const GUEST_SESSION_CHAT_HINT =
+  "Mission copilot chat needs a Google account — Guest mode is local-only.";
+
+const SESSION_IDLE_HINT =
+  "Talk for live voice · type + Enter for a turn · ends with the mission";
+let guestLocksApplied = false;
+
+/** Disable/badge Live + companion cloud controls for Guest; restores them for Google accounts. */
+function applyGuestCloudLocks() {
+  const pairs: [HTMLButtonElement | null, string, "chat" | "session"][] = [
+    [$("#chat-mic") as HTMLButtonElement | null, "Start / end live voice with Copilot", "chat"],
+    [
+      $("#session-chat-mic") as HTMLButtonElement | null,
+      "Start / end live voice with companion",
+      "session",
+    ],
+  ];
+  for (const [btn, title] of pairs) {
+    if (!btn) continue;
+    btn.toggleAttribute("data-guest-locked", guestCloudLocked);
+    btn.title = guestCloudLocked ? "Google account required (Guest is local-only)" : title;
+    btn.disabled = guestCloudLocked || companionBusy || chatBusy;
+  }
+  const sessionSend = $("#session-chat-send") as HTMLButtonElement | null;
+  if (sessionSend) sessionSend.disabled = guestCloudLocked || companionBusy || chatBusy;
+  const sessionInput = $("#session-chat-input") as HTMLTextAreaElement | null;
+  if (sessionInput) {
+    sessionInput.disabled = guestCloudLocked;
+    sessionInput.placeholder = guestCloudLocked
+      ? "Companion chat needs a Google account"
+      : "Message your copilot…";
+  }
+  if (guestCloudLocked) {
+    setComposerMicHint(GUEST_LIVE_HINT, "chat");
+    setComposerMicHint(GUEST_SESSION_CHAT_HINT, "session");
+  } else if (guestLocksApplied) {
+    setComposerMicHint(COPILOT_IDLE_HINT, "chat");
+    setComposerMicHint(SESSION_IDLE_HINT, "session");
+  }
+  guestLocksApplied = guestCloudLocked;
+}
 
 const CHAT_FAIL_MSG =
   "Sorry, I couldn’t get a reply right now. Please try again in a moment.";
@@ -1386,12 +1511,18 @@ function setChatControlsBusy(busy: boolean) {
       "#chat-send, #chat-mic, #session-chat-send, #session-chat-mic, [data-study], #new-chat",
     )
     .forEach((button) => {
-      // Keep Talk/Live available so the user can end an active Live session.
+      const isMic = button.id === "chat-mic" || button.id === "session-chat-mic";
       if (
-        companionLive?.active &&
-        (button.id === "chat-mic" || button.id === "session-chat-mic")
+        guestCloudLocked &&
+        (isMic || button.id === "session-chat-send")
       ) {
-        button.disabled = false;
+        button.disabled = true;
+        return;
+      }
+      // Mic stays disabled for the whole companion start/stop; afterwards keep Talk/Live
+      // available so the user can end an active Live session.
+      if (isMic) {
+        button.disabled = companionBusy || (busy && !companionLive?.active);
         return;
       }
       button.disabled = busy;
@@ -1710,11 +1841,28 @@ function teardownCompanionLive() {
     companionLive.end(true);
     companionLive = null;
   }
-  companionBusy = false;
   liveSurface = null;
   setCompanionPhaseUi("idle");
   void invoke("voice_stop").catch(() => {});
   void invoke("companion_clear").catch(() => {});
+}
+
+let screenShareHintRestore: string | null = null;
+
+function currentComposerHint(target: "chat" | "session"): string {
+  return ($(target === "session" ? "#session-chat-hint" : "#chat-hint")?.textContent ?? "").trim();
+}
+
+/** Same pref PKG-1 uses; if a lock-in session is running it must also have launched with screen on. */
+async function liveScreenConsent(): Promise<boolean> {
+  if (!readBoolPref(PREF_SCREEN_SHARING, false)) return false;
+  try {
+    const session = await invoke<LockInSession | null>("get_session");
+    if (session && !session.screen_enabled) return false;
+  } catch {
+    return false;
+  }
+  return true;
 }
 
 async function ensureCompanionLive(surface: LiveSurface): Promise<CompanionLiveSession> {
@@ -1736,28 +1884,46 @@ async function ensureCompanionLive(surface: LiveSurface): Promise<CompanionLiveS
       liveSurface = null;
       setCompanionPhaseUi("idle");
     },
+    screenConsent: liveScreenConsent,
+    onScreenShare: (sharing) => {
+      const target = liveSurface === "session" ? "session" : "chat";
+      if (sharing) {
+        screenShareHintRestore = currentComposerHint(target);
+        setComposerMicHint("Sharing a screen frame…", target);
+      } else if (screenShareHintRestore != null) {
+        // Only restore if nothing else replaced the cue in the meantime.
+        if (currentComposerHint(target) === "Sharing a screen frame…") {
+          setComposerMicHint(screenShareHintRestore, target);
+        }
+        screenShareHintRestore = null;
+      }
+    },
   });
   await companionLive.start(collectCompanionContext());
   return companionLive;
 }
 
 async function toggleCompanionLive(surface: LiveSurface): Promise<void> {
-  if (chatBusy || companionBusy) return;
-  const micId = surface === "copilot" ? "#chat-mic" : "#session-chat-mic";
   const hintTarget = surface === "copilot" ? "chat" : "session";
-  if (companionLive?.active && liveSurface === surface) {
-    teardownCompanionLive();
-    setComposerMicHint(
-      surface === "copilot"
-        ? COPILOT_IDLE_HINT
-        : "Live voice ended. Tap Talk to start again, or type a turn.",
-      hintTarget,
-    );
+  if (guestCloudLocked) {
+    setComposerMicHint(GUEST_LIVE_HINT, hintTarget);
     return;
   }
-  const mic = $(micId) as HTMLButtonElement | null;
-  if (mic) mic.disabled = true;
+  if (chatBusy || companionBusy) return;
+  // Hold the mutex for the whole start *or* stop so rapid clicks cannot interleave.
+  companionBusy = true;
+  setChatControlsBusy(chatBusy);
   try {
+    if (companionLive?.active && liveSurface === surface) {
+      teardownCompanionLive();
+      setComposerMicHint(
+        surface === "copilot"
+          ? COPILOT_IDLE_HINT
+          : "Live voice ended. Tap Talk to start again, or type a turn.",
+        hintTarget,
+      );
+      return;
+    }
     await ensureCompanionLive(surface);
     setComposerMicHint(
       surface === "copilot"
@@ -1771,12 +1937,17 @@ async function toggleCompanionLive(surface: LiveSurface): Promise<void> {
     teardownCompanionLive();
     setComposerMicHint(chatErrorMessage(err), hintTarget);
   } finally {
-    if (mic) mic.disabled = false;
+    companionBusy = false;
+    setChatControlsBusy(chatBusy);
   }
 }
 
 async function sendSessionChat() {
   const input = $<HTMLTextAreaElement>("#session-chat-input");
+  if (guestCloudLocked) {
+    setComposerMicHint(GUEST_SESSION_CHAT_HINT, "session");
+    return;
+  }
   if (companionBusy || chatBusy || !input?.value.trim()) return;
   const message = input.value.trim();
   input.value = "";
@@ -1987,22 +2158,33 @@ function updateSessionOrbit(endsAt: string, durationSecs: number) {
   }
 }
 
-let currentOnTaskTicks = 0;
-let currentTotalTicks = 0;
+/**
+ * Active elapsed secs (wall clock minus breaks). Backend extends `ends_at` when a break
+ * ends, so `duration - remaining` is active time; while paused we hold the captured value.
+ */
+let pausedElapsedSecs: number | null = null;
 
-function flightMinutesEarned(endsAt: string, durationSecs: number, onTask: number, total: number): number {
-  const totalMins = Math.max(1, Math.round(durationSecs / 60));
+function rawActiveElapsedSecs(endsAt: string, durationSecs: number): number {
   const remaining = Math.max(0, new Date(endsAt).getTime() - Date.now()) / 1000;
-  const elapsedMins = Math.max(0, durationSecs - remaining) / 60;
-  const ratio = total > 0 ? onTask / total : 0;
-  return Math.min(totalMins, Math.floor(elapsedMins * ratio));
+  return Math.min(durationSecs, Math.max(0, durationSecs - remaining));
+}
+
+/**
+ * One rule for flight minutes everywhere (live line, End modal, summary, PB):
+ * active elapsed minutes, same rounding as `flightMinutesFromSecs`. On-task % is separate.
+ */
+function flightMinutesEarned(endsAt: string, durationSecs: number): number {
+  const totalMins = Math.max(1, Math.round(durationSecs / 60));
+  const elapsed =
+    pausedElapsedSecs ?? rawActiveElapsedSecs(endsAt, durationSecs);
+  return Math.min(totalMins, flightMinutesFromSecs(elapsed));
 }
 
 function updateFlightMinutesLine(endsAt: string, durationSecs: number) {
   const el = $("#session-flight-minutes");
   if (!el) return;
   const totalMins = Math.max(1, Math.round(durationSecs / 60));
-  const earned = flightMinutesEarned(endsAt, durationSecs, currentOnTaskTicks, currentTotalTicks);
+  const earned = flightMinutesEarned(endsAt, durationSecs);
   el.textContent = `${earned} of ${totalMins} flight minutes earned`;
 }
 
@@ -2071,12 +2253,7 @@ function setSessionEndingUi(ending: boolean) {
 
 function currentEarnedFlightMinutes(): number {
   if (!currentEndsAt || currentSessionDurationSecs <= 0) return 0;
-  return flightMinutesEarned(
-    currentEndsAt,
-    currentSessionDurationSecs,
-    currentOnTaskTicks,
-    currentTotalTicks,
-  );
+  return flightMinutesEarned(currentEndsAt, currentSessionDurationSecs);
 }
 
 function openEndSessionModal() {
@@ -2084,7 +2261,7 @@ function openEndSessionModal() {
   const body = $("#end-session-modal-body");
   if (body) {
     const earned = currentEarnedFlightMinutes();
-    body.textContent = `Your ${earned} earned flight minutes will be saved. You can reflect on your objective next.`;
+    body.textContent = `Your ${earned} flight ${earned === 1 ? "minute" : "minutes"} will be saved. You can reflect on your objective next.`;
   }
   setSessionEndingUi(true);
   if (modal) modal.hidden = false;
@@ -2141,9 +2318,13 @@ function renderSessionCoachLog(prompts: CoachPrompt[]) {
   log.scrollTop = log.scrollHeight;
 }
 
-function syncSessionSignalPills() {
-  const cameraOn = ($("#lockin-camera") as HTMLInputElement | null)?.checked ?? false;
-  const screenOn = ($("#lockin-screen") as HTMLInputElement | null)?.checked ?? false;
+/**
+ * Status-only pills (not buttons). Mirror what this mission actually launched with;
+ * before a session exists, fall back to the saved prefs.
+ */
+function syncSessionSignalPills(session?: Pick<LockInSession, "screen_enabled" | "camera_enabled"> | null) {
+  const cameraOn = session?.camera_enabled ?? readBoolPref(PREF_CAMERA_SIGNALS, false);
+  const screenOn = session?.screen_enabled ?? readBoolPref(PREF_SCREEN_SHARING, false);
   const camera = $("#session-pill-camera");
   const screen = $("#session-pill-screen");
   if (camera) {
@@ -2202,8 +2383,6 @@ let missionTimerFrozenDisplay: string | null = null;
 
 function renderSession(session: LockInSession) {
   currentSessionDurationSecs = session.duration_secs;
-  currentOnTaskTicks = session.on_task_ticks ?? 0;
-  currentTotalTicks = session.total_ticks ?? 0;
   const timer = $("#session-timer");
   const status = $("#session-status");
   const goals = $("#session-goals");
@@ -2231,7 +2410,7 @@ function renderSession(session: LockInSession) {
   syncPauseControls(Boolean(session.paused));
   if (session.paused) pauseNextStepTimer();
   else if (nextStepPaused) resumeNextStepTimer();
-  syncSessionSignalPills();
+  syncSessionSignalPills(session);
   renderVitals(session.vitals);
   renderSessionCoachLog(session.prompts);
   ensureSessionAtLaunchSeed(session);
@@ -2277,7 +2456,8 @@ function setCameraToggleChecked(on: boolean) {
   if (setup) setup.checked = on;
   if (settings) settings.checked = on;
   writeBoolPref(PREF_CAMERA_SIGNALS, on);
-  syncSessionSignalPills();
+  // Session pills mirror the launched mission, not live toggles — don't touch them here.
+  syncMissionSetupLaunchUi();
 }
 
 function showPermissionHandoffModal(_source: CameraHandoffSource) {
@@ -2333,6 +2513,7 @@ function wireCameraPermissionHandoff(inputId: string, source: CameraHandoffSourc
     const input = event.target as HTMLInputElement;
     if (!input.checked) {
       writeBoolPref(PREF_CAMERA_SIGNALS, false);
+      syncMissionSetupLaunchUi();
       const other =
         source === "setup"
           ? ($("#setting-camera-signals") as HTMLInputElement | null)
@@ -2512,6 +2693,66 @@ let timerHandle: number | undefined;
 let currentEndsAt: string | null = null;
 let currentSessionDurationSecs = 0;
 
+/** True from launch until End / timer finish (including while on a break). */
+function isMissionRunning(): boolean {
+  return currentEndsAt != null;
+}
+
+/**
+ * Nav guard UX: leaving a running mission via Home / Copilot / Settings is allowed, but a
+ * persistent "Mission running" bar stays on every other screen until the mission ends.
+ */
+function updateMissionBanner(): void {
+  let bar = $("#mission-running-banner");
+  const activeView = document.querySelector(".view.active")?.id;
+  const visible =
+    isMissionRunning() && appUnlocked && activeView !== "view-session" && activeView != null;
+  if (!visible) {
+    if (bar) bar.hidden = true;
+    return;
+  }
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "mission-running-banner";
+    bar.className = "mission-running-banner";
+    bar.setAttribute("role", "status");
+    bar.innerHTML = `
+      <span class="mission-running-dot" aria-hidden="true"></span>
+      <span class="mission-running-text"></span>
+      <button type="button" class="primary pill mission-running-return">Return to mission</button>
+    `;
+    bar.querySelector("button")?.addEventListener("click", () => show("view-session"));
+    document.body.appendChild(bar);
+  }
+  bar.hidden = false;
+  const paused = $("#session-pause")?.getAttribute("aria-pressed") === "true";
+  const left = missionTimerFrozenDisplay ?? (currentEndsAt ? formatRemaining(currentEndsAt) : "");
+  const text = bar.querySelector(".mission-running-text");
+  if (text) {
+    text.textContent = `Mission ${paused ? "paused" : "running"} · ${left} left`;
+  }
+}
+
+/**
+ * Before sign-out / delete: close live voice and stop any running mission so nothing
+ * keeps capturing or credits the wrong account. Errors are ignored on purpose.
+ */
+async function endActivityBeforeAccountChange(): Promise<void> {
+  try {
+    teardownCompanionLive();
+  } catch {
+    // ignore
+  }
+  try {
+    await invoke("stop_lock_in");
+  } catch {
+    // ignore — no active session or already stopped
+  }
+  stopTimer();
+  setSessionCheckinUi(false);
+  setSessionEndingUi(false);
+}
+
 function stopTimer() {
   if (timerHandle) {
     window.clearInterval(timerHandle);
@@ -2520,7 +2761,9 @@ function stopTimer() {
   currentEndsAt = null;
   currentSessionDurationSecs = 0;
   missionTimerFrozenDisplay = null;
+  pausedElapsedSecs = null;
   clearNextStepTimer();
+  updateMissionBanner();
 }
 
 function startTimer(endsAt: string) {
@@ -2540,6 +2783,7 @@ function startTimer(endsAt: string) {
       updateSessionFlight(currentEndsAt, currentSessionDurationSecs);
       updateFlightMinutesLine(currentEndsAt, currentSessionDurationSecs);
     }
+    updateMissionBanner();
     if (ms <= 0) {
       const statusEl = $("#session-status");
       if (statusEl) {
@@ -2561,7 +2805,7 @@ function startTimer(endsAt: string) {
  * Keep the mission countdown ticking while active; freeze while paused.
  * Must not thrash-restart on every session-update (coach emits ~1Hz).
  */
-function syncMissionTimer(session: Pick<LockInSession, "paused" | "ends_at">) {
+function syncMissionTimer(session: Pick<LockInSession, "paused" | "ends_at" | "duration_secs">) {
   if (session.paused) {
     if (timerHandle) {
       window.clearInterval(timerHandle);
@@ -2572,13 +2816,18 @@ function syncMissionTimer(session: Pick<LockInSession, "paused" | "ends_at">) {
       missionTimerFrozenDisplay = formatRemaining(
         session.ends_at || currentEndsAt || new Date().toISOString(),
       );
+      if (session.ends_at && session.duration_secs > 0) {
+        pausedElapsedSecs = rawActiveElapsedSecs(session.ends_at, session.duration_secs);
+      }
     }
     const el = $("#session-timer");
     if (el) el.textContent = missionTimerFrozenDisplay;
+    updateMissionBanner();
     return;
   }
 
   missionTimerFrozenDisplay = null;
+  pausedElapsedSecs = null;
   if (!session.ends_at) return;
 
   // Same deadline already scheduled — leave the 1s interval alone.
@@ -2601,9 +2850,12 @@ async function refreshStatus() {
   }
   const session = status.session;
   if (session?.active) {
+    // Already flying and the user stepped away (banner showing)? Don't yank them back.
+    const wasRunning = isMissionRunning();
     renderSession(session);
     syncMissionTimer(session);
-    show("view-session");
+    if (wasRunning) updateMissionBanner();
+    else show("view-session");
   }
   return status;
 }
@@ -2616,7 +2868,7 @@ async function bootApp() {
   });
 
   $("#summary-lockin-again")?.addEventListener("click", () => {
-    sessionStorage.setItem(RELAUNCH_FLAG_KEY, "1");
+    bumpRelaunchCount();
     show("view-lockin");
     restoreLockinFromLastSession();
   });
@@ -2916,6 +3168,7 @@ async function bootApp() {
       const session = await invoke<LockInSession>("start_lock_in", {
         goals: missionGoals,
         durationMins: duration,
+        ...lockInConsentArgs(),
       });
       try {
         sessionStorage.setItem("lockin-last-duration", String(duration));
@@ -3104,10 +3357,20 @@ async function bootApp() {
   });
   wireCameraPermissionHandoff("lockin-camera", "setup");
   wireCameraPermissionHandoff("setting-camera-signals", "settings");
-  $("#setting-screen-sharing")?.addEventListener("change", (event) => {
-    const input = event.target as HTMLInputElement;
-    writeBoolPref(PREF_SCREEN_SHARING, input.checked);
-  });
+  for (const id of ["setting-screen-sharing", "lockin-screen"]) {
+    $(`#${id}`)?.addEventListener("change", (event) => {
+      const input = event.target as HTMLInputElement;
+      writeBoolPref(PREF_SCREEN_SHARING, input.checked);
+      // Keep setup + Settings in lockstep (same pref).
+      for (const other of ["setting-screen-sharing", "lockin-screen"]) {
+        const el = $(`#${other}`) as HTMLInputElement | null;
+        if (el) el.checked = input.checked;
+      }
+      syncMissionSetupLaunchUi();
+    });
+  }
+  syncSessionPreferenceToggles();
+  syncMissionSetupLaunchUi();
   $("#setting-reduce-motion")?.addEventListener("change", (event) => {
     const input = event.target as HTMLInputElement;
     writeBoolPref(PREF_REDUCE_MOTION, input.checked);
@@ -3159,6 +3422,7 @@ async function bootApp() {
     if (btn) btn.disabled = true;
     if (deleteResult) deleteResult.textContent = "Deleting…";
     try {
+      await endActivityBeforeAccountChange();
       const result = await invoke<{
         removed: string[];
         cleared_local_keys: string[];
@@ -3179,6 +3443,7 @@ async function bootApp() {
       if (chatLog) chatLog.innerHTML = "";
       closeDeleteModal();
       appUnlocked = false;
+      resetWelcomeSignInState();
       await refreshStatus();
       refreshAllShipViews();
       show("view-home");

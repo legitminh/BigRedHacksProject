@@ -207,6 +207,8 @@ export function onMissionCompleted(summary: MissionCompleteInput, elapsedSecs: n
   const p = loadProgress();
   const mins = Math.max(0, elapsedSecs) / 60;
   const checks = summary.screen_checks ?? 0;
+  // Ship "on-task" credit only (never flight minutes / PB, which use active elapsed time).
+  // With no verified screen checks we give a conservative estimate rather than 0.
   const ratio = checks === 0 ? 0.35 : Math.min(1, Math.max(0, summary.on_task_ratio));
   p.onTaskMinutes += mins * ratio;
   // Personal-best minutes are recorded separately via recordLongestFlightMinutes

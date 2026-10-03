@@ -2967,7 +2967,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     (live `5:61`); string “Your seat is ready.” unchanged.
 - verified: 2026-10-03T18:52:40-04:00
 
-## done: fp-copilot-page-title-scale
+## verified: fp-copilot-page-title-scale
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · title `5:233`
 - expected: |
@@ -2991,8 +2991,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     `.copilot-page-title` → Medium 36px / line-height 1.4 / weight 500
     (live `5:233`); Mic/Send + Start a mission wiring unchanged.
+- verified: 2026-10-03T19:12:40-04:00
 
-## done: fp-copilot-intro-gap
+## verified: fp-copilot-intro-gap
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · title `5:233` ·
   sub `5:234`
@@ -3015,6 +3016,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     `.copilot-intro` gap → `1.375rem` (22px) for live `5:233`→`5:234`;
     chip / composer / Mic wiring unchanged.
+- verified: 2026-10-03T19:12:40-04:00
 
 ## open: fp-relaunch-take-break-quiet-fill
 - screen: active
@@ -3060,14 +3062,15 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Keep composer mounted + Retry wiring.
 - escalate: scrutinous
 
-## done: fp-permission-handoff-title-scale
+## verified: fp-permission-handoff-title-scale
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   title `7:418` · modal `7:415`
 - expected: |
-    Live handoff title “Allow camera signals?” (`7:418`, 516×42): Medium
-    ~28–30px / weight 500 (not Bold ~25px). Badge PERMISSION HANDOFF +
-    camera body/footer already match verified camera-copy / surface.
+    Live handoff title (`7:418`, 516×42): Medium ~28–30px / weight 500
+    (not Bold ~25px). Frame title string is “Share an optional input?”;
+    camera-specific “Allow camera signals?” remains a product variant
+    (verified camera-copy). Badge + surface already match.
 - actual: |
     Tick22 YOUR CHOICE spot-check: `.mc-perm-modal__title` is `1.55rem`
     (~24.8px) `font-weight: 700`. Copy strings OK after `b7ea57b`;
@@ -3086,6 +3089,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `.mc-perm-modal__title` → Medium 30px / line-height 1.4 / weight 500
     (live `7:418`); “Allow camera signals?” + denied shared class; Not now /
     Continue wiring unchanged.
+- verified: 2026-10-03T19:12:40-04:00
 
 ## open: fp-relaunch-take-break-tonal-raised
 - screen: active
@@ -3130,7 +3134,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Retry wiring + composer.
 - escalate: scrutinous
 
-## done: fp-welcome-foot-muted
+## verified: fp-welcome-foot-muted
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · foot `5:77`
 - expected: |
@@ -3153,8 +3157,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `.welcome-signin-foot` → 13px / `#645d73` / line-height 1.4 (live
     `5:77`). Kept Google-approval foot copy (product requires Google;
     live guest sentence would conflict). Guest + Google wiring unchanged.
+- verified: 2026-10-03T19:12:40-04:00
 
-## done: fp-welcome-signin-cta-solid
+## verified: fp-welcome-signin-cta-solid
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · CTA `5:71`
 - expected: |
@@ -3176,8 +3181,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `.welcome-signin-submit` → solid `#6750a4`, white Medium 14px /
     weight 500, no gradient, `box-shadow: none` (live `5:71`). Label
     remains “Sign in with Google →”; Google invoke wiring unchanged.
+- verified: 2026-10-03T19:12:40-04:00
 
-## done: fp-handoff-modal-stack-gap
+## verified: fp-handoff-modal-stack-gap
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   modal `7:415`
@@ -3203,3 +3209,4 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `.mc-perm-modal__card` → `padding: 32px` / `gap: 22px` (match
     timer-replace rhythm, live `7:415`). Surface/title tokens preserved;
     Not now · Continue + camera copy wiring unchanged.
+- verified: 2026-10-03T19:12:40-04:00

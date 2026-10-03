@@ -144,12 +144,34 @@ pub fn companion_clear(state: State<'_, AppState>) {
     clear_history(&state);
 }
 
-/// Connection info for the thin Live client — JWT + API WebSocket URL only.
+const SCREEN_SHARING_OFF: &str = "Screen sharing is off, so I can't look at your screen.";
+
+/// Live WebSocket subprotocol marker the API selects (never echoes the JWT).
+const LIVE_SUBPROTOCOL: &str = "waypoint.live.v1";
+const LIVE_BEARER_PREFIX: &str = "bearer.";
+
+/// Connection info for the thin Live client — API WebSocket URL + auth subprotocols.
+/// The JWT is delivered as `Sec-WebSocket-Protocol: bearer.<jwt>` (never in the URL query).
 /// Does not mint or return Gemini credentials.
 #[derive(Debug, Clone, Serialize)]
 pub struct CompanionLiveInfo {
+    /// Plain `/v1/companion/live` URL — no query string, no credentials.
     pub ws_url: String,
-    pub access_token: String,
+    /// Pass as the `protocols` argument to `new WebSocket(ws_url, protocols)`.
+    pub protocols: Vec<String>,
+}
+
+/// RFC 6455 subprotocol names must be HTTP tokens (no spaces, separators, or control chars).
+fn is_valid_subprotocol_token(s: &str) -> bool {
+    !s.is_empty()
+        && s.bytes().all(|b| {
+            b.is_ascii_alphanumeric()
+                || matches!(
+                    b,
+                    b'!' | b'#' | b'$' | b'%' | b'&' | b'\'' | b'*' | b'+' | b'-' | b'.' | b'^'
+                        | b'_' | b'`' | b'|' | b'~'
+                )
+        })
 }
 
 #[tauri::command]
@@ -167,9 +189,13 @@ pub fn companion_live_info(state: State<'_, AppState>) -> Result<CompanionLiveIn
     } else {
         format!("ws://{http}/v1/companion/live")
     };
+    let bearer = format!("{LIVE_BEARER_PREFIX}{}", tokens.access_token.trim());
+    if !is_valid_subprotocol_token(&bearer) {
+        return Err("Your session token can't be used for Live voice. Sign in again.".into());
+    }
     Ok(CompanionLiveInfo {
         ws_url: ws,
-        access_token: tokens.access_token,
+        protocols: vec![LIVE_SUBPROTOCOL.to_string(), bearer],
     })
 }
 
@@ -181,8 +207,27 @@ pub fn voice_stop() {
 
 /// Capture a desktop JPEG for the Live companion. Base64 stays on the device until
 /// the thin client posts it to Waypoint API `/v1/companion/live` (API → Gemini).
+///
+/// Consent gate: refuses (no capture at all) unless the UI reports screen sharing is on
+/// (`screen_consent`, from the `wp-setting-screen-sharing` pref) AND — when a lock-in
+/// session is running — that session was launched with `screen_enabled`.
 #[tauri::command]
-pub async fn companion_grab_screencap() -> Result<String, String> {
+pub async fn companion_grab_screencap(
+    state: State<'_, AppState>,
+    screen_consent: Option<bool>,
+) -> Result<String, String> {
+    if !screen_consent.unwrap_or(false) {
+        return Err(SCREEN_SHARING_OFF.into());
+    }
+    let session_allows = state
+        .session
+        .lock()
+        .as_ref()
+        .map(|s| s.screen_enabled)
+        .unwrap_or(true);
+    if !session_allows {
+        return Err(SCREEN_SHARING_OFF.into());
+    }
     let jpeg = tokio::task::spawn_blocking(capture::screen::grab_desktop_jpeg)
         .await
         .map_err(|e| format!("Screen capture task failed: {e}"))?
