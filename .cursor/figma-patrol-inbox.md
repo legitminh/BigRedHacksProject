@@ -1301,7 +1301,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Set `.welcome-signin-title` to “Your seat is ready.”; leave Google wiring and
     the broader form open (`fp-welcome-signin-form`) for Email/Password/guest.
 - escalate: scrutinous
-- commit: PENDING
+- commit: cc11ce5
 - change: `.welcome-signin-title` → “Your seat is ready.” (live `5:61`); form/Google path untouched.
 
 ## open: fp-relaunch-live-panel-copy
@@ -1362,7 +1362,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Split into kicker + minutes elements (or two lines in the label) matching
     `6:191`; keep `updateSessionOrbitPersonalBest()` wiring.
 - escalate: none
-- commit: PENDING
+- commit: cc11ce5
 - change: PB callout stacks flag+“Personal best” then `{n} min`; `updateSessionOrbitPersonalBest` sets minutes only.
 
 ## done: fp-listening-hides-next-step
@@ -1385,5 +1385,5 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     idle. Keep suggest chip + Pause/End. Distinct from launch-chrome hide
     (`fp-session-at-launch-chrome`).
 - escalate: scrutinous
-- commit: PENDING
+- commit: cc11ce5
 - change: `#view-session.is-session-listening` hides `#session-next-step`; toggled via `setSessionListeningUi` on session mic start/end.
