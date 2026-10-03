@@ -3021,21 +3021,21 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
   secondary `8:426` · field `8:421`
 - expected: |
-    Live 09 card “Take a break” (`8:426`, 386×52) under Relaunch is Quiet
-    fill matching the Next step Editable (`#f7f2ff` / `#c8bfd7`) — not
-    raised tonal `#e9ddfd` chip chrome. Relaunch stays filled primary.
+    DEFER — Tick23 live `8:426` is raised tonal `#e9ddfd`, not Quiet
+    field fill. Treat `fp-relaunch-take-break-tonal-raised` as source of
+    truth for Take a break fill. Do not implement Quiet `#f7f2ff` here.
 - actual: |
-    Open `fp-relaunch-cta-hierarchy` says card Take a break is “tonal
-    secondary” (`#e9ddfd` risk). Tick22 live crop/metadata: secondary
-    matches field Quiet, not suggest-pill tonal. App has no relaunch card.
+    Prior Quiet-fill guidance was a crop misread; superseded by Tick23
+    `fp-relaunch-take-break-tonal-raised`. App still has no relaunch card.
 - deviation: |
-    Secondary CTA fill token vs live `8:426`. Corrects tonal assumption
-    on cta-hierarchy; under-covered `2:41`.
+    Stale Quiet-fill open retained for history; fixers should follow
+    tonal-raised instead. Under-covered `2:41`.
 - fix_hint: |
-    When mounting relaunch CTAs: Relaunch filled purple; Take a break
-    Quiet `#f7f2ff` + `#c8bfd7` border (same as Next step field). Keep
-    End / Take a break → pause wiring.
+    No-op for Quiet fill. When mounting relaunch CTAs, use tonal-raised
+    open: Relaunch filled `#6750a4`; Take a break `#e9ddfd`. Keep End /
+    Take a break → pause wiring.
 - escalate: scrutinous
+- deferred_to: fp-relaunch-take-break-tonal-raised
 
 ## open: fp-connection-lost-composer-hint-copy
 - screen: active
@@ -3086,3 +3086,120 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `.mc-perm-modal__title` → Medium 30px / line-height 1.4 / weight 500
     (live `7:418`); “Allow camera signals?” + denied shared class; Not now /
     Continue wiring unchanged.
+
+## open: fp-relaunch-take-break-tonal-raised
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  secondary `8:426` · field `8:421`
+- expected: |
+    Tick23 design_context + isolated `get_screenshot` on `8:426`: card
+    “Take a break” is raised tonal `#e9ddfd` (Secondary), 386×52 — NOT
+    Quiet field fill `#f7f2ff`. Next step Editable stays `#f7f2ff` /
+    `#c8bfd7`. Relaunch remains filled primary `#6750a4`.
+- actual: |
+    Tick22 open `fp-relaunch-take-break-quiet-fill` wrongly locks Quiet
+    `#f7f2ff` from a crop misread. Sibling `fp-relaunch-cta-hierarchy`
+    already said tonal secondary. App has no relaunch card.
+- deviation: |
+    Tick23 live proof — secondary CTA is tonal raised `#e9ddfd`. Supersedes
+    quiet-fill guidance on `8:426`; under-covered `2:41`.
+- fix_hint: |
+    Prefer this over `fp-relaunch-take-break-quiet-fill`: Relaunch filled;
+    Take a break `#e9ddfd` tonal (same as suggest/Retry chips). Keep End /
+    Take a break → pause wiring.
+- escalate: scrutinous
+
+## open: fp-connection-lost-latest-type
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  Latest `6:1719` · title `6:1720` · body `6:1721`
+- expected: |
+    Live Latest-response card (`6:1719`): pad 18 / gap 10 / radius 28 /
+    fill `#e9ddfd` / border `#c8bfd7`; title “Connection lost. Your flight
+    keeps going.” Medium 18px; body Regular 14px muted `#645d73`.
+- actual: |
+    Open `fp-connection-lost-latest-card` locks card chrome + Retry slot
+    only — not title/body type scale. App has no lost Latest card.
+- deviation: |
+    Tick23 design_context — Latest type tokens vs live `6:1720`/`6:1721`.
+    Distinct from body-copy string / latest-card shell / retry-tonal;
+    under-covered `2:48`.
+- fix_hint: |
+    When mounting lost Latest card: Medium 18 title + Regular 14 body +
+    18px pad / 10px gap; reuse `.session-latest-response` tokens. Keep
+    Retry wiring + composer.
+- escalate: scrutinous
+
+## done: fp-welcome-foot-muted
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · foot `5:77`
+- expected: |
+    Live Sign in foot (`5:77`): “Just here to focus? Guest mode has
+    everything you need for your first mission.” — muted `#645d73` at
+    13px / leading 1.4 (not lilac `#8a7fa8`).
+- actual: |
+    Open `fp-welcome-signin-form` locks foot string only. App
+    `.welcome-signin-foot` is `#8a7fa8` / ~0.78rem with Google-approval
+    copy.
+- deviation: |
+    Foot color/size token vs live `5:77`. Complements form copy open;
+    under-covered welcome sign-in.
+- fix_hint: |
+    Set `.welcome-signin-foot` to 13px / `#645d73` / line-height 1.4 with
+    live guest sentence; keep guest + Google wiring per form open.
+- escalate: scrutinous
+- commit: PENDING
+- change: |
+    `.welcome-signin-foot` → 13px / `#645d73` / line-height 1.4 (live
+    `5:77`). Kept Google-approval foot copy (product requires Google;
+    live guest sentence would conflict). Guest + Google wiring unchanged.
+
+## done: fp-welcome-signin-cta-solid
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · CTA `5:71`
+- expected: |
+    Live “Sign in  →” (`5:71`, 438×52): solid fill `#6750a4`, white Medium
+    ~14px M3 label — no vertical gradient, not semibold 600.
+- actual: |
+    Form open locks label “Sign in →” existence. App
+    `.welcome-signin-submit` uses `linear-gradient(180deg, #7c5cff, #6b4cff)`
+    + `font-weight: 600` + shadow (“Sign in with Google →”).
+- deviation: |
+    Primary CTA fill/type vs live `5:71`. Distinct from form fields /
+    guest Quiet / foot muted; under-covered welcome.
+- fix_hint: |
+    When remounting Sign in →: solid `#6750a4` / Medium 14 / 438×52 pill;
+    keep invoke `sign_in_waypoint_google` if email auth isn’t real yet.
+- escalate: scrutinous
+- commit: PENDING
+- change: |
+    `.welcome-signin-submit` → solid `#6750a4`, white Medium 14px /
+    weight 500, no gradient, `box-shadow: none` (live `5:71`). Label
+    remains “Sign in with Google →”; Google invoke wiring unchanged.
+
+## done: fp-handoff-modal-stack-gap
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  modal `7:415`
+- expected: |
+    Live handoff dialog (`7:415`): column gap 22px + padding 32px around
+    badge / Medium 30 title / body / Not now·Continue / foot — same stack
+    rhythm as verified timer-replace (`gap: 22px`).
+- actual: |
+    After `b0e40e8` title scale + `69037e0` surface: `.mc-perm-modal__card`
+    uses `padding: 33px` and `gap: 0.85rem` (~13.6px). Title/copy/surface
+    OK; stack spacing still tight. YOUR CHOICE page still missing.
+- deviation: |
+    Tick23 design_context — handoff vertical gap/pad vs live `7:415`.
+    Distinct from title-scale done / choice-surface / art / title-size;
+    under-covered permissions.
+- fix_hint: |
+    Set handoff (shared) `.mc-perm-modal__card` gap to 22px and pad 32px;
+    keep Not now · Continue + camera copy. Preserve Settings five-tab;
+    do not block Launch.
+- escalate: scrutinous
+- commit: PENDING
+- change: |
+    `.mc-perm-modal__card` → `padding: 32px` / `gap: 22px` (match
+    timer-replace rhythm, live `7:415`). Surface/title tokens preserved;
+    Not now · Continue + camera copy wiring unchanged.

@@ -973,15 +973,18 @@ body:has(.view-home.view-home--guest.active) .grain {
   box-shadow: 0 0 0 3px rgba(107, 76, 255, 0.15);
 }
 
+/* Live 01 Sign in CTA (5:71): solid #6750a4, white Medium 14 */
 .welcome-signin-submit {
   margin-top: 0.25rem;
   border: none;
   border-radius: var(--radius-pill);
-  background: linear-gradient(180deg, #7c5cff 0%, #6b4cff 100%);
+  background: #6750a4;
   color: #fff;
-  font-weight: 600;
+  font-size: 0.875rem; /* 14px */
+  font-weight: 500;
+  line-height: 1.4;
   padding: 0.85rem 1.25rem;
-  box-shadow: 0 8px 22px rgba(107, 76, 255, 0.35);
+  box-shadow: none;
 }
 
 .welcome-signin-submit:hover:not(:disabled) {
@@ -1018,12 +1021,13 @@ body:has(.view-home.view-home--guest.active) .grain {
   color: #282237;
 }
 
+/* Live 01 foot (5:77): muted #645d73 at 13px / lh 1.4 (Google-approval copy kept) */
 .welcome-signin-foot {
   margin: 0.35rem 0 0;
-  font-size: 0.78rem;
-  line-height: 1.45;
+  font-size: 13px;
+  line-height: 1.4;
   text-align: center;
-  color: #8a7fa8;
+  color: #645d73;
 }
 
 .welcome-signin-card .signin-error {
@@ -1460,18 +1464,18 @@ body:has(.view-home.view-home--guest.active) .grain {
   backdrop-filter: blur(5px);
 }
 
-/* Live 17 handoff (7:415) + denied/end: 580-wide MC chrome #fffbff / #c8bfd7 / 28px */
+/* Live 17 handoff (7:415) + denied/end: 580-wide MC chrome, gap/pad match timer-replace */
 .mc-perm-modal__card {
   position: relative;
   z-index: 1;
   width: min(100%, 580px);
-  padding: 33px;
+  padding: 32px;
   border-radius: 28px;
   background: #fffbff;
   border: 1px solid #c8bfd7;
   box-shadow: 0 28px 56px rgba(42, 36, 64, 0.22);
   display: grid;
-  gap: 0.85rem;
+  gap: 22px;
 }
 
 /* Live 15 timer-replace dialog (6:1562): 580×301 surface tokens */
