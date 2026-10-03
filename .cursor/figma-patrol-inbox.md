@@ -2849,7 +2849,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Set `.welcome-signin-title` to 32px / `font-weight: 500` / line-height
     1.4; keep Google/guest wiring + card surface tokens from `69037e0`.
 - escalate: scrutinous
-- commit: PENDING
+- commit: bb10d7d
 - change: |
     `.welcome-signin-title` → Medium 32px / line-height 1.4 / weight 500
     (live `5:61`); string “Your seat is ready.” unchanged.
@@ -2954,7 +2954,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     1.4; keep Google/guest wiring + card surface. Prefer over
     `fp-welcome-title-scale` ~36px hint.
 - escalate: scrutinous
-- commit: PENDING
+- commit: bb10d7d
 - change: |
     `.welcome-signin-title` → Medium 32px / line-height 1.4 / weight 500
     (live `5:61`); string “Your seat is ready.” unchanged.
