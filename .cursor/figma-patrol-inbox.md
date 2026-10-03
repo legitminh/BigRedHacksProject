@@ -693,7 +693,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     + suggest chip. Do not re-show next-step while listening.
 - escalate: scrutinous
 
-## done: fp-permission-handoff-modal
+## verified: fp-permission-handoff-modal
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49`
 - deviation: |
@@ -713,8 +713,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `#lockin-camera` / `#setting-camera-signals`; Continue → `request_camera_permission`;
     Not now cancels. Camera-specific live copy (not stale layer name). YOUR CHOICE page
     still open (`fp-permissions-choice-surface`).
+- verified: 2026-10-03T17:05:46-04:00
 
-## done: fp-permission-denied-modal
+## verified: fp-permission-denied-modal
 - screen: overlay
 - ref: `.cursor/figma-refs/18-permission-denied.png` · live `2:50`
 - deviation: |
@@ -731,6 +732,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     Thin `#permission-denied-modal` after handoff Continue deny; Back to setup →
     `#view-lockin`; View settings → Permissions tab; Launch never blocked.
+- verified: 2026-10-03T17:05:46-04:00
 
 ## verified: fp-session-composer-in-pill
 - screen: active
@@ -1515,7 +1517,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `fp-connection-lost-body-copy`.
 - escalate: scrutinous
 
-## done: fp-gentle-checkin-hides-session-chrome
+## verified: fp-gentle-checkin-hides-session-chrome
 - screen: active
 - ref: `.cursor/figma-refs/08-gentle-check-in.png` · live `2:40`
 - expected: |
@@ -1541,8 +1543,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `#view-session.is-session-checkin` hides `#session-next-step` +
     `#session-copilot-suggest`; toggled via global `overlay-prompt` /
     `overlay-clear` (+ toast-duration timeout). Caption/Pause/End unchanged.
+- verified: 2026-10-03T17:05:46-04:00
 
-## done: fp-end-confirm-hides-next-step
+## verified: fp-end-confirm-hides-next-step
 - screen: active
 - ref: `.cursor/figma-refs/11-end-confirmation.png` · live `2:43`
 - expected: |
@@ -1568,20 +1571,23 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `#view-session.is-session-ending` hides `#session-next-step` only
     (suggest stays); toggled around native `window.confirm` on `#end-session`
     until MC end modal lands. Full modal deferred (`fp-end-confirm-figma-modal`).
+- verified: 2026-10-03T17:05:46-04:00
 
 ## open: fp-timer-replace-keeps-running
 - screen: active
 - ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` · body `6:1566`
 - expected: |
-    Live 15 modal body is two beats: “Your current timer has {m:ss} left.
-    Replace it with a new five-minute timer? Your mission keeps running.”
+    Live 15 modal body (reconfirmed get_screenshot 2:47): “Your current
+    timer has {m:ss} left. Replace it with a new five-minute timer? Your
+    mission keeps running.”
 - actual: |
     Open `fp-timer-replace-body-copy` covers the remaining-time sentence
     only — trailing “Your mission keeps running.” is not specified; app
     has no modal yet (`fp-timer-replace-modal`).
 - deviation: |
     Body must include the “Your mission keeps running.” closer after the
-    replace question (live OCR / frame copy on `2:47`).
+    replace question (live OCR / frame copy on `2:47`). Sibling open
+    `fp-timer-replace-mission-timer-copy` wrongly added “timer” — ignore.
 - fix_hint: |
     When building the replace modal body for `fp-timer-replace-modal` /
     `fp-timer-replace-body-copy`, append “ Your mission keeps running.”
@@ -1597,19 +1603,20 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     “Fly on your own terms.”; sub “Optional signals. Clear controls.
     No recordings.”; left ringed planet + right ship art.
 - actual: |
-    No “YOUR CHOICE” surface in app HTML/CSS/TS. Camera/screen paths go
-    from setup toggles or Settings → Permissions straight to OS prompts
-    (see `fp-permission-handoff-modal` / denied / screen-share opens).
+    Handoff + denied modals exist (b7ea57b verified) but mount as fixed
+    overlays over whatever view is current (setup toggles / Settings).
+    Still no “YOUR CHOICE” / “Fly on your own terms.” interstitial page
+    or art plane under the modals.
 - deviation: |
     Missing interstitial permissions-choice page that hosts the handoff
-    and denied modals in Figma. Distinct from modal-only opens.
+    and denied modals in Figma. Distinct from verified modal-only items.
 - fix_hint: |
     Add a lightweight MC “YOUR CHOICE” view (or setup substate) matching
     live intro + art; show handoff/denied modals over it. Keep five-tab
     Settings; do not block Launch.
 - escalate: scrutinous
 
-## done: fp-permission-denied-body-copy
+## verified: fp-permission-denied-body-copy
 - screen: overlay
 - ref: `.cursor/figma-refs/18-permission-denied.png` · live `2:50` ·
   body `7:502` · footer `7:510`
@@ -1634,8 +1641,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     Denied modal uses live `7:502` / `7:510` body + footer (works just as
     well); expected above refreshed off stale “will still work”.
+- verified: 2026-10-03T17:05:46-04:00
 
-## done: fp-permission-handoff-camera-copy
+## verified: fp-permission-handoff-camera-copy
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   title `7:418` · body `7:419` · footer `7:427`
@@ -1663,8 +1671,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     Handoff modal uses live camera title/body/footer (`7:418`/`7:419`/
     `7:427`); badge PERMISSION HANDOFF; Not now · Continue.
+- verified: 2026-10-03T17:05:46-04:00
 
-## done: fp-permission-denied-works-copy
+## verified: fp-permission-denied-works-copy
 - screen: overlay
 - ref: `.cursor/figma-refs/18-permission-denied.png` · live `2:50` ·
   body `7:502`
@@ -1685,26 +1694,26 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - commit: b7ea57b
 - change: |
     Denied body uses live “works just as well without it.” (`7:502`).
+- verified: 2026-10-03T17:05:46-04:00
 
 ## open: fp-timer-replace-mission-timer-copy
 - screen: active
 - ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` ·
   body `6:1566`
 - expected: |
-    Live 15 body (design_context): “Your current timer has {m:ss} left.
-    Replace it with a new five-minute timer? Your mission timer keeps
-    running.”
+    Live 15 body (get_screenshot 2:47 OCR): “Your current timer has
+    {m:ss} left. Replace it with a new five-minute timer? Your mission
+    keeps running.” — closer has NO extra “timer” word.
 - actual: |
-    Open `fp-timer-replace-keeps-running` expected closer “Your mission
-    keeps running.” — missing the word “timer”. App has no replace modal
-    (`fp-timer-replace-modal`).
+    Prior patrol claimed “Your mission timer keeps running.” — false vs
+    live frame. Correct closer already tracked in
+    `fp-timer-replace-keeps-running`. App still has no replace modal.
 - deviation: |
-    Exact closer is “Your mission timer keeps running.” Supersedes
-    paraphrase in `fp-timer-replace-keeps-running`; pairs with
-    `fp-timer-replace-body-copy` remaining-time sentence.
+    Stale “timer” insertion was a false reading. Defer to
+    `fp-timer-replace-keeps-running` + `fp-timer-replace-body-copy`.
 - fix_hint: |
-    Modal body template: remaining-time + replace question + “ Your
-    mission timer keeps running.”
+    No separate string work — use keeps-running closer verbatim when
+    building `fp-timer-replace-modal` body.
 - escalate: scrutinous
 
 ## open: fp-timer-replace-keeps-next-step
@@ -1727,7 +1736,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     do not toggle `is-session-ending` / break / check-in hide classes.
 - escalate: scrutinous
 
-## done: fp-permission-denied-cta-primary
+## verified: fp-permission-denied-cta-primary
 - screen: overlay
 - ref: `.cursor/figma-refs/18-permission-denied.png` · live `2:50` ·
   CTAs `7:504` / `7:507`
@@ -1748,3 +1757,107 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     Left “Back to setup” filled primary; right “View settings” lavender
     secondary; wired to setup / Permissions tab.
+- verified: 2026-10-03T17:05:46-04:00
+
+## done: fp-copilot-sidebar-cta-fullwidth
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · CTA `5:223`
+- expected: |
+    Live 03 sidebar “Start a mission” is a full-width filled pill spanning
+    the sidebar content column (262×52 under `5:217`).
+- actual: |
+    `#copilot-start-mission.copilot-sidebar-cta` uses `align-self: flex-start`
+    + hug padding — button is content-width, not full sidebar row.
+- deviation: |
+    Copilot priority tick — CTA width vs live `5:223`. Copy/wiring OK
+    (verified live-03 chrome); width alone mismatches.
+- fix_hint: |
+    Set `#copilot-start-mission` / `.copilot-sidebar-cta` to `align-self:
+    stretch` / `width: 100%`; keep `show("view-lockin")` wiring.
+- escalate: scrutinous
+- commit: PENDING
+- change: |
+    `.copilot-sidebar-cta` now `align-self: stretch` + `width: 100%`
+    (full sidebar row); `#copilot-start-mission` → `show("view-lockin")`
+    unchanged.
+
+## done: fp-copilot-composer-surface
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · input `5:249`
+- expected: |
+    Live 03 composer pill fill is page lavender `#f7f2ff` (`color-bg`) with
+    `#c8bfd7` border + 16px radius (Mic tonal + Send filled inside).
+- actual: |
+    `.view-copilot .copilot-input-wrap` uses `background: var(--mc-bg-card)`
+    (cream/white surface) — reads as a card chip, not page-bg input.
+- deviation: |
+    Composer surface token vs live `5:249`. Distinct from verified in-pill
+    Mic/Send / responses-foot. Copilot priority.
+- fix_hint: |
+    Set Copilot (and optionally session) input-wrap fill to page lavender
+    `#f7f2ff` / `--mc-bg-page`; keep Mic/Send/listening wiring.
+- escalate: scrutinous
+- commit: PENDING
+- change: |
+    `.view-copilot` / session `.copilot-input-wrap` fill `#f7f2ff`, border
+    `#c8bfd7`, 16px radius; Mic/Send/listening wiring unchanged.
+
+## open: fp-timer-replace-cta-hierarchy
+- screen: active
+- ref: `.cursor/figma-refs/15-timer-replacement.png` · live `2:47` ·
+  actions `6:1568` / `6:1571`
+- expected: |
+    Live 15 dialog actions: LEFT “Keep current” tonal/raised lavender
+    secondary; RIGHT “Replace timer” filled purple primary (equal ~252px).
+- actual: |
+    No replace modal yet (`fp-timer-replace-modal`). Existing opens lock
+    badge/title/body copy but not which CTA is filled.
+- deviation: |
+    CTA hierarchy vs live — Keep current secondary, Replace timer primary.
+    Complements shell/body/keeps-next-step opens.
+- fix_hint: |
+    When building the replace modal, style Keep current lavender secondary
+    (dismiss) and Replace timer filled primary → `startNextStepTimer(300)`.
+- escalate: scrutinous
+
+## open: fp-connection-lost-latest-card
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  callout `6:1719` · Retry `6:1722`
+- expected: |
+    Live 16 mounts the lost message as a “Latest response” card (`6:1719`)
+    — lavender raised/bordered block with title + body (same chrome as
+    assistant latest-response on 06/29). “Retry connection” sits in the
+    suggest-chip slot (full-width tonal, y≈478), not inside the card.
+- actual: |
+    Open `fp-connection-lost-panel` / `fp-connection-lost-body-copy` cover
+    presence + title/body/Retry existence only — not Latest-response card
+    chrome or Retry-as-suggest placement. App has neither.
+- deviation: |
+    Callout uses Latest-response card tokens; Retry replaces suggest.
+    Complements panel/body/chrome-hide; pairs with
+    `fp-session-latest-response-card` token reuse.
+- fix_hint: |
+    Render lost callout via `.session-latest-response` (or shared card);
+    place Retry where `#session-copilot-suggest` sits; hide suggest while
+    disconnected.
+- escalate: scrutinous
+
+## open: fp-welcome-guest-button-chrome
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · guest `5:74`
+- expected: |
+    Live 01 “Continue as guest” is a full-width (438×52) tonal/raised
+    secondary pill under “Sign in →” — same width as the primary, not a
+    plain text link.
+- actual: |
+    Open `fp-welcome-signin-form` covers guest path/copy existence; app
+    guest UI is absent (Google-only). No lock on guest control chrome.
+- deviation: |
+    Guest control chrome vs live `5:74` (secondary button, not text link).
+    Complements form fields/CTA/foot open.
+- fix_hint: |
+    When matching the sign-in card, render Continue as guest as a
+    full-width lavender secondary button under Sign in →; keep guest
+    unlock wiring.
+- escalate: scrutinous

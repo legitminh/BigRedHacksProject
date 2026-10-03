@@ -2379,7 +2379,9 @@ button:active {
 
 .copilot-sidebar-cta {
   margin-top: 0;
-  align-self: flex-start;
+  align-self: stretch;
+  width: 100%;
+  box-sizing: border-box;
   padding: 0.8rem 1.35rem;
   font-size: 0.95rem;
   border-radius: var(--radius-pill);
@@ -2544,8 +2546,8 @@ button:active {
   width: 100%;
   padding: 0.65rem 0.75rem 0.65rem 1rem;
   border-radius: 1rem;
-  border: 1px solid var(--mc-border-default);
-  background: var(--mc-bg-card);
+  border: 1px solid #c8bfd7;
+  background: #f7f2ff;
 }
 
 .copilot-input-wrap {
