@@ -1,0 +1,19 @@
+<svg width="285" height="285" viewBox="0 0 285 285" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="285" height="285" fill="#E5E5E5"/>
+<g id="01 &#226;&#128;&#162; Welcome aboard">
+<rect width="1440" height="960" transform="translate(-378 -504)" fill="#F7F2FF"/>
+<g id="Destination &#226;&#128;&#162; ringed planet">
+<path id="Vector" d="M142.5 247.432C200.452 247.432 247.432 200.452 247.432 142.5C247.432 84.5477 200.452 37.5682 142.5 37.5682C84.5477 37.5682 37.5682 84.5477 37.5682 142.5C37.5682 200.452 84.5477 247.432 142.5 247.432Z" fill="url(#paint0_linear_0_1)"/>
+<path id="Vector_2" opacity="0.2" d="M63.4773 89.3864C113.568 136.023 169.705 148.114 231.886 125.659M50.5227 134.727C102.341 175.318 161.5 187.841 228 172.295M88.0909 58.2955C146.818 92.8409 196.045 107.091 235.773 101.045" stroke="#E3F0C6" stroke-width="15.5455"/>
+<path id="Vector_3" opacity="0.85" d="M156.727 178.34C225.355 147.784 274.62 108.708 266.763 91.061C258.906 73.4136 196.902 83.8777 128.273 114.433C59.6449 144.988 10.3799 184.064 18.237 201.712C26.0941 219.359 88.098 208.895 156.727 178.34Z" stroke="#D8C8A1" stroke-width="9.06818"/>
+<path id="Vector_4" opacity="0.6" d="M66.0682 71.25C101.477 34.1136 139.477 25.9091 180.068 46.6364" stroke="#DDF4D6" stroke-width="3.88636"/>
+</g>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_1" x1="37.5682" y1="37.5682" x2="247.432" y2="247.432" gradientUnits="userSpaceOnUse">
+<stop stop-color="#C1EDCE"/>
+<stop offset="0.5" stop-color="#73B8AB"/>
+<stop offset="1" stop-color="#2E6671"/>
+</linearGradient>
+</defs>
+</svg>
