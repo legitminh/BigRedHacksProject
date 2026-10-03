@@ -1196,3 +1196,82 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - commit: dbc97fc
 - change: `.session-chat-turn--user` left-aligned (`flex-start`).
 - verified: 2026-10-03T16:10:00-04:00
+
+## open: fp-home-footnote-rail
+- screen: home
+- ref: `.cursor/figma-refs/02-home.png` · live `2:34` · footnote `5:169` · satellite `22:1311`
+- deviation: |
+    EXPECTED (live 02): “No streaks to protect. Every flight counts.” sits in the right
+    rail under the personal-best column (x≈969, y≈750) with the decorative satellite
+    below it — beside the copilot invitation card, not under it.
+    ACTUAL (`.mc-home-bottom`): footnote is a full-width row under the entire
+    `.mc-home-grid` (left-aligned), so it drops below the copilot card instead of
+    occupying the PB/right gutter.
+- fix_hint: |
+    Place `.mc-home-footnote` (+ bottom satellite) in the right column under
+    `.mc-home-best` (same vertical band as the copilot card). Keep CTA / Open copilot
+    wiring. Distinct from dest-card satellite.
+- escalate: none
+
+## open: fp-home-copilot-shortcut-row
+- screen: home
+- ref: `.cursor/figma-refs/02-home.png` · live `2:34` · shortcut `5:164` · copy `5:165`
+- deviation: |
+    EXPECTED (live 02 Copilot invitation): title “Need a hand finding your next step?”
+    alone on the first row; second row is a horizontal shortcut — muted
+    “Talk it through with your copilot.” + CTA on the same baseline (`5:164`).
+    ACTUAL: “Talk it through…” is `.mc-home-copilot-sub` stacked under the `<h2>` in
+    `.mc-home-copilot-copy`, so the muted line sits in the title stack rather than the
+    shortcut row with the button.
+- fix_hint: |
+    Restructure `.mc-home-copilot`: title full-width; put Talk-it-through text and
+    `#home-copilot-cta` in one flex row matching `5:164`. Keep Open-copilot → show chat.
+- escalate: none
+
+## done: fp-home-copilot-cta-arrow
+- screen: home
+- ref: `.cursor/figma-refs/02-home.png` · live `2:34` · CTA `5:166`
+- deviation: |
+    EXPECTED (live 02): copilot shortcut CTA label is “Open copilot  ↗”
+    (northeast arrow glyph).
+    ACTUAL (`renderHome` → `#home-copilot-cta`): “Open copilot →” (right arrow).
+- fix_hint: |
+    Change the button label to “Open copilot  ↗” (match live spacing/glyph). Keep
+    `show("view-chat")` wiring. Complements `fp-home-copilot-shortcut-row`.
+- escalate: none
+- commit: PENDING
+- change: Home copilot CTA label is “Open copilot  ↗” (northeast arrow).
+
+## done: fp-home-best-extraneous-moon
+- screen: home
+- ref: `.cursor/figma-refs/02-home.png` · live `2:34` · Personal best `5:154`
+- deviation: |
+    EXPECTED (live 02): Personal best card is cream copy only (flag kicker, big minutes,
+    divider, note, disclaimer) — no moon illustration inside `5:154`. Moon (`22:1301`)
+    belongs only on the dark destination art.
+    ACTUAL (`.mc-home-best`): mounts `<img class="mc-home-moon" … moon.svg>` in the
+    card corner — extra art vs live.
+- fix_hint: |
+    Remove `.mc-home-moon` from the personal-best card (and related CSS). Keep
+    `.mc-home-moon-sm` on destination art + bottom-rail satellite.
+- escalate: none
+- commit: PENDING
+- change: Removed `.mc-home-moon` from personal-best card (+ unused CSS); dest-art moon kept.
+
+## done: fp-copilot-responses-footnote
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · hint `5:256` · foot `5:257`
+- deviation: |
+    EXPECTED (live 03): under the composer, only
+    “Enter to send · Click the microphone to start or stop a voice turn.”
+    A separate page-level line “Responses always appear as text. Audio is yours to
+    turn on.” sits below (`5:257`), not stacked inside the composer hint.
+    ACTUAL (`#chat-hint`): both sentences are one `<p>` joined with `<br />`, so the
+    audio/responses line reads as a second composer-hint row.
+- fix_hint: |
+    Keep Enter/mic copy in `#chat-hint`; move the Responses/Audio sentence to its own
+    `.copilot-responses-foot` (or equivalent) under the composer matching live
+    placement. Leave Mic/Send/listening wiring alone.
+- escalate: none
+- commit: PENDING
+- change: `#chat-hint` keeps Enter/mic only; Responses/Audio moved to `.copilot-responses-foot`.

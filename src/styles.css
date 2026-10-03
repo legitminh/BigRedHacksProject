@@ -660,14 +660,6 @@ body:has(.view-home.view-home--guest.active) .grain {
   max-width: 14rem;
 }
 
-.mc-home-moon {
-  position: absolute;
-  right: 0.75rem;
-  bottom: 0.75rem;
-  width: 3.5rem;
-  pointer-events: none;
-}
-
 .mc-home-copilot {
   grid-column: 1;
   grid-row: 2;
@@ -2538,6 +2530,13 @@ button:active {
   font-size: 0.72rem;
   line-height: 1.45;
   margin-top: 0.55rem;
+}
+
+.view-copilot .copilot-responses-foot {
+  margin: 0.65rem 0 0;
+  color: var(--mc-text-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
 }
 
 .view-copilot .bubble.user {
