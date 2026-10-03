@@ -707,7 +707,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When enabling camera/screen from setup or settings, show the Figma handoff modal first;
     Continue proceeds to existing permission request; Not now cancels without prompting OS.
 - escalate: scrutinous
-- commit: PENDING
+- commit: b7ea57b
 - change: |
     Thin `#permission-handoff-modal` shell before OS camera prompt when enabling
     `#lockin-camera` / `#setting-camera-signals`; Continue → `request_camera_permission`;
@@ -727,7 +727,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     On camera/screen deny after handoff Continue, present the Figma denied modal; Back to setup →
     `#view-lockin`; View settings → Permissions tab. Do not block Launch.
 - escalate: scrutinous
-- commit: PENDING
+- commit: b7ea57b
 - change: |
     Thin `#permission-denied-modal` after handoff Continue deny; Back to setup →
     `#view-lockin`; View settings → Permissions tab; Launch never blocked.
@@ -1630,7 +1630,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When building the denied modal, use the live body + footer verbatim;
     Back to setup → `#view-lockin`; View settings → Permissions tab.
 - escalate: scrutinous
-- commit: PENDING
+- commit: b7ea57b
 - change: |
     Denied modal uses live `7:502` / `7:510` body + footer (works just as
     well); expected above refreshed off stale “will still work”.
@@ -1659,7 +1659,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When building camera handoff, use live `7:418`/`7:419`/`7:427`
     verbatim (not the stale layer name). Keep Not now / Continue wiring.
 - escalate: scrutinous
-- commit: PENDING
+- commit: b7ea57b
 - change: |
     Handoff modal uses live camera title/body/footer (`7:418`/`7:419`/
     `7:427`); badge PERMISSION HANDOFF; Not now · Continue.
@@ -1682,7 +1682,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - fix_hint: |
     Use live `7:502` verbatim when building the denied modal body.
 - escalate: scrutinous
-- commit: PENDING
+- commit: b7ea57b
 - change: |
     Denied body uses live “works just as well without it.” (`7:502`).
 
@@ -1744,7 +1744,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Style Back to setup as filled purple primary; View settings as
     lavender secondary. Wire → `#view-lockin` / Permissions tab.
 - escalate: none
-- commit: PENDING
+- commit: b7ea57b
 - change: |
     Left “Back to setup” filled primary; right “View settings” lavender
     secondary; wired to setup / Permissions tab.
