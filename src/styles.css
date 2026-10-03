@@ -2368,7 +2368,7 @@ button:active {
 .copilot-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 1.15rem;
+  gap: 1.25rem; /* 20px — live Session context 5:217 end-to-end */
   padding: 1.5rem;
   border-radius: 1.75rem;
   background: #e9ddfd;
@@ -2409,14 +2409,17 @@ button:active {
   background: var(--mc-border-default);
 }
 
-.copilot-sidebar-cta {
+.copilot-sidebar-cta,
+.copilot-sidebar-cta.primary {
   margin-top: 0;
   align-self: stretch;
   width: 100%;
   box-sizing: border-box;
+  min-height: 52px; /* live Start a mission 5:223 */
   padding: 0.8rem 1.35rem;
   font-size: 0.95rem;
   border-radius: var(--radius-pill);
+  box-shadow: none; /* flat filled — no --mc-shadow-glow-purple */
 }
 
 .copilot-sidebar-status {
@@ -2437,7 +2440,7 @@ button:active {
   min-height: 0;
   height: 100%;
   flex: 1;
-  gap: 1.25rem;
+  gap: 1.375rem; /* 22px — live Conversation 5:232 intro→panel→chips */
 }
 
 .copilot-intro {
@@ -2590,9 +2593,9 @@ button:active {
   display: none;
 }
 
-/* Live 03: chips (5:240) end → composer (5:248) ≈ 125px clear (gap 1.25rem + 105px) */
+/* Live 03: chips (5:240) end → composer (5:248) ≈ 125px clear (gap 22px + 103px) */
 .copilot-composer {
-  margin-top: 6.5625rem;
+  margin-top: 6.4375rem;
   flex-shrink: 0;
   padding-top: 0;
 }

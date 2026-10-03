@@ -1192,14 +1192,15 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     “Sign in →”; “Continue as guest”; foot “Just here to focus? Guest
     mode has everything you need for your first mission.”
 - actual: |
-    Tick13: card 24px stack + labeled-field tokens (10/94/64) verified
-    (`d63cd52` / `af0dc1d`); CTA solid + foot muted still OK. Form still
-    Google-only — no Email/Password fields; lead Calendar/Drive sync;
-    CTA “Sign in with Google →”; foot Google-approval sentence.
+    Tick14: card stack + labeled-field tokens + CTA solid/height 52
+    (`fp-welcome-signin-cta-height` / `9681808`) + foot muted verified.
+    Form still Google-only — no Email/Password fields; lead
+    Calendar/Drive sync; CTA “Sign in with Google →”; foot
+    Google-approval sentence.
 - deviation: |
     Form structure/copy vs live `5:58` (fields + lead + CTA/foot strings).
     Distinct from verified guest Quiet / title Medium 32 / CTA solid /
-    foot muted / card-stack-gap / labeled-field-stack tokens.
+    CTA height 52 / foot muted / card-stack-gap / labeled-field-stack.
 - fix_hint: |
     Match live card chrome/copy (lead, Email/Password placeholders,
     “Sign in →”, guest foot). Keep Google auth wired — e.g. Sign in →
@@ -1668,15 +1669,15 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     “Fly on your own terms.”; sub “Optional signals. Clear controls.
     No recordings.”; left ringed planet + right ship art.
 - actual: |
-    Tick13: handoff modal shell + tick26 generic Share-an-optional-input
-    title/body/foot verified (`1b68ff1` / `*-live`); surface/title Medium
-    30 + pad 32 / gap 22 still OK. Modals still mount as fixed overlays
-    over setup/Settings — no “YOUR CHOICE” / “Fly on your own terms.”
-    interstitial page or art plane under them.
+    Tick14: handoff modal shell + camera-live title/body/foot verified
+    (`9681808` / `fp-permission-handoff-camera-live`); surface/title
+    Medium 30 + pad 32 / gap 22 still OK. Modals still mount as fixed
+    overlays over setup/Settings — no “YOUR CHOICE” / “Fly on your own
+    terms.” interstitial page or art plane under them.
 - deviation: |
     Missing interstitial permissions-choice page that hosts the handoff
-    and denied modals in Figma. Distinct from verified modal shell/copy/
-    surface/title-scale/stack-gap / tick26 live handoff strings.
+    and denied modals in Figma. Distinct from verified modal shell/
+    camera-live copy / surface/title-scale/stack-gap.
 - fix_hint: |
     Add a lightweight MC “YOUR CHOICE” view (or setup substate) matching
     live intro + art; show handoff/denied modals over it. Keep five-tab
@@ -3427,29 +3428,16 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     that still reported camera mission-controls was stale).
 - verified: 2026-10-03T19:33:15-04:00
 
-## open: fp-copilot-conversation-stack-gap
+## done: fp-copilot-conversation-stack-gap
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   Conversation `5:232` · intro `5:234` · card `5:235` · chips `5:240`
-- expected: |
-    Live Conversation stack: title→sub already 22px (`b0e40e8`); then
-    sub→empty card (`5:234`→`5:235`) **22px** and card→chips
-    (`5:235`→`5:240`) **22px** (119−75−22=22; 258−119−117=22). Chips→
-    composer 125px stays on `d63cd52`.
-- actual: |
-    Copilot priority tick26: `d63cd52` chips→composer + foot pin OK;
-    `b0e40e8` title/intro OK; `c00ab73` Mic/hint/foot copy OK. But
-    `.copilot-main` uses `gap: 1.25rem` (20px) between intro / panel /
-    chips — 2px tight vs live 22px rhythm above composer.
-- deviation: |
-    Tick26 Copilot priority — conversation column gaps vs live `5:232`.
-    Distinct from intro-gap (title↔sub only) + composer-vertical-gap
-    (chips→composer) + responses-foot-placement.
-- fix_hint: |
-    Set `.copilot-main` gap (or intro→panel / panel→chips) to 22px; keep
-    composer margin-top 6.5625rem + Mic/Send wiring. Preserve
-    silent_mode true + `#app` padding 0.
-- escalate: scrutinous
+- commit: PENDING
+- change: |
+    `.copilot-main` gap → `1.375rem` (22px) for intro→panel→chips per
+    live `5:232`; composer `margin-top` → `6.4375rem` so gap+margin
+    stays ~125px chips→composer (`d63cd52` clear). Mic/Send wiring +
+    title/intro/hint copy untouched.
 
 ## open: fp-connection-lost-history-stack-gap
 - screen: active
@@ -3474,16 +3462,21 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     keep Reconnecting pill + Mic composer. Preserve Pause/End.
 - escalate: scrutinous
 
-## done: fp-permission-handoff-camera-live
+## verified: fp-permission-handoff-camera-live
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   modal `7:415` · title `7:418` · body `7:419` · foot `7:427` ·
-  crop `_verify/tick27-handoff-modal-crop.png`
+  crop `_verify/tick14-handoff-modal-crop.png`
 - commit: 9681808
 - change: |
     Handoff modal restored to live tick27 camera copy: title “Allow
     camera signals?”, browser-asks body, foot “Nothing is recorded…”,
     badge PERMISSION HANDOFF; Not now · Continue + pad/gap 32/22 kept.
+- verified: 2026-10-03T19:53:51-04:00
+- note: |
+    Tick14 live get_screenshot/design_context/OCR `7:415`: camera title/
+    body/foot (layer names still “Share an optional…” stale). Supersedes
+    tick13 Share-an-optional `*-live` trio — do not reopen those to thrash.
 
 ## open: fp-relaunch-body-type
 - screen: active
@@ -3506,7 +3499,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Preserve Pause/End on normal active.
 - escalate: scrutinous
 
-## done: fp-session-copilot-kicker-label
+## verified: fp-session-copilot-kicker-label
 - screen: active
 - ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
   header `6:1708` · title `6:1710` · also active `2:38`
@@ -3514,15 +3507,24 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: |
     Session `.session-copilot-kicker` → “✦ Your copilot” (aria-label
     matched); Copilot page header already used different copy.
+- verified: 2026-10-03T19:53:51-04:00
+- note: |
+    Live `2:38` / `6:1710` OCR “Your copilot”; metadata header `6:1708`
+    ✦ + Your copilot. HEAD kicker matches.
 
-## done: fp-welcome-signin-cta-height
+## verified: fp-welcome-signin-cta-height
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · CTA `5:71` ·
-  crop `_verify/tick27-welcome-card-crop.png`
+  crop `_verify/tick14-welcome-card-crop.png`
 - commit: 9681808
 - change: |
     `.welcome-signin-submit` → `height`/`min-height: 52px`, max-width
     438px (live `5:71`); solid `#6750a4` kept; Google-only form unchanged.
+- verified: 2026-10-03T19:53:51-04:00
+- note: |
+    Live metadata `5:71` = 438×52; HEAD height/min-height 52 + max-width
+    438 + solid `#6750a4`. Form fields still Google-only
+    (`fp-welcome-signin-form` open).
 
 ## open: fp-permissions-choice-scrim
 - screen: overlay
@@ -3546,4 +3548,91 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When adding YOUR CHOICE view, mount full-viewport scrim under the
     handoff/denied card (keep Lock-in active nav). Preserve Settings
     five-tab; do not block Launch.
+- escalate: scrutinous
+
+## done: fp-copilot-sidebar-stack-gap
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  sidebar `5:217` · title `5:220` · body `5:221` · divider `5:222` ·
+  CTA `5:223` · status `5:226` · planet `5:227` ·
+  crop `_verify/tick28-copilot-live.png`
+- commit: PENDING
+- change: |
+    `.copilot-sidebar` gap → `1.25rem` (20px) end-to-end per live
+    Session context `5:217`; pad 24 + Start a mission wiring kept.
+
+## done: fp-copilot-sidebar-cta-height
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  CTA `5:223` · crop `_verify/tick28-copilot-live.png`
+- commit: PENDING
+- change: |
+    `.copilot-sidebar-cta` / `.primary` → `min-height: 52px` +
+    `box-shadow: none` (flat fill, no `--mc-shadow-glow-purple`);
+    full-width stretch + Start a mission → Lock-in wiring kept.
+
+## open: fp-permission-handoff-pad-33
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  modal `7:415` · crop `_verify/tick28-handoff-modal-crop.png`
+- expected: |
+    Live handoff card (`7:415`, 580×340): outer pad **33px** (badge at
+    y=33; foot ends y=307 → bottom pad 33) with column gap 22 already
+    verified (`a947816`). Camera title/body/foot still match tick28 OCR
+    (no live copy regression vs `9681808`).
+- actual: |
+    `.mc-perm-modal__card` padding is `32px` (stack-gap commit preferred
+    32). Surface 580 / gap 22 / camera copy OK; 1px pad short vs live 33.
+- deviation: |
+    Tick28 — handoff card pad 33 vs app 32. Distinct from verified
+    stack-gap/surface + open choice-scrim / choice-surface; spot-check
+    camera copy still matches live.
+- fix_hint: |
+    Set `.mc-perm-modal__card` padding to 33px; keep gap 22 + Not now ·
+    Continue + camera strings. Preserve Settings five-tab; do not block
+    Launch.
+- escalate: scrutinous
+
+## open: fp-relaunch-next-step-label-gap
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  Next step `8:419` · field `8:421` ·
+  crop `_verify/tick28-relaunch-panel-crop.png`
+- expected: |
+    Live Next step stack (`8:419`, 386×94): label h=20 then Editable at
+    y=30 → **10px** label→field gap (same 10px language as welcome
+    Email/Password), field 386×64.
+- actual: |
+    Opens lock 64px field chrome / fill / panel stack 20px — not the
+    labeled-field internal 10px. App has no relaunch Next step yet;
+    risk: reuse denser break/session field stacks.
+- deviation: |
+    Tick28 — relaunch Next step label→field gap vs live `8:419`. Distinct
+    from next-step-field (64px chrome) + panel-stack-gap + body-type;
+    under-covered `2:41`.
+- fix_hint: |
+    When mounting Next step, use label→field gap 10px + 64px editable;
+    keep Relaunch / Take a break. Preserve Pause/End on normal active.
+- escalate: scrutinous
+
+## open: fp-connection-lost-latest-height
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  Latest `6:1719` · crop `_verify/tick28-lost-panel-crop.png`
+- expected: |
+    Live Latest-response card (`6:1719`) is **386×113** (pad ~19; title
+    Medium 18 + body two-line 14) sitting above Retry with 20px gap —
+    taller than a single-line suggest chip.
+- actual: |
+    Opens lock Latest type tokens / shell / stack-gap — not the 113px
+    card height box. App has no lost Latest yet; risk: mount a short
+    chip-height callout.
+- deviation: |
+    Tick28 — Latest card height 113 vs live `6:1719`. Distinct from
+    latest-type / latest-card / panel-stack-gap / history-stack-gap;
+    under-covered `2:48`. Spot-check: ✦ Your copilot header still matches
+    `9681808`.
+- fix_hint: |
+    When mounting lost Latest, size card ~386×113 (pad ~19); keep Retry
+    tonal + composer. Preserve Pause/End.
 - escalate: scrutinous
