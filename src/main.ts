@@ -94,10 +94,15 @@ interface SystemPermissions {
   screen_recording: boolean;
   camera: boolean;
   accessibility: boolean;
+  /** `authorized` | `denied` | `restricted` | `notDetermined` | `unknown` */
+  microphone?: string;
 }
 
 interface VoiceTranscript {
   text: string;
+  engine?: string;
+  audio_path?: string | null;
+  note?: string;
 }
 
 interface StatusPayload {
@@ -136,6 +141,7 @@ interface LockInSession {
   modality: string;
   status: string;
   active: boolean;
+  paused?: boolean;
   prompts: CoachPrompt[];
   vitals?: VitalsSnapshot;
   camera_ready?: boolean;
@@ -644,8 +650,27 @@ function setPermissionBadge(
   el.setAttribute("data-state", granted ? "ok" : "needs");
 }
 
+function setMicrophoneBadge(status: string | undefined) {
+  const el = $("#perm-microphone");
+  if (!el) return;
+  const s = (status || "unknown").toLowerCase();
+  if (s === "authorized") {
+    el.textContent = "Enabled";
+    el.setAttribute("data-state", "ok");
+  } else if (s === "denied" || s === "restricted") {
+    el.textContent = "Denied — System Settings";
+    el.setAttribute("data-state", "needs");
+  } else if (s === "notdetermined") {
+    el.textContent = "Grant when testing voice";
+    el.setAttribute("data-state", "optional");
+  } else {
+    el.textContent = "Grant when testing voice";
+    el.setAttribute("data-state", "optional");
+  }
+}
+
 async function renderPermissionsStatus() {
-  ["perm-screen", "perm-camera", "perm-accessibility"].forEach((id) => {
+  ["perm-screen", "perm-camera", "perm-accessibility", "perm-microphone"].forEach((id) => {
     const el = $(`#${id}`);
     if (el) {
       el.textContent = "Checking…";
@@ -666,9 +691,10 @@ async function renderPermissionsStatus() {
       on: "Enabled",
       off: "Grant for tab coaching",
     });
+    setMicrophoneBadge(perms.microphone);
   } catch (err) {
     console.error(err);
-    ["perm-screen", "perm-camera", "perm-accessibility"].forEach((id) => {
+    ["perm-screen", "perm-camera", "perm-accessibility", "perm-microphone"].forEach((id) => {
       const el = $(`#${id}`);
       if (el) {
         el.textContent = "Couldn’t check";
@@ -678,16 +704,23 @@ async function renderPermissionsStatus() {
   }
 }
 
-function connectionRow(label: string, detail: string, ok: boolean): string {
-  const state = ok ? "ok" : "warn";
-  const status = ok ? "Connected" : "Offline";
+type ConnState = "ok" | "warn" | "err";
+
+function connectionRow(
+  label: string,
+  detail: string,
+  ok: boolean,
+  opts?: { state?: ConnState; status?: string },
+): string {
+  const state = opts?.state ?? (ok ? "ok" : "warn");
+  const status = opts?.status ?? (ok ? "Connected" : "Offline");
   return `<li class="mc-conn-row">
     <div class="mc-conn-copy">
       <strong>${escapeHtml(label)}</strong>
       <span>${escapeHtml(detail)}</span>
     </div>
     <span class="mc-conn-dot" data-state="${state}" aria-hidden="true"></span>
-    <span class="mc-conn-status">${status}</span>
+    <span class="mc-conn-status">${escapeHtml(status)}</span>
   </li>`;
 }
 
@@ -714,12 +747,32 @@ async function renderConnectionStatus(status: StatusPayload) {
       ? "Optional — connect for Calendar / Drive context"
       : "OAuth client not configured in this build";
 
+  let geminiDetail = status.gemini_ready
+    ? "API key present — verifying live…"
+    : "Missing API key";
+  let geminiOk = false;
+  let geminiState: ConnState = status.gemini_ready ? "warn" : "err";
+  let geminiStatus = status.gemini_ready ? "Checking" : "Offline";
+  if (status.gemini_ready) {
+    try {
+      const live = await invoke<{ ok: boolean; detail: string }>("gemini_status");
+      geminiOk = live.ok;
+      geminiDetail = live.detail;
+      const quota = /quota|rate limit/i.test(live.detail);
+      geminiState = live.ok ? "ok" : quota ? "err" : "warn";
+      geminiStatus = live.ok ? "Connected" : quota ? "Quota" : "Offline";
+    } catch (e) {
+      geminiDetail = connectionErrorMessage(e);
+      geminiState = "err";
+      geminiStatus = "Offline";
+    }
+  }
+
   list.innerHTML = [
-    connectionRow(
-      "Gemini coach",
-      status.gemini_ready ? "Cloud vision + chat API configured" : "Missing API key",
-      status.gemini_ready,
-    ),
+    connectionRow("Gemini coach", geminiDetail, geminiOk, {
+      state: geminiState,
+      status: geminiStatus,
+    }),
     connectionRow("Google", googleDetail, status.google_connected),
     connectionRow(
       "Presage wellness",
@@ -777,6 +830,38 @@ let hasChatReply = false;
 const CHAT_FAIL_MSG =
   "Sorry, I couldn’t get a reply right now. Please try again in a moment.";
 
+/** Map backend errors to short UI copy — never dump raw API JSON. */
+function chatErrorMessage(err: unknown): string {
+  const raw = String(err ?? "").trim();
+  if (!raw || raw === "undefined" || raw === "[object Object]") return CHAT_FAIL_MSG;
+  // Prefer already-friendly backend strings (no JSON / HTTP dumps).
+  if (
+    !/[{\[]/.test(raw) &&
+    !/generativelanguage\.googleapis|error\":|\"status\"|HTTP\s*\d{3}/i.test(raw) &&
+    raw.length <= 160 &&
+    /cloud coach|gemini|quota|rate-limited|busy|timed out|sign in|configured|try again/i.test(raw)
+  ) {
+    return raw;
+  }
+  if (/quota|free_tier|free limit|resource_exhausted|429/i.test(raw)) {
+    return "Cloud coach hit today’s free limit. Try again later — local watching still works.";
+  }
+  if (/rate limit|rate-limited/i.test(raw)) {
+    return "Cloud coach is rate-limited. Please try again in a moment.";
+  }
+  if (/api[_ ]?key|invalid|permission|unauthorized|403|401/i.test(raw)) {
+    return "Cloud coach couldn’t sign in. Check your connection settings and try again.";
+  }
+  if (/timeout|timed out|unavailable|503|busy|high demand/i.test(raw)) {
+    return "Cloud coach is busy right now. Please try again shortly.";
+  }
+  return CHAT_FAIL_MSG;
+}
+
+function connectionErrorMessage(err: unknown): string {
+  return chatErrorMessage(err);
+}
+
 function setChatControlsBusy(busy: boolean) {
   $("#chat-log")?.setAttribute("aria-busy", busy ? "true" : "false");
   $("#session-chat-log")?.setAttribute("aria-busy", busy ? "true" : "false");
@@ -789,9 +874,9 @@ function setChatControlsBusy(busy: boolean) {
     });
 }
 
-function showChatFailure(bubble: HTMLElement, userMessage: string) {
+function showChatFailure(bubble: HTMLElement, userMessage: string, err?: unknown) {
   bubble.replaceChildren();
-  bubble.append(document.createTextNode(`${CHAT_FAIL_MSG} `));
+  bubble.append(document.createTextNode(`${chatErrorMessage(err)} `));
   const retry = document.createElement("button");
   retry.type = "button";
   retry.className = "ghost chat-retry";
@@ -818,8 +903,8 @@ async function retryChatAssistant(userMessage: string, bubble: HTMLElement) {
     );
     renderMarkdown(bubble, reply.content);
     hasChatReply = true;
-  } catch {
-    showChatFailure(bubble, userMessage);
+  } catch (e) {
+    showChatFailure(bubble, userMessage, e);
   } finally {
     chatBusy = false;
     setChatControlsBusy(false);
@@ -861,8 +946,8 @@ async function dispatchChatMessage(
     });
     if (pending) renderMarkdown(pending, reply.content);
     hasChatReply = true;
-  } catch {
-    if (pending) showChatFailure(pending, message);
+  } catch (e) {
+    if (pending) showChatFailure(pending, message, e);
   } finally {
     chatBusy = false;
     setChatControlsBusy(false);
@@ -911,6 +996,92 @@ function formatRemaining(endsAt: string): string {
   return `${m}:${s}`;
 }
 
+function formatCountdownSecs(totalSecs: number): string {
+  const total = Math.max(0, Math.floor(totalSecs));
+  const m = Math.floor(total / 60).toString().padStart(2, "0");
+  const s = (total % 60).toString().padStart(2, "0");
+  return `${m}:${s}`;
+}
+
+const NEXT_STEP_DEFAULT_SECS = 5 * 60;
+let nextStepEndsAtMs: number | null = null;
+let nextStepRemainingMs = NEXT_STEP_DEFAULT_SECS * 1000;
+let nextStepPaused = false;
+let nextStepHandle: number | undefined;
+
+function renderNextStepTimerDisplay() {
+  const el = $("#session-next-step-timer");
+  if (!el) return;
+  if (nextStepEndsAtMs != null && !nextStepPaused) {
+    const rem = Math.max(0, Math.ceil((nextStepEndsAtMs - Date.now()) / 1000));
+    el.textContent = formatCountdownSecs(rem);
+    return;
+  }
+  el.textContent = formatCountdownSecs(Math.ceil(nextStepRemainingMs / 1000));
+}
+
+function stopNextStepTicker() {
+  if (nextStepHandle) {
+    window.clearInterval(nextStepHandle);
+    nextStepHandle = undefined;
+  }
+}
+
+function clearNextStepTimer() {
+  stopNextStepTicker();
+  nextStepEndsAtMs = null;
+  nextStepRemainingMs = NEXT_STEP_DEFAULT_SECS * 1000;
+  nextStepPaused = false;
+  renderNextStepTimerDisplay();
+}
+
+function tickNextStepTimer() {
+  if (nextStepPaused || nextStepEndsAtMs == null) return;
+  const remMs = Math.max(0, nextStepEndsAtMs - Date.now());
+  nextStepRemainingMs = remMs;
+  renderNextStepTimerDisplay();
+  if (remMs <= 0) {
+    stopNextStepTicker();
+    nextStepEndsAtMs = null;
+    nextStepRemainingMs = 0;
+  }
+}
+
+function startNextStepTicker() {
+  stopNextStepTicker();
+  tickNextStepTimer();
+  nextStepHandle = window.setInterval(tickNextStepTimer, 250);
+}
+
+function startNextStepTimer(durationSecs = NEXT_STEP_DEFAULT_SECS) {
+  nextStepPaused = false;
+  nextStepRemainingMs = durationSecs * 1000;
+  nextStepEndsAtMs = Date.now() + nextStepRemainingMs;
+  startNextStepTicker();
+}
+
+function pauseNextStepTimer() {
+  if (nextStepPaused) return;
+  if (nextStepEndsAtMs != null) {
+    nextStepRemainingMs = Math.max(0, nextStepEndsAtMs - Date.now());
+    nextStepEndsAtMs = null;
+  }
+  nextStepPaused = true;
+  stopNextStepTicker();
+  renderNextStepTimerDisplay();
+}
+
+function resumeNextStepTimer() {
+  if (!nextStepPaused) return;
+  nextStepPaused = false;
+  if (nextStepRemainingMs > 0) {
+    nextStepEndsAtMs = Date.now() + nextStepRemainingMs;
+    startNextStepTicker();
+  } else {
+    renderNextStepTimerDisplay();
+  }
+}
+
 function statusLabel(status: string): string {
   return String(status)
     .replace(/([a-z])([A-Z])/g, "$1_$2")
@@ -925,13 +1096,20 @@ function missionElapsedFraction(endsAt: string, durationSecs: number): number {
 
 function updateSessionOrbit(endsAt: string, durationSecs: number) {
   const frac = missionElapsedFraction(endsAt, durationSecs);
-  const progress = $("#session-orbit-progress");
+  const progress = document.getElementById(
+    "session-orbit-progress",
+  ) as SVGPathElement | null;
   if (progress) {
-    progress.style.strokeDashoffset = `${100 - frac * 100}`;
+    // Use the real path length — a fixed dash of 100 on a longer path drew a
+    // phantom segment near Destination while Launch was only barely filled.
+    const len = typeof progress.getTotalLength === "function" ? progress.getTotalLength() : 100;
+    const safeLen = len > 0 ? len : 100;
+    progress.style.strokeDasharray = `${safeLen}`;
+    progress.style.strokeDashoffset = `${safeLen * (1 - frac)}`;
   }
   const shipWrap = $("#session-orbit-ship-wrap");
   if (shipWrap) {
-    shipWrap.style.setProperty("--flight-pct", String(frac));
+    shipWrap.style.setProperty("--flight-pct", String(Math.min(1, Math.max(0, frac))));
   }
 }
 
@@ -1032,11 +1210,28 @@ function updateSessionProgressPill(label: string, finishing = false) {
   const text = $("#session-progress-label");
   if (!pill || !text) return;
   pill.classList.toggle("is-finishing", finishing);
+  pill.classList.toggle("is-paused", label === "paused");
   text.textContent = finishing
     ? "Finishing up…"
-    : label === "distracted"
-      ? "Needs focus"
-      : "Mission in progress";
+    : label === "paused"
+      ? "On a break"
+      : label === "distracted"
+        ? "Needs focus"
+        : "Mission in progress";
+}
+
+function syncPauseControls(paused: boolean) {
+  const btn = $("#session-pause") as HTMLButtonElement | null;
+  const note = $("#session-pause-note");
+  const endBtn = $("#end-session") as HTMLButtonElement | null;
+  if (btn) {
+    btn.disabled = false;
+    btn.setAttribute("aria-pressed", paused ? "true" : "false");
+    btn.textContent = paused ? "Resume" : "Pause";
+    btn.classList.toggle("is-paused", paused);
+  }
+  if (endBtn) endBtn.disabled = false;
+  if (note) note.hidden = !paused;
 }
 
 function renderSession(session: LockInSession) {
@@ -1049,9 +1244,11 @@ function renderSession(session: LockInSession) {
   const note = $("#session-watch-note");
   if (timer) timer.textContent = formatRemaining(session.ends_at);
   if (status) {
-    const label = statusLabel(session.status);
-    status.textContent = `Coach status: ${label.replace(/_/g, " ")}`;
-    applySessionOrbitState(label);
+    const label = session.paused ? "paused" : statusLabel(session.status);
+    status.textContent = session.paused
+      ? "Coach status: on a break"
+      : `Coach status: ${label.replace(/_/g, " ")}`;
+    applySessionOrbitState(session.paused ? "on_task" : label);
     updateSessionProgressPill(label);
   }
   if (goals) {
@@ -1059,6 +1256,9 @@ function renderSession(session: LockInSession) {
     goals.hidden = false;
   }
   if (note) note.textContent = session.watching_note || "Watching your screen";
+  syncPauseControls(Boolean(session.paused));
+  if (session.paused) pauseNextStepTimer();
+  else if (nextStepPaused) resumeNextStepTimer();
   syncSessionSignalPills();
   renderVitals(session.vitals);
   renderSessionCoachLog(session.prompts);
@@ -1243,6 +1443,7 @@ function stopTimer() {
   }
   currentEndsAt = null;
   currentSessionDurationSecs = 0;
+  clearNextStepTimer();
 }
 
 function startTimer(endsAt: string) {
@@ -1348,6 +1549,117 @@ window.addEventListener("DOMContentLoaded", async () => {
   });
   $("#copilot-start-mission")?.addEventListener("click", () => show("view-lockin"));
 
+  const setComposerMicHint = (message: string, target: "chat" | "session" = "chat") => {
+    if (target === "session") {
+      const hint = $("#session-chat-hint");
+      if (hint) hint.textContent = message;
+      return;
+    }
+    const hint = $("#chat-hint");
+    if (hint) hint.textContent = message;
+  };
+
+  const formatVoiceResult = (transcript: VoiceTranscript): string => {
+    const text = transcript.text?.trim();
+    const note = transcript.note?.trim();
+    const engine = transcript.engine?.trim();
+    if (text) {
+      const meta = [engine, note].filter(Boolean).join(" · ");
+      return meta ? `Heard: “${text}” (${meta})` : `Heard: “${text}”`;
+    }
+    if (note) return `Mic test finished — no speech detected. ${note}`;
+    return "Mic test finished — no speech detected. Try speaking clearly for the full 4 seconds.";
+  };
+
+  /** Fallback STT when the Rust/macOS Speech helper is unavailable. */
+  function listenWithWebSpeech(seconds: number): Promise<VoiceTranscript> {
+    interface WebSpeechRecognition extends EventTarget {
+      lang: string;
+      interimResults: boolean;
+      continuous: boolean;
+      start(): void;
+      stop(): void;
+      onresult: ((event: {
+        resultIndex: number;
+        results: ArrayLike<{ isFinal: boolean; 0?: { transcript?: string } }>;
+      }) => void) | null;
+      onerror: ((event: { error: string }) => void) | null;
+      onend: (() => void) | null;
+    }
+    type SRCtor = new () => WebSpeechRecognition;
+    const Ctor =
+      (window as unknown as { SpeechRecognition?: SRCtor; webkitSpeechRecognition?: SRCtor })
+        .SpeechRecognition ||
+      (window as unknown as { webkitSpeechRecognition?: SRCtor }).webkitSpeechRecognition;
+    if (!Ctor) {
+      return Promise.reject(
+        new Error("Web Speech API unavailable in this webview."),
+      );
+    }
+    return new Promise((resolve, reject) => {
+      const recognition = new Ctor();
+      recognition.lang = "en-US";
+      recognition.interimResults = true;
+      recognition.continuous = true;
+      let finalText = "";
+      let settled = false;
+      const finish = (text: string, note: string) => {
+        if (settled) return;
+        settled = true;
+        try {
+          recognition.stop();
+        } catch {
+          /* ignore */
+        }
+        resolve({
+          text: text.trim(),
+          engine: "webkit-speech",
+          note,
+        });
+      };
+      const timer = window.setTimeout(() => {
+        finish(finalText, finalText ? "Web Speech capture finished." : "No speech detected (Web Speech).");
+      }, Math.max(2, seconds) * 1000);
+      recognition.onresult = (event) => {
+        let interim = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const piece = event.results[i][0]?.transcript ?? "";
+          if (event.results[i].isFinal) finalText += `${piece} `;
+          else interim += piece;
+        }
+        if (!finalText && interim) finalText = interim;
+      };
+      recognition.onerror = (event) => {
+        window.clearTimeout(timer);
+        if (settled) return;
+        settled = true;
+        reject(new Error(`Mic / speech error: ${event.error}`));
+      };
+      recognition.onend = () => {
+        window.clearTimeout(timer);
+        finish(finalText, "Web Speech recognition ended.");
+      };
+      try {
+        recognition.start();
+      } catch (err) {
+        window.clearTimeout(timer);
+        reject(err);
+      }
+    });
+  }
+
+  async function listenForTranscript(seconds = 4): Promise<VoiceTranscript> {
+    try {
+      return await invoke<VoiceTranscript>("voice_listen_test", { seconds });
+    } catch (primary) {
+      try {
+        return await listenWithWebSpeech(seconds);
+      } catch {
+        throw primary;
+      }
+    }
+  }
+
   let chatMicListening = false;
   $("#chat-mic")?.addEventListener("click", async () => {
     if (chatBusy || chatMicListening) return;
@@ -1358,15 +1670,27 @@ window.addEventListener("DOMContentLoaded", async () => {
       mic.disabled = true;
       mic.textContent = "…";
     }
+    setComposerMicHint("Listening for 4 seconds… speak now.");
     try {
-      const transcript = await invoke<VoiceTranscript>("voice_listen_test", { seconds: 4 });
+      const transcript = await listenForTranscript(4);
       const text = transcript.text?.trim();
       if (text && input) {
         input.value = input.value.trim() ? `${input.value.trim()} ${text}` : text;
         input.focus();
+        setComposerMicHint(
+          `Heard: “${text}”. Edit if needed, then send.`,
+        );
+      } else {
+        setComposerMicHint(
+          transcript.note?.trim()
+            ? `No speech detected. ${transcript.note}`
+            : "No speech detected. Click Mic and speak for about 4 seconds.",
+        );
       }
+      void renderPermissionsStatus();
     } catch (err) {
       console.error(err);
+      setComposerMicHint(String(err));
     } finally {
       chatMicListening = false;
       if (mic) {
@@ -1499,6 +1823,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       }
       renderVitals(null);
       playLaunchCelebration(() => {
+        clearNextStepTimer();
         renderSession(session);
         startTimer(session.ends_at);
         show("view-session");
@@ -1530,25 +1855,58 @@ window.addEventListener("DOMContentLoaded", async () => {
     void toggleSessionMute();
   });
 
-  $("#session-pause")?.addEventListener("click", () => {
+  $("#session-pause")?.addEventListener("click", async () => {
     const btn = $("#session-pause") as HTMLButtonElement | null;
-    if (!btn) return;
-    const paused = btn.getAttribute("aria-pressed") === "true";
-    const next = !paused;
-    btn.setAttribute("aria-pressed", next ? "true" : "false");
-    btn.textContent = next ? "Resume" : "Pause";
+    if (!btn || btn.disabled) return;
+    const currentlyPaused = btn.getAttribute("aria-pressed") === "true";
+    const next = !currentlyPaused;
+    btn.disabled = true;
+    try {
+      const session = await invoke<LockInSession>("set_lock_in_paused", { paused: next });
+      renderSession(session);
+      if (session.paused) {
+        if (timerHandle) {
+          window.clearInterval(timerHandle);
+          timerHandle = undefined;
+        }
+        currentEndsAt = session.ends_at;
+        pauseNextStepTimer();
+      } else if (session.ends_at) {
+        startTimer(session.ends_at);
+        resumeNextStepTimer();
+      }
+    } catch (err) {
+      const msg = String(err);
+      alert(/no active mission/i.test(msg) ? msg : "Couldn’t pause right now. Try again.");
+      syncPauseControls(currentlyPaused);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
   });
 
   $("#end-session")?.addEventListener("click", async () => {
+    const btn = $("#end-session") as HTMLButtonElement | null;
+    if (btn?.disabled) return;
     if (!window.confirm("End this mission? Screen watching will stop.")) {
       return;
     }
-    stopTimer();
-    const summary = await invoke<SessionSummary | null>("stop_lock_in");
-    if (summary) {
-      showSummaryWithCelebration(summary);
-    } else {
-      show("view-home");
+    if (btn) btn.disabled = true;
+    const pauseBtn = $("#session-pause") as HTMLButtonElement | null;
+    if (pauseBtn) pauseBtn.disabled = true;
+    try {
+      stopTimer();
+      const summary = await invoke<SessionSummary | null>("stop_lock_in");
+      syncPauseControls(false);
+      if (summary) {
+        showSummaryWithCelebration(summary);
+      } else {
+        show("view-home");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Couldn’t end the mission. Please try again.");
+      if (btn) btn.disabled = false;
+      if (pauseBtn) pauseBtn.disabled = false;
     }
   });
 
@@ -1573,10 +1931,20 @@ window.addEventListener("DOMContentLoaded", async () => {
       else show("view-home");
     });
   });
-  $("#goals-copilot-affordance")?.addEventListener("click", () => show("view-chat"));
+  $("#goals-copilot-affordance")?.addEventListener("click", () => {
+    const form = $("#lockin-form") as HTMLFormElement | null;
+    form?.requestSubmit();
+  });
   $("#session-chat-form")?.addEventListener("submit", (e) => {
     e.preventDefault();
     void sendSessionChat();
+  });
+  $("#session-copilot-suggest")?.addEventListener("click", () => {
+    startNextStepTimer(NEXT_STEP_DEFAULT_SECS);
+    const hint = $("#session-chat-hint");
+    if (hint) {
+      hint.textContent = "Five-minute next-step timer started. One small step at a time.";
+    }
   });
   $("#session-chat-mic")?.addEventListener("click", async () => {
     if (chatBusy || chatMicListening) return;
@@ -1587,15 +1955,26 @@ window.addEventListener("DOMContentLoaded", async () => {
       mic.disabled = true;
       mic.textContent = "…";
     }
+    setComposerMicHint("Listening for 4 seconds… speak now.", "session");
     try {
-      const transcript = await invoke<VoiceTranscript>("voice_listen_test", { seconds: 4 });
+      const transcript = await listenForTranscript(4);
       const text = transcript.text?.trim();
       if (text && input) {
         input.value = input.value.trim() ? `${input.value.trim()} ${text}` : text;
         input.focus();
+        setComposerMicHint(`Heard: “${text}”. Edit if needed, then send.`, "session");
+      } else {
+        setComposerMicHint(
+          transcript.note?.trim()
+            ? `No speech detected. ${transcript.note}`
+            : "No speech detected. Click Mic and speak for about 4 seconds.",
+          "session",
+        );
       }
+      void renderPermissionsStatus();
     } catch (err) {
       console.error(err);
+      setComposerMicHint(String(err), "session");
     } finally {
       chatMicListening = false;
       if (mic) {
@@ -1645,9 +2024,9 @@ window.addEventListener("DOMContentLoaded", async () => {
       await invoke("voice_speak", {
         text: "Waypoint voice invoke test. Coaching audio is online.",
       });
-      if (out) out.textContent = "Speak command finished.";
+      if (out) out.textContent = "Speak OK — you should have heard macOS say.";
     } catch (err) {
-      if (out) out.textContent = String(err);
+      if (out) out.textContent = `Speak failed: ${String(err)}`;
     } finally {
       if (btn) btn.disabled = false;
     }
@@ -1656,18 +2035,16 @@ window.addEventListener("DOMContentLoaded", async () => {
     const out = $("#invoke-voice-result");
     const btn = $("#invoke-voice-listen") as HTMLButtonElement | null;
     if (btn) btn.disabled = true;
-    if (out) out.textContent = "Listening for 4 seconds…";
+    if (out) {
+      out.textContent =
+        "Listening for 4 seconds… (first run may compile the speech helper — speak clearly)";
+    }
     try {
-      const transcript = await invoke<VoiceTranscript>("voice_listen_test", {
-        seconds: 4,
-      });
-      if (out) {
-        out.textContent = transcript.text?.trim()
-          ? `Heard: ${transcript.text}`
-          : "Mic test finished (no transcript text).";
-      }
+      const transcript = await listenForTranscript(4);
+      if (out) out.textContent = formatVoiceResult(transcript);
+      void renderPermissionsStatus();
     } catch (err) {
-      if (out) out.textContent = String(err);
+      if (out) out.textContent = `Mic test failed: ${String(err)}`;
     } finally {
       if (btn) btn.disabled = false;
     }

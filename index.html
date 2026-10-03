@@ -355,7 +355,8 @@
                   type="button"
                   id="goals-copilot-affordance"
                   class="mission-field-affordance"
-                  aria-label="Get copilot help with your objective"
+                  aria-label="Launch mission"
+                  title="Launch mission"
                 >
                   <span aria-hidden="true">✦</span>
                 </button>
@@ -556,11 +557,18 @@
                   End mission
                 </button>
               </div>
-              <p class="session-pause-note visually-hidden">
-                Pause toggles a break state when available; use End mission to stop early.
+              <p id="session-pause-note" class="session-pause-note" hidden>
+                Timer paused — coaching is on hold until you resume.
               </p>
               <p id="session-flight-minutes" class="session-flight-minutes">0 of 45 flight minutes earned</p>
               <p class="session-flight-minutes-hint">Time in session, excluding breaks and resets.</p>
+              <div class="session-next-step" id="session-next-step" aria-live="polite">
+                <div class="session-next-step-pill">
+                  <span class="session-next-step-kicker">Next step timer</span>
+                  <span id="session-next-step-timer" class="session-next-step-time">05:00</span>
+                </div>
+                <p class="session-next-step-hint">One small step at a time.</p>
+              </div>
             </article>
 
             <aside class="session-copilot-panel" aria-label="Mission copilot">
@@ -580,12 +588,20 @@
                 </p>
               </div>
               <footer class="session-copilot-composer copilot-composer">
+                <button
+                  type="button"
+                  id="session-copilot-suggest"
+                  class="session-copilot-suggest"
+                >
+                  Set a five-minute timer
+                </button>
                 <form id="session-chat-form" class="chat-form copilot-form">
                   <div class="copilot-input-wrap">
                     <textarea
                       id="session-chat-input"
                       rows="1"
                       aria-label="Message your copilot"
+                      aria-describedby="session-chat-hint"
                       placeholder="Message your copilot..."
                     ></textarea>
                     <button id="session-chat-mic" type="button" class="copilot-mic" aria-label="Microphone">
@@ -596,6 +612,9 @@
                     <span aria-hidden="true">↑</span>
                   </button>
                 </form>
+                <p id="session-chat-hint" class="composer-hint session-composer-hint">
+                  Enter to send · Click the microphone to start or stop a voice turn
+                </p>
               </footer>
             </aside>
           </div>
@@ -838,9 +857,9 @@
                         <li class="mc-perm-row">
                           <div class="mc-perm-copy">
                             <strong>Microphone</strong>
-                            <span>Optional — short clips for voice invoke tests before Grok Voice ships.</span>
+                            <span>Optional — Copilot dictation and Voice tests (macOS Speech).</span>
                           </div>
-                          <span id="perm-microphone" class="mc-perm-badge" data-state="optional">Grant when testing voice</span>
+                          <span id="perm-microphone" class="mc-perm-badge" data-state="unknown">Checking…</span>
                         </li>
                       </ul>
                       <button id="permissions-refresh" class="ghost pill" type="button">Re-check permissions</button>
