@@ -254,36 +254,44 @@ impl GeminiClient {
         vitals_summary: &str,
         screen_jpeg: Option<&[u8]>,
         camera_jpeg: Option<&[u8]>,
+        desktop_hints: &str,
     ) -> Result<CoachVisionResult, String> {
         let mut parts = vec![json!({
             "text": format!(
                 r#"You are Waypoint, a strict study lock-in coach.
-Primary job: watch the SCREEN and decide if it advances the student's stated goals.
+You are given a FULL DESKTOP screenshot (all monitors may be stitched side-by-side).
+Scan the ENTIRE image — not just the focused window. Look for side panels, PiP players,
+second monitors, browser tabs, dock previews, and anything else visible.
+
 Session goals: {goals}
 Expected modality: {modality}
-Live wellness signals (informational only, not medical): {vitals_summary}
+Wellness (informational only): {vitals_summary}
+Extra OS hints (may be incomplete; trust the screenshot first):
+{desktop_hints}
 
-HARD RULES:
-- on_task=true ONLY when the dominant visible app/content clearly advances the goals (code editor, docs, slides, problem set, coursework site, etc.).
-- If goals are vague, still require real productive work — not entertainment or social feeds.
-- Instagram, TikTok, Twitter/X, Facebook, Reddit, Discord, iMessage/Messages, WhatsApp, Snapchat, YouTube Shorts/Home, Netflix, Twitch, shopping, news doomscroll → on_task=false.
-- For those, set distraction to a short label like "instagram" or "youtube" and name it in coach_line.
-- Looking at Waypoint itself / desktop / empty browser is NOT on task unless the goals are literally about that.
-- Phone in view (not a calculator) → distraction.
-- needs_help=true only if stuck on coursework/errors.
-- stress_cue=true only with clear stress signals / Presage stress — don't invent medical claims.
-- coach_line: one short, direct sentence. If distracted, call out the app and tell them to return to the goal. No pep talk.
+GOAL-SCOPE RULES:
+- on_task=true ONLY if nearly everything visible is advancing the goals (IDE, docs, slides, coursework, relevant research).
+- If ANY clearly off-task content is visible anywhere on the desktop, on_task=false.
+  Off-task includes: YouTube (any player/tab/PiP), Instagram/TikTok/X/Reddit/Discord,
+  Messages/iMessage/WhatsApp, email inboxes (Gmail/Outlook/Mail), online shopping
+  (Amazon/eBay/etc), Netflix/Twitch, random social feeds, shopping storefronts.
+- set distraction to a short label: youtube, email, shopping, texting, instagram, etc.
+- Vague goals still require real productive work — entertainment/email/shopping are never "the work" unless goals explicitly say so.
+- Waypoint UI alone is not on-task.
+- needs_help=true only for stuck coursework/errors.
+- stress_cue only with clear stress / provided wellness stress — no medical claims.
+- coach_line: one short direct sentence naming what you see that's off-task (or affirming focus).
 
 Reply ONLY valid JSON with keys:
-on_task (bool), objects (string array), distraction (string|null),
-needs_help (bool), stress_cue (bool), coach_line (short spoken-style sentence),
+on_task (bool), objects (string array of visible apps/sites), distraction (string|null),
+needs_help (bool), stress_cue (bool), coach_line (short sentence),
 modality (computer|paper|mixed)."#
             )
         })];
 
         if let Some(bytes) = screen_jpeg {
             parts.push(json!({
-                "text": "PRIMARY — current screen:"
+                "text": "FULL DESKTOP screenshot — inspect every region:"
             }));
             parts.push(json!({
                 "inline_data": {
@@ -293,7 +301,7 @@ modality (computer|paper|mixed)."#
             }));
         } else {
             parts.push(json!({
-                "text": "PRIMARY — screen frame unavailable this tick."
+                "text": "FULL DESKTOP screenshot unavailable this tick."
             }));
         }
 
@@ -312,7 +320,7 @@ modality (computer|paper|mixed)."#
         let body = json!({
             "contents": [{ "role": "user", "parts": parts }],
             "generationConfig": {
-                "temperature": 0.3,
+                "temperature": 0.2,
                 "responseMimeType": "application/json"
             }
         });

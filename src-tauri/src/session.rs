@@ -68,9 +68,9 @@ impl LockInSession {
         let now = chrono::Utc::now();
         let duration_secs = duration_mins.saturating_mul(60).max(60);
         let watching_note = if camera_ready && presage_ready {
-            "Watching active app · wellness later in background".into()
+            "Watching full screen · wellness later in background".into()
         } else {
-            "Watching active app".into()
+            "Watching full screen".into()
         };
         Self {
             id: Uuid::new_v4().to_string(),

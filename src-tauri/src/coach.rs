@@ -12,12 +12,12 @@ use crate::presage::{self, PresageClient, VitalsSnapshot};
 use crate::session::{CoachPrompt, SessionStatusKind};
 use crate::AppState;
 
-/// Fast local frontmost-app checks (catches Instagram even when Gemini is rate-limited).
-const LOCAL_TICK_SECS: u64 = 3;
-/// Slower Gemini vision enhancement.
-const GEMINI_TICK_SECS: u64 = 25;
-const RATE_LIMIT_COOLDOWN_SECS: u64 = 90;
-const PROMPT_COOLDOWN_SECS: i64 = 25;
+/// Backup local signals (Messages app, obvious focused sites) while full-screen vision runs.
+const LOCAL_TICK_SECS: u64 = 4;
+/// Full-desktop Gemini vision — primary coach.
+const GEMINI_TICK_SECS: u64 = 15;
+const RATE_LIMIT_COOLDOWN_SECS: u64 = 75;
+const PROMPT_COOLDOWN_SECS: i64 = 20;
 const SOCIAL_PROMPT_COOLDOWN_SECS: i64 = 10;
 const PRESAGE_CLIP_SECS: u64 = 22;
 const PRESAGE_FPS: u32 = 12;
@@ -28,17 +28,16 @@ const PRESAGE_START_DELAY_SECS: u64 = 90;
 pub fn spawn_coach_loop(app: AppHandle, session_id: String, use_camera: bool, use_presage: bool) {
     push_prompt(
         &app,
-        "I'm watching your active app now — Instagram and other feeds will get called out.",
+        "I'm watching your full screen against your goals — off-task apps and sites get called out.",
         "watching",
     );
 
-    // Clear any "waiting for Presage" vibe in the session note immediately.
     {
         let state = app.state::<AppState>();
         let mut guard = state.session.lock();
         if let Some(session) = guard.as_mut() {
             session.watching_note =
-                "Watching active app · wellness runs later in the background".into();
+                "Watching full screen · wellness runs later in the background".into();
             session.status = SessionStatusKind::OnTask;
             let snap = session.clone();
             drop(guard);
@@ -76,7 +75,7 @@ pub fn spawn_coach_loop(app: AppHandle, session_id: String, use_camera: bool, us
     }
 }
 
-/// Instant distraction catching via macOS frontmost app / window title.
+/// Backup: focused app / open tabs when Gemini is slow. Full-screen vision is primary.
 async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBool>) {
     let mut last_prompt_at = chrono::Utc::now() - chrono::Duration::seconds(SOCIAL_PROMPT_COOLDOWN_SECS);
     let mut last_vitals = VitalsSnapshot::default();
@@ -99,24 +98,23 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
             break;
         }
 
-        let info = tokio::task::spawn_blocking(frontmost::frontmost_info)
-            .await
-            .ok()
-            .and_then(|r| r.ok());
+        let hit = tokio::task::spawn_blocking(|| {
+            let info = frontmost::frontmost_info()?;
+            Ok::<_, String>((info.clone(), frontmost::scan_distractions(&info)))
+        })
+        .await
+        .ok()
+        .and_then(|r| r.ok());
 
-        if let Some(info) = info {
-            if let Some(label) = frontmost::social_label(&info) {
-                let mut objects = vec![info.app_name.clone(), info.window_title.clone()];
-                if !info.url.is_empty() {
-                    objects.push(info.url.clone());
-                }
+        if let Some((info, distraction)) = hit {
+            if let Some(hit) = distraction {
                 let result = CoachVisionResult {
                     on_task: false,
-                    objects,
-                    distraction: Some(label.into()),
+                    objects: vec![info.app_name.clone(), hit.detail.clone()],
+                    distraction: Some(hit.label.into()),
                     needs_help: false,
                     stress_cue: last_vitals.stressed,
-                    coach_line: frontmost::distraction_coach_line(label),
+                    coach_line: frontmost::distraction_coach_line(&hit),
                     modality: Some("computer".into()),
                 };
                 apply_coach_tick(&app, &result, &mut last_vitals, &mut last_prompt_at).await;
@@ -130,7 +128,6 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                         "encourage",
                     );
                 }
-                // Count local on-task ticks so Gemini outages don't fake a blank session.
                 mark_local_on_task(&app, &info);
             }
         }
@@ -145,14 +142,19 @@ fn mark_local_on_task(app: &AppHandle, info: &frontmost::FrontmostInfo) {
     let Some(session) = guard.as_mut() else {
         return;
     };
-    // Don't clobber stressed; social path handles distracted.
-    if matches!(session.status, SessionStatusKind::Stressed) {
+    if matches!(session.status, SessionStatusKind::Stressed | SessionStatusKind::Distracted) {
+        // Don't overwrite a fresh distraction until vision/local clears it next ticks.
+        if session.status == SessionStatusKind::Stressed {
+            return;
+        }
+    }
+    if matches!(session.status, SessionStatusKind::Distracted) {
         return;
     }
-    session.total_ticks += 1;
-    session.on_task_ticks += 1;
+    session.total_ticks = session.total_ticks.saturating_add(1);
+    session.on_task_ticks = session.on_task_ticks.saturating_add(1);
     session.status = SessionStatusKind::OnTask;
-    session.watching_note = format!("Watching · {}", info.summary());
+    session.watching_note = format!("Watching full screen · {}", info.summary());
     let snap = session.clone();
     drop(guard);
     let _ = app.emit("session-update", &snap);
@@ -163,6 +165,10 @@ async fn run_gemini_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBoo
     let mut last_vitals = VitalsSnapshot::default();
     let mut last_error_notice = chrono::Utc::now() - chrono::Duration::seconds(60);
     let mut extra_cooldown_secs = 0u64;
+    let mut was_distracted = false;
+
+    // First full-screen check quickly after start.
+    tokio::time::sleep(Duration::from_secs(3)).await;
 
     while !stop.load(Ordering::SeqCst) {
         let (active, goals, modality, remaining) = {
@@ -186,21 +192,14 @@ async fn run_gemini_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBoo
             break;
         }
 
-        let wait_secs = GEMINI_TICK_SECS.max(extra_cooldown_secs);
-        extra_cooldown_secs = 0;
-        tokio::time::sleep(Duration::from_secs(wait_secs)).await;
-        if stop.load(Ordering::SeqCst) {
-            break;
-        }
+        let hints = tokio::task::spawn_blocking(|| {
+            let info = frontmost::frontmost_info().unwrap_or_default();
+            frontmost::open_context_hints(&info)
+        })
+        .await
+        .unwrap_or_default();
 
-        // Skip expensive vision if local frontmost already screams distraction.
-        if let Ok(Ok(info)) = tokio::task::spawn_blocking(frontmost::frontmost_info).await {
-            if frontmost::social_label(&info).is_some() {
-                continue;
-            }
-        }
-
-        let screen_jpeg = match tokio::task::spawn_blocking(screen::grab_primary_jpeg).await {
+        let screen_jpeg = match tokio::task::spawn_blocking(screen::grab_desktop_jpeg).await {
             Ok(Ok(bytes)) => Some(bytes),
             Ok(Err(e)) => {
                 tracing::warn!("screen: {e}");
@@ -213,39 +212,53 @@ async fn run_gemini_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBoo
             }
         };
 
-        if screen_jpeg.is_none() {
-            continue;
-        }
+        if let Some(bytes) = screen_jpeg {
+            let cfg = app.state::<AppState>().config.lock().clone();
+            let vision = match GeminiClient::from_config(&cfg) {
+                Ok(client) => {
+                    client
+                        .analyze_session(
+                            &goals,
+                            &modality,
+                            &last_vitals.raw_summary,
+                            Some(&bytes),
+                            None,
+                            &hints,
+                        )
+                        .await
+                }
+                Err(e) => Err(e),
+            };
 
-        let cfg = app.state::<AppState>().config.lock().clone();
-        let vision = match GeminiClient::from_config(&cfg) {
-            Ok(client) => {
-                client
-                    .analyze_session(
-                        &goals,
-                        &modality,
-                        &last_vitals.raw_summary,
-                        screen_jpeg.as_deref(),
-                        None,
-                    )
-                    .await
-            }
-            Err(e) => Err(e),
-        };
-
-        match vision {
-            Ok(result) => {
-                apply_coach_tick(&app, &result, &mut last_vitals, &mut last_prompt_at).await;
-            }
-            Err(e) => {
-                tracing::warn!("coach vision: {e}");
-                if gemini::error_looks_rate_limited(&e) {
-                    extra_cooldown_secs = RATE_LIMIT_COOLDOWN_SECS;
-                } else {
-                    maybe_soft_error(&app, &mut last_error_notice, &e);
+            match vision {
+                Ok(result) => {
+                    let distracted = !result.on_task || result.distraction.is_some();
+                    if distracted {
+                        was_distracted = true;
+                    } else if was_distracted {
+                        was_distracted = false;
+                        push_ephemeral(
+                            &app,
+                            "Nice — you’re back on your lock-in. Good job, keep it up.",
+                            "encourage",
+                        );
+                    }
+                    apply_coach_tick(&app, &result, &mut last_vitals, &mut last_prompt_at).await;
+                }
+                Err(e) => {
+                    tracing::warn!("coach vision: {e}");
+                    if gemini::error_looks_rate_limited(&e) {
+                        extra_cooldown_secs = RATE_LIMIT_COOLDOWN_SECS;
+                    } else {
+                        maybe_soft_error(&app, &mut last_error_notice, &e);
+                    }
                 }
             }
         }
+
+        let wait_secs = GEMINI_TICK_SECS.max(extra_cooldown_secs);
+        extra_cooldown_secs = 0;
+        tokio::time::sleep(Duration::from_secs(wait_secs)).await;
     }
 }
 
@@ -409,7 +422,6 @@ fn social_distraction_label(result: &CoachVisionResult) -> Option<&'static str> 
     .to_lowercase();
     const SITES: &[(&str, &str)] = &[
         ("instagram", "instagram"),
-        ("insta ", "instagram"),
         ("tiktok", "tiktok"),
         ("twitter", "twitter"),
         ("facebook", "facebook"),
@@ -419,6 +431,11 @@ fn social_distraction_label(result: &CoachVisionResult) -> Option<&'static str> 
         ("youtube", "youtube"),
         ("netflix", "netflix"),
         ("twitch", "twitch"),
+        ("gmail", "email"),
+        ("outlook", "email"),
+        ("email", "email"),
+        ("amazon", "shopping"),
+        ("shopping", "shopping"),
         ("imessage", "texting"),
         ("messages", "texting"),
         ("whatsapp", "texting"),
@@ -427,10 +444,29 @@ fn social_distraction_label(result: &CoachVisionResult) -> Option<&'static str> 
     ];
     for (needle, label) in SITES {
         if blob.contains(needle) {
-            return Some(label);
+            return Some(*label);
         }
     }
     None
+}
+
+fn static_distraction_label(label: &str) -> Option<&'static str> {
+    match label {
+        "texting" | "messages" | "whatsapp" | "telegram" | "imessage" => Some("texting"),
+        "instagram" => Some("instagram"),
+        "youtube" => Some("youtube"),
+        "tiktok" => Some("tiktok"),
+        "discord" => Some("discord"),
+        "email" | "gmail" | "outlook" => Some("email"),
+        "shopping" | "amazon" => Some("shopping"),
+        "twitter" => Some("twitter"),
+        "facebook" => Some("facebook"),
+        "reddit" => Some("reddit"),
+        "snapchat" => Some("snapchat"),
+        "netflix" => Some("netflix"),
+        "twitch" => Some("twitch"),
+        _ => None,
+    }
 }
 
 async fn apply_coach_tick(
@@ -478,13 +514,12 @@ async fn apply_coach_tick(
     };
 
     let mut prompt_text = result.coach_line.clone();
-    if let Some(label) = social.or(distraction.as_deref()) {
-        if matches!(
+    if let Some(label) = social.or(distraction.as_deref()).and_then(static_distraction_label) {
+        prompt_text = frontmost::distraction_coach_line(&frontmost::DistractionHit {
             label,
-            "texting" | "messages" | "whatsapp" | "instagram" | "youtube" | "tiktok" | "discord"
-        ) {
-            prompt_text = frontmost::distraction_coach_line(label);
-        }
+            detail: label.to_string(),
+            focused: true,
+        });
     }
     if has_phone && !has_calc {
         prompt_text =

@@ -26,6 +26,9 @@ pub fn ensure_overlay(app: &AppHandle) -> Result<(), String> {
     .build()
     .map_err(|e| format!("coach overlay window: {e}"))?;
 
+    // Never steal clicks — toast is visual-only.
+    let _ = window.set_ignore_cursor_events(true);
+
     if let Ok(Some(monitor)) = window.primary_monitor() {
         let size = monitor.size();
         let scale = monitor.scale_factor();
@@ -46,11 +49,11 @@ pub fn show_prompt(app: &AppHandle, prompt: &CoachPrompt) {
     let Some(window) = app.get_webview_window(OVERLAY_LABEL) else {
         return;
     };
+    let _ = window.set_ignore_cursor_events(true);
     let _ = window.show();
     let _ = window.unminimize();
     let _ = window.set_always_on_top(true);
 
-    // Overlay only — skip broadcasting to the main window feed so nags don't pile up.
     let _ = app.emit_to(OVERLAY_LABEL, "overlay-prompt", prompt);
     if let Ok(json) = serde_json::to_string(prompt) {
         let _ = window.eval(&format!(
@@ -63,6 +66,7 @@ pub fn hide(app: &AppHandle) {
     if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
         let _ = app.emit_to(OVERLAY_LABEL, "overlay-clear", ());
         let _ = window.eval("window.__waypointClear && window.__waypointClear()");
+        let _ = window.set_ignore_cursor_events(true);
         let _ = window.hide();
     }
 }
