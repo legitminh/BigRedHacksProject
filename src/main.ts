@@ -122,8 +122,8 @@ function updateSummaryCelebration(firstFlight: boolean): void {
         "You completed your first mission. Your flight log starts here — ready for the next orbit?";
     }
   } else {
-    if (title) title.textContent = "Flight log";
-    if (sub) sub.textContent = "Mission ended — your debrief and stats are below.";
+    if (title) title.textContent = "Quest complete";
+    if (sub) sub.textContent = "Mission ended — here's your flight summary.";
   }
 }
 
