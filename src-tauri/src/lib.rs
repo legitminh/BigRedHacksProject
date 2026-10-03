@@ -377,6 +377,37 @@ async fn build_study_suggestion(
     }
 }
 
+#[cfg(test)]
+mod study_suggest_parse_tests {
+    use super::strip_study_suggest_block;
+
+    #[test]
+    fn strip_extracts_json_and_keeps_prose() {
+        let raw = "Try a short focus block.\n<<<STUDY_SUGGEST>>>{\"goals\":\"Chem\",\"duration_mins\":25,\"reason\":\"now\"}<<<END_STUDY_SUGGEST>>>\n";
+        let (content, json) = strip_study_suggest_block(raw);
+        assert_eq!(content, "Try a short focus block.");
+        assert_eq!(
+            json.as_deref(),
+            Some(r#"{"goals":"Chem","duration_mins":25,"reason":"now"}"#)
+        );
+    }
+
+    #[test]
+    fn strip_without_markers_returns_full_text() {
+        let (content, json) = strip_study_suggest_block("Just chat.");
+        assert_eq!(content, "Just chat.");
+        assert!(json.is_none());
+    }
+
+    #[test]
+    fn strip_malformed_hides_marker_tail() {
+        let (content, json) =
+            strip_study_suggest_block("Hello\n<<<STUDY_SUGGEST>>>{\"goals\":\"x\"");
+        assert_eq!(content, "Hello");
+        assert!(json.is_none());
+    }
+}
+
 #[tauri::command]
 fn clear_chat(state: State<'_, AppState>) {
     state.chat_history.lock().clear();

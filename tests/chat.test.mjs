@@ -1,25 +1,48 @@
+import { registerHooks } from 'node:module';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 
-const dom = new JSDOM(readFileSync(new URL('../index.html', import.meta.url), 'utf8'), { url: 'http://localhost/' });
+// Vite `*.svg?url` imports are not understood by Node's test runner.
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (/\.svg(\?|$)/.test(specifier)) {
+      return {
+        shortCircuit: true,
+        url: 'data:text/javascript,export default "data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27/%3E";',
+      };
+    }
+    return nextResolve(specifier, context);
+  },
+});
+
+const dom = new JSDOM(readFileSync(new URL('../index.html', import.meta.url), 'utf8'), {
+  url: 'http://localhost/',
+  pretendToBeVisual: true,
+});
 globalThis.window = dom.window;
 globalThis.document = dom.window.document;
+globalThis.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0);
+globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
+window.requestAnimationFrame = globalThis.requestAnimationFrame;
+window.cancelAnimationFrame = globalThis.cancelAnimationFrame;
+window.confirm = () => true;
 const { renderMarkdown } = await import('../src/markdown.ts');
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 
 let resolveReply;
 let rejectReply;
 const calls = [];
+const defaultInvoke = async (command, args) => {
+  calls.push({ command, args });
+  if (command === 'get_status') return { google_connected: true };
+  if (command === 'chat_send') return new Promise((resolve, reject) => { resolveReply = resolve; rejectReply = reject; });
+  return 1;
+};
 window.__TAURI_INTERNALS__ = {
   transformCallback: () => 1,
-  invoke: async (command, args) => {
-    calls.push({ command, args });
-    if (command === 'get_status') return { google_connected: true };
-    if (command === 'chat_send') return new Promise((resolve, reject) => { resolveReply = resolve; rejectReply = reject; });
-    return 1;
-  },
+  invoke: defaultInvoke,
 };
 await import('../src/main.ts');
 window.dispatchEvent(new window.Event('DOMContentLoaded'));
@@ -47,11 +70,10 @@ test('untrusted replies cannot inject scripts, events, embeds, or unsafe links',
 test('chat keeps turns in order, renders replies, supports study actions and clears history', async () => {
   const input = document.querySelector('#chat-input');
   const form = document.querySelector('#chat-form');
+  // Chips auto-send the prompt.
   document.querySelector('[data-study="explain"]').click();
-  assert.match(input.value, /Explain this topic simply/);
-  input.value = '<b>Explain photosynthesis</b>\nWith an example';
-  form.dispatchEvent(new window.Event('submit', { cancelable: true }));
-  assert.equal(document.querySelector('.bubble.user b'), null);
+  assert.equal(input.value, '');
+  assert.match(document.querySelector('.bubble.user').textContent, /Explain this topic simply/);
   assert.equal(document.querySelector('#chat-send').disabled, true);
   input.value = 'next draft';
   form.dispatchEvent(new window.Event('submit', { cancelable: true }));
@@ -61,9 +83,21 @@ test('chat keeps turns in order, renders replies, supports study actions and cle
   assert.equal(document.querySelector('.bubble.assistant h2').textContent, 'Photosynthesis');
   assert.equal(input.value, 'next draft');
   assert.equal(document.querySelector('#chat-send').disabled, false);
-  input.value = '';
+
+  input.value = '<b>Explain photosynthesis</b>\nWith an example';
+  form.dispatchEvent(new window.Event('submit', { cancelable: true }));
+  assert.equal(document.querySelector('.bubble.user b'), null);
+  assert.equal(calls.filter(c => c.command === 'chat_send').length, 2);
+  resolveReply({ role: 'assistant', content: 'Still **light**.' });
+  await tick();
+
   document.querySelector('[data-study="stuck"]').click();
-  assert.match(input.value, /we're discussing/);
+  const userBubbles = [...document.querySelectorAll('.bubble.user')];
+  assert.match(userBubbles.at(-1)?.textContent ?? '', /we're discussing|stuck/i);
+  assert.equal(calls.filter(c => c.command === 'chat_send').length, 3);
+  resolveReply({ role: 'assistant', content: 'One small step.' });
+  await tick();
+
   const shiftEnter = new window.KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true });
   input.dispatchEvent(shiftEnter);
   assert.equal(shiftEnter.defaultPrevented, false);
@@ -97,6 +131,122 @@ test('invalid math stays readable and untrusted math cannot load resources', () 
   assert.equal(host.querySelector('img,script,iframe,a[href]'), null);
 });
 
+
+test('study suggestion card accepts into lock-in and decline dismisses', async () => {
+  const input = document.querySelector('#chat-input');
+  const form = document.querySelector('#chat-form');
+  document.querySelector('#view-chat')?.classList.add('active');
+  document.querySelector('#view-session')?.classList.remove('active');
+  // Skip launch animation so Accept resolves synchronously in jsdom.
+  document.querySelector('#celebration-launch')?.remove();
+
+  input.value = 'Help me make a study plan for chemistry';
+  form.dispatchEvent(new window.Event('submit', { cancelable: true }));
+  resolveReply({
+    role: 'assistant',
+    content: 'Let’s lock in on chemistry for a bit.',
+    study_suggestion: {
+      goals: '',
+      duration_mins: 25,
+      reason: 'You asked for a plan and have a clear window.',
+      proposed_start: '2026-10-03T19:00:00Z',
+      calendar_checked: false,
+      calendar_clear: true,
+      conflict_summary: null,
+    },
+  });
+  await tick();
+
+  const card = document.querySelector('.study-suggest-card');
+  assert.ok(card);
+  assert.match(card.textContent, /General study session/);
+  assert.match(card.textContent, /25 min/);
+  assert.equal(document.querySelector('#chat-send').disabled, false);
+
+  // Conflict / unclear calendar must not render a card.
+  input.value = 'another question';
+  form.dispatchEvent(new window.Event('submit', { cancelable: true }));
+  resolveReply({
+    role: 'assistant',
+    content: 'Sure.',
+    study_suggestion: {
+      goals: 'Chem',
+      duration_mins: 20,
+      reason: 'nope',
+      proposed_start: '2026-10-03T19:00:00Z',
+      calendar_checked: true,
+      calendar_clear: false,
+      conflict_summary: 'Conflicts with: Lecture',
+    },
+  });
+  await tick();
+  assert.equal(document.querySelectorAll('.study-suggest-card').length, 1);
+
+  document.querySelector('.study-suggest-card__decline').click();
+  assert.equal(document.querySelector('.study-suggest-card'), null);
+
+  // Fresh clear suggestion → Accept wires start_lock_in with empty-goals fallback.
+  input.value = 'ready to focus';
+  form.dispatchEvent(new window.Event('submit', { cancelable: true }));
+  resolveReply({
+    role: 'assistant',
+    content: 'Go.',
+    study_suggestion: {
+      goals: '   ',
+      duration_mins: 30,
+      reason: 'Now is good.',
+      proposed_start: '2026-10-03T19:30:00Z',
+      calendar_checked: true,
+      calendar_clear: true,
+      conflict_summary: null,
+    },
+  });
+  await tick();
+  const acceptCard = document.querySelector('.study-suggest-card');
+  assert.ok(acceptCard);
+
+  const beforeStart = calls.filter(c => c.command === 'start_lock_in').length;
+  window.__TAURI_INTERNALS__.invoke = async (command, args) => {
+    calls.push({ command, args });
+    if (command === 'get_status') return { google_connected: true };
+    if (command === 'chat_send') return new Promise((resolve, reject) => { resolveReply = resolve; rejectReply = reject; });
+    if (command === 'start_lock_in') {
+      return {
+        id: 'sess-suggest',
+        goals: args.goals,
+        duration_secs: args.durationMins * 60,
+        ends_at: new Date(Date.now() + args.durationMins * 60000).toISOString(),
+        modality: 'mixed',
+        status: 'running',
+        active: true,
+        prompts: [],
+      };
+    }
+    return 1;
+  };
+  document.querySelector('.study-suggest-card__accept').click();
+  await tick();
+  await tick();
+  const startCalls = calls.filter(c => c.command === 'start_lock_in').slice(beforeStart);
+  assert.equal(startCalls.length, 1);
+  assert.equal(startCalls[0].args.goals, 'General study session');
+  assert.equal(startCalls[0].args.durationMins, 30);
+  assert.equal(document.querySelector('.study-suggest-card'), null);
+
+  // End mission so timers/view state do not leak into later tests.
+  window.__TAURI_INTERNALS__.invoke = async (command, args) => {
+    calls.push({ command, args });
+    if (command === 'stop_lock_in') return null;
+    return defaultInvoke(command, args);
+  };
+  document.querySelector('#session-stop')?.click();
+  await tick();
+  window.__TAURI_INTERNALS__.invoke = defaultInvoke;
+  document.querySelector('#view-session')?.classList.remove('active');
+  document.querySelector('#view-chat')?.classList.add('active');
+  document.querySelector('#new-chat')?.click();
+  await tick();
+});
 
 test('overload keeps one thinking bubble and silently retries the original message', async () => {
   const input = document.querySelector('#chat-input');

@@ -1269,7 +1269,7 @@ async function dispatchChatMessage(
 
 async function sendChat() {
   const input = $<HTMLTextAreaElement>("#chat-input");
-  if (!input?.value.trim()) return;
+  if (chatBusy || !input?.value.trim()) return;
   const message = input.value;
   input.value = "";
   await dispatchChatMessage(
@@ -1282,7 +1282,7 @@ async function sendChat() {
 
 async function sendSessionChat() {
   const input = $<HTMLTextAreaElement>("#session-chat-input");
-  if (!input?.value.trim()) return;
+  if (chatBusy || !input?.value.trim()) return;
   const message = input.value;
   input.value = "";
   await dispatchChatMessage(
