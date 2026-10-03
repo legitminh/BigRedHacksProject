@@ -224,7 +224,6 @@
           <div class="copilot-nav-end">
             <button type="button" class="copilot-nav-link" data-copilot-nav="settings">Settings</button>
             <span class="copilot-nav-avatar" aria-hidden="true">JL</span>
-            <button id="new-chat" class="ghost copilot-nav-new" type="button">New chat</button>
           </div>
         </header>
 
@@ -233,7 +232,7 @@
             <p class="copilot-kicker"><span aria-hidden="true">✦</span> YOUR COPILOT</p>
             <h2 class="copilot-sidebar-title">A sounding board for your next step.</h2>
             <p class="copilot-sidebar-body">
-              Ask a question, talk through a roadblock, or get ready to focus.
+              Ask freely, talk through a roadblock, or get ready to focus.
             </p>
             <button type="button" class="copilot-sidebar-cta primary" id="copilot-start-mission">
               Start a mission
@@ -254,6 +253,7 @@
             </header>
 
             <div class="copilot-panel">
+              <button id="new-chat" class="visually-hidden" type="button">New chat</button>
               <div
                 id="chat-log"
                 class="chat-log copilot-log"
@@ -748,14 +748,19 @@
         </div>
       </section>
       <div id="celebration-launch" class="mission-launch-overlay" hidden aria-live="polite">
-        <div class="mission-launch__scene" aria-hidden="true">
-          <span class="celebration-planet celebration-planet--small"></span>
-          <span class="celebration-ship celebration-ship--launch"></span>
-          <span class="mission-launch__trail"></span>
+        <div class="mission-launch__card">
+          <div class="mission-launch__scene" aria-hidden="true">
+            <img
+              class="mission-launch__planet"
+              src="/src/assets/figma/planet-ringed.svg"
+              alt=""
+            />
+            <img class="mission-launch__ship" src="/src/assets/figma/ship.svg" alt="" />
+          </div>
+          <p class="mission-launch__kicker">Mission</p>
+          <h2 class="mission-launch__title">Launch</h2>
+          <p class="mission-launch__sub">Engines on — stay on course.</p>
         </div>
-        <p class="mission-launch__kicker">Mission</p>
-        <h2 class="mission-launch__title">Launch</h2>
-        <p class="mission-launch__sub">Engines on — stay on course.</p>
       </div>
     </div>
   </body>

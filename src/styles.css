@@ -1797,7 +1797,7 @@ html.wp-reduce-motion .atmosphere {
 html.wp-reduce-motion .session-flight-ship-wrap,
 html.wp-reduce-motion .session-orbit-ship,
 html.wp-reduce-motion .celebration-ship,
-html.wp-reduce-motion .mission-launch__trail {
+html.wp-reduce-motion .mission-launch__ship {
   animation: none !important;
 }
 
@@ -4093,49 +4093,69 @@ body:has(.view-quest-complete.active) .grain {
   justify-content: center;
   padding: 2rem;
   text-align: center;
-  background: rgba(7, 20, 26, 0.88);
-  backdrop-filter: blur(6px);
+  background: rgba(42, 36, 64, 0.25);
+  backdrop-filter: blur(4px);
 }
 
 .mission-launch-overlay[hidden] {
   display: none !important;
 }
 
+.mission-launch__card {
+  width: min(100%, 22rem);
+  padding: 2rem 1.75rem 1.85rem;
+  border-radius: 1.25rem;
+  background: var(--mc-bg-card);
+  border: 1px solid var(--mc-border-default);
+  box-shadow: 0 24px 48px rgba(42, 36, 64, 0.12);
+}
+
 .mission-launch__scene {
   position: relative;
   width: 10rem;
-  height: 9rem;
-  margin-bottom: 1.25rem;
+  height: 7.5rem;
+  margin: 0 auto 1.25rem;
 }
 
-.celebration-ship--launch {
-  left: 50%;
-  top: auto;
-  bottom: 2.2rem;
-  margin-left: -0.45rem;
-  transform: rotate(0deg);
-  border-bottom-color: #a78bfa;
-}
-
-.mission-launch__trail {
+.mission-launch__planet {
   position: absolute;
   left: 50%;
-  bottom: 0.85rem;
-  width: 0.35rem;
-  height: 2.5rem;
-  margin-left: -0.17rem;
-  border-radius: 999px;
-  background: linear-gradient(to top, rgba(251, 191, 36, 0.15), rgba(251, 146, 60, 0.85));
-  transform-origin: bottom center;
-  opacity: 0;
+  bottom: 0;
+  width: 3.25rem;
+  height: auto;
+  margin-left: -1.625rem;
+  opacity: 0.92;
 }
 
-.mission-launch--active .celebration-ship--launch {
+.mission-launch__ship {
+  position: absolute;
+  left: 50%;
+  bottom: 1.75rem;
+  width: 2.75rem;
+  height: auto;
+  margin-left: -1.375rem;
+  transform: translateY(0);
+  filter: drop-shadow(0 6px 12px rgba(107, 76, 255, 0.18));
+}
+
+.mission-launch-overlay .mission-launch__kicker {
+  color: var(--mc-accent-purple);
+}
+
+.mission-launch-overlay .mission-launch__title {
+  color: var(--mc-text-primary);
+}
+
+.mission-launch-overlay .mission-launch__sub {
+  color: var(--mc-text-secondary);
+}
+
+.mission-launch--active .mission-launch__card {
+  animation: celebrationPop 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.mission-launch--active .mission-launch__ship {
   animation: launchAscend 1.35s cubic-bezier(0.33, 1, 0.68, 1) 0.15s both;
-}
-
-.mission-launch--active .mission-launch__trail {
-  animation: launchTrail 1.1s ease 0.2s both;
 }
 
 .mission-launch--active .mission-launch__title {
