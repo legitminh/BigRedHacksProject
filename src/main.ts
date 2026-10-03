@@ -1539,6 +1539,21 @@ function startTimer(endsAt: string) {
   timerHandle = window.setInterval(tick, 1000);
 }
 
+/** Keep the mission countdown frozen while paused; resume via startTimer. */
+function syncMissionTimer(session: Pick<LockInSession, "paused" | "ends_at">) {
+  if (session.paused) {
+    if (timerHandle) {
+      window.clearInterval(timerHandle);
+      timerHandle = undefined;
+    }
+    currentEndsAt = session.ends_at;
+    const el = $("#session-timer");
+    if (el) el.textContent = formatRemaining(session.ends_at);
+    return;
+  }
+  startTimer(session.ends_at);
+}
+
 async function renderLockinHints(status: StatusPayload) {
   const hint = $("#lockin-wellness");
   if (!hint) return;
@@ -1569,7 +1584,7 @@ async function refreshStatus() {
   const session = status.session;
   if (session?.active) {
     renderSession(session);
-    startTimer(session.ends_at);
+    syncMissionTimer(session);
     show("view-session");
   }
   return status;
@@ -1773,6 +1788,13 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
+  $("#session-chat-input")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      void sendSessionChat();
+    }
+  });
+
   const studyPrompts: Record<string, [string, string]> = {
     explain: ["Explain this topic simply, with a worked example: ", "Explain the topic we’re discussing more simply, with a worked example."],
     quiz: ["Quiz me on this topic, one question at a time: ", "Quiz me on the topic we’re discussing. Ask one question, wait for my answer, then give feedback."],
@@ -1886,7 +1908,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       playLaunchCelebration(() => {
         clearNextStepTimer();
         renderSession(session);
-        startTimer(session.ends_at);
+        syncMissionTimer(session);
         show("view-session");
       });
     } catch (err) {
@@ -1925,17 +1947,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     try {
       const session = await invoke<LockInSession>("set_lock_in_paused", { paused: next });
       renderSession(session);
-      if (session.paused) {
-        if (timerHandle) {
-          window.clearInterval(timerHandle);
-          timerHandle = undefined;
-        }
-        currentEndsAt = session.ends_at;
-        pauseNextStepTimer();
-      } else if (session.ends_at) {
-        startTimer(session.ends_at);
-        resumeNextStepTimer();
-      }
+      syncMissionTimer(session);
     } catch (err) {
       const msg = String(err);
       alert(/no active mission/i.test(msg) ? msg : "Couldn’t pause right now. Try again.");
@@ -2112,7 +2124,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   await listen<LockInSession>("session-update", (event) => {
     renderSession(event.payload);
-    startTimer(event.payload.ends_at);
+    syncMissionTimer(event.payload);
   });
   await listen<VitalsSnapshot>("vitals-update", (event) => renderVitals(event.payload));
   await listen<string>("coach-error", (event) => {
