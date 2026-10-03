@@ -360,7 +360,7 @@ function renderHomeNav(status: StatusPayload) {
   const settings = document.createElement("button");
   settings.className = "ghost pill";
   settings.type = "button";
-  settings.textContent = "Settings";
+  settings.textContent = "Mission Control";
   settings.addEventListener("click", () => {
     void openSettings();
   });
