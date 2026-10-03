@@ -19,69 +19,179 @@
 
     <div id="app">
       <section id="view-home" class="view view-home active">
-        <header class="mc-nav">
-          <p class="mc-nav-brand">Waypoint</p>
+        <header class="mc-nav welcome-nav">
+          <p class="mc-nav-brand" id="home-nav-brand">Waypoint</p>
+          <nav id="home-nav-center" class="mc-nav-center" aria-label="Main" hidden></nav>
           <div id="home-nav-actions" class="mc-nav-actions"></div>
         </header>
 
-        <div id="home-guest" class="mc-guest">
-          <div class="mc-guest-visual" aria-hidden="true">
-            <div class="mc-planet mc-planet--hero">
-              <span class="mc-orbit mc-orbit--a"></span>
-              <span class="mc-orbit mc-orbit--b"></span>
-              <span class="mc-planet-core"></span>
+        <div id="home-guest" class="mc-guest welcome-screen">
+          <img
+            class="welcome-constellation"
+            src="/src/assets/figma/constellation.svg"
+            alt=""
+            aria-hidden="true"
+          />
+          <div class="welcome-layout">
+            <div class="welcome-hero">
+              <div class="welcome-hero-card">
+                <p class="welcome-hero-eyebrow">A little structure. A whole new orbit.</p>
+                <h1 class="welcome-hero-title">
+                  Big goals.<br />
+                  Small missions.
+                </h1>
+                <p class="welcome-hero-body">
+                  Find your focus with an AI copilot by your side. One task, one flight, one step forward.
+                  <span class="welcome-hero-star" aria-hidden="true">✦</span>
+                </p>
+                <div class="welcome-hero-art" aria-hidden="true">
+                  <img class="welcome-art-ship" src="/src/assets/figma/ship.svg" alt="" />
+                  <img class="welcome-art-planet" src="/src/assets/figma/planet-ringed.svg" alt="" />
+                </div>
+              </div>
+              <p class="welcome-hero-foot">Your next chapter starts here</p>
             </div>
-          </div>
-          <div class="mc-guest-copy">
-            <p class="mc-kicker">Start here</p>
-            <h1 class="mc-guest-title">Big goals, small missions.</h1>
-            <p class="mc-guest-sub">
-              Waypoint is Mission Control for school — break work into flyable missions, stay on course with gentle
-              reminders, and ask Copilot when you’re stuck.
-            </p>
-            <aside id="start-here" class="start-here" hidden>
-              <p class="start-here-label">First flight</p>
-              <p class="start-here-text">
-                Placeholder login accepts any username. After sign-in, open <strong>Start mission</strong> or
-                <strong>Copilot</strong> from your dashboard.
-              </p>
-              <button type="button" class="ghost start-here-dismiss" id="start-here-dismiss">Got it</button>
+
+            <aside id="home-guest-signin" class="welcome-signin">
+              <form id="welcome-signin-form" class="welcome-signin-card signin-box">
+                <p class="welcome-signin-kicker"><span aria-hidden="true">✦</span> Welcome aboard</p>
+                <h2 class="welcome-signin-title">Your seat is ready.</h2>
+                <p class="welcome-signin-lead">Sign in to return to your space.</p>
+                <label class="welcome-field">
+                  <span class="welcome-field-label">Email</span>
+                  <input
+                    id="wp-username"
+                    name="username"
+                    type="email"
+                    autocomplete="username"
+                    required
+                    placeholder="you@school.edu"
+                  />
+                </label>
+                <label class="welcome-field">
+                  <span class="welcome-field-label">Password</span>
+                  <input
+                    id="wp-password"
+                    name="password"
+                    type="password"
+                    autocomplete="current-password"
+                    placeholder="Enter your password"
+                  />
+                </label>
+                <p class="signin-error" id="wp-signin-error" hidden></p>
+                <button class="welcome-signin-submit primary wide" type="submit">Sign in →</button>
+                <button type="button" class="welcome-guest-link" id="welcome-continue-guest">
+                  Continue as guest
+                </button>
+                <p class="welcome-signin-foot">
+                  Just here to focus? Guest mode has everything you need for your first mission.
+                </p>
+              </form>
             </aside>
-            <div id="home-guest-cta" class="mc-guest-cta"></div>
+          </div>
+          <aside id="start-here" class="start-here" hidden>
+            <p class="start-here-label">First flight</p>
+            <p class="start-here-text">
+              Placeholder login accepts any username. After sign-in, open <strong>Start mission</strong> or
+              <strong>Copilot</strong> from your dashboard.
+            </p>
+            <button type="button" class="ghost start-here-dismiss" id="start-here-dismiss">Got it</button>
+          </aside>
+        </div>
+
+        <div id="home-first-flight" class="mc-first-flight" hidden>
+          <div class="mc-first-flight-main">
+            <p class="mc-kicker mc-kicker--star">✦&nbsp;&nbsp;YOUR FIRST MISSION</p>
+            <h1 class="mc-first-flight-title">Every journey starts somewhere.</h1>
+            <p class="mc-first-flight-lead">
+              No perfect routine required. Just bring one thing you want to finish.
+            </p>
+            <article class="mc-first-flight-card">
+              <p class="mc-first-flight-badge">✦&nbsp;&nbsp;FIRST FLIGHT</p>
+              <h2 class="mc-first-flight-card-title">Your next 25 minutes could be a new beginning.</h2>
+              <p class="mc-first-flight-card-teal">Complete your first flight to set a personal best.</p>
+              <button type="button" class="primary pill mc-first-flight-cta" id="home-first-flight-cta">
+                Plan your first mission →
+              </button>
+              <p class="mc-first-flight-footnote">No leaderboard. No lost points. Just your progress.</p>
+            </article>
+          </div>
+          <div class="mc-first-flight-visual" aria-hidden="true">
+            <img class="mc-first-flight-constellation" src="/src/assets/figma/constellation.svg" alt="" />
+            <img class="mc-first-flight-planet" src="/src/assets/figma/planet-ringed.svg" alt="" />
+            <img class="mc-first-flight-ship" src="/src/assets/figma/ship.svg" alt="" />
           </div>
         </div>
 
-        <div id="home-dashboard" class="mc-dashboard" hidden>
-          <div class="mc-dashboard-main">
-            <div class="mc-hero-row">
-              <div class="mc-hero-copy">
-                <p class="mc-kicker">Mission Control</p>
-                <h1 class="mc-hero-title">
-                  A few major goals this week
-                  <span id="home-goal-count" class="mc-goal-badge">3</span>
-                </h1>
+        <div id="home-dashboard" class="mc-home" hidden>
+          <img
+            class="mc-home-constellation mc-home-constellation--tl"
+            src="/src/assets/figma/constellation.svg"
+            alt=""
+            aria-hidden="true"
+          />
+          <img
+            class="mc-home-constellation mc-home-constellation--br"
+            src="/src/assets/figma/constellation.svg"
+            alt=""
+            aria-hidden="true"
+          />
+
+          <header class="mc-home-head">
+            <p class="mc-home-kicker"><span aria-hidden="true">✦</span> Mission control</p>
+            <h1 class="mc-home-title">Ready when you are.</h1>
+            <p class="mc-home-lede">Pick one thing. Give it a little time. Let's get you there.</p>
+          </header>
+
+          <div class="mc-home-grid">
+            <article class="mc-home-dest">
+              <div class="mc-home-dest-copy">
+                <p class="mc-home-tag mc-home-tag--on-dark">
+                  <span aria-hidden="true">✦</span> Ready when you are
+                </p>
+                <h2 class="mc-home-dest-title">Your next destination? One finished task.</h2>
+                <p class="mc-home-dest-sub">Turn your next 25 minutes into a small adventure.</p>
+                <div id="home-cta" class="mc-home-dest-actions"></div>
               </div>
-              <div class="mc-hero-planet" aria-hidden="true">
-                <div class="mc-planet mc-planet--hero">
-                  <span class="mc-orbit mc-orbit--a"></span>
-                  <span class="mc-orbit mc-orbit--b"></span>
-                  <span class="mc-planet-core"></span>
-                </div>
+              <div class="mc-home-dest-art" aria-hidden="true">
+                <img class="mc-home-planet" src="/src/assets/figma/planet-ringed.svg" alt="" />
+                <img class="mc-home-ship" src="/src/assets/figma/ship.svg" alt="" />
+                <img class="mc-home-moon-sm" src="/src/assets/figma/moon.svg" alt="" />
               </div>
-            </div>
-            <ul id="home-goals" class="mc-goals" aria-label="Big goals this week"></ul>
-          </div>
-          <aside class="mc-mission-panel">
-            <div class="mc-mission-card">
-              <div id="home-ship-hangar" class="home-ship-hangar" aria-live="polite"></div>
-              <p class="mc-kicker">Ready to fly</p>
-              <h2 class="mc-mission-title">Mission Control</h2>
-              <p class="mc-mission-blurb">
-                Launch a timed mission. Waypoint watches your screen against your objectives and checks in when you drift.
+            </article>
+
+            <article class="mc-home-best">
+              <p class="mc-home-tag"><span aria-hidden="true">✦</span> Your longest flight</p>
+              <div class="mc-home-best-stat">
+                <span id="home-longest-minutes" class="mc-home-best-num">0</span>
+                <span class="mc-home-best-unit">flight minutes</span>
+              </div>
+              <hr class="mc-home-divider" />
+              <p class="mc-home-best-note">A little further, at your own pace.</p>
+              <p class="mc-home-best-disclaimer">
+                Your record measures time in session, not verified attention.
               </p>
-              <div id="home-cta" class="mc-mission-actions"></div>
-            </div>
-          </aside>
+              <img class="mc-home-moon" src="/src/assets/figma/moon.svg" alt="" aria-hidden="true" />
+            </article>
+
+            <article class="mc-home-copilot">
+              <div class="mc-home-copilot-copy">
+                <h2 class="mc-home-copilot-title">Need a hand finding your next step?</h2>
+                <p class="mc-home-copilot-sub">Talk it through with your copilot.</p>
+              </div>
+              <div id="home-copilot-cta" class="mc-home-copilot-action"></div>
+            </article>
+          </div>
+
+          <div class="mc-home-bottom">
+            <p class="mc-home-footnote">No streaks to protect. Every flight counts.</p>
+            <img
+              class="mc-home-satellite"
+              src="/src/assets/figma/satellite.svg"
+              alt=""
+              aria-hidden="true"
+            />
+          </div>
         </div>
       </section>
 
@@ -138,121 +248,168 @@
       </section>
 
       <section id="view-lockin" class="view view-mission-setup">
-        <header class="panel-head mission-setup-head">
-          <button class="back" data-back type="button" aria-label="Back to home">←</button>
-          <p class="brand-inline">Mission control</p>
+        <header class="mission-setup-head">
+          <button class="mission-setup-back" data-back type="button" aria-label="Back to home">←</button>
         </header>
         <div class="mission-setup-shell">
+          <div class="mission-setup-deco" aria-hidden="true">
+            <img class="mission-setup-deco__moon" src="/src/assets/figma/moon.svg" alt="" />
+            <img class="mission-setup-deco__planet" src="/src/assets/figma/planet-ringed.svg" alt="" />
+            <img class="mission-setup-deco__satellite" src="/src/assets/figma/satellite.svg" alt="" />
+            <img class="mission-setup-deco__astro" src="/src/assets/figma/astronaut.svg" alt="" />
+            <img class="mission-setup-deco__ship" src="/src/assets/figma/ship.svg" alt="" />
+          </div>
           <form id="lockin-form" class="lockin-form mission-setup-card">
-            <div class="mission-setup-orbit" aria-hidden="true">
-              <span class="mission-setup-planet"></span>
-              <span class="mission-setup-ring"></span>
-            </div>
-            <h1 class="mission-setup-title">Mission setup</h1>
-            <p class="mission-setup-lead">Set your objectives and duration, then launch your focus flight.</p>
+            <p class="mission-setup-step">01 / PREPARE FOR LAUNCH</p>
+            <h1 class="mission-setup-title">Where are we headed?</h1>
+            <p class="mission-setup-lead">One clear objective. A little room to focus.</p>
 
             <div class="mission-field">
-              <label class="mission-field-label" for="goals">Objectives</label>
-              <p class="mission-field-hint" id="goals-hint">What are your objectives for this mission?</p>
+              <label class="mission-field-label" for="goals">What do you want to finish?</label>
               <textarea
                 id="goals"
-                rows="4"
+                rows="3"
                 required
-                aria-describedby="goals-hint"
-                placeholder="e.g. Finish calc PSet 3 · draft essay intro · review lecture 6"
+                placeholder="Finish calculus problems 1–5."
               ></textarea>
             </div>
 
             <fieldset class="mission-duration">
-              <legend class="mission-field-label">Mission duration</legend>
+              <legend class="mission-field-label">Flight duration</legend>
               <div class="duration-chips" role="group" aria-label="Preset duration">
-                <button type="button" class="duration-chip" data-minutes="25">25m</button>
-                <button type="button" class="duration-chip is-active" data-minutes="45">45m</button>
-                <button type="button" class="duration-chip" data-minutes="60">60m</button>
-                <button type="button" class="duration-chip" data-minutes="90">90m</button>
+                <button type="button" class="duration-chip" data-minutes="15">15 min</button>
+                <button type="button" class="duration-chip is-active" data-minutes="25">25 min</button>
+                <button type="button" class="duration-chip" data-minutes="45">45 min</button>
+                <button type="button" class="duration-chip" data-minutes="60">60 min</button>
               </div>
-              <label class="duration-custom">
-                <span class="duration-custom-label">Custom (minutes)</span>
-                <input id="duration" type="number" min="1" max="180" value="45" inputmode="numeric" />
-              </label>
+              <input id="duration" type="hidden" value="25" />
             </fieldset>
 
-            <details class="mission-permissions">
-              <summary>Permissions &amp; coaching</summary>
-              <p class="lockin-blurb">
-                Waypoint watches your <strong>screen</strong> against your objectives and uses your
-                <strong>webcam + Presage</strong> for short stress / heart-rate checks. Allow Screen Recording
-                (required) and Camera (for wellness). For app/tab coaching, allow
-                <strong>Accessibility</strong> and <strong>Automation</strong> for Waypoint in System Settings.
-              </p>
-            </details>
+            <div class="mission-setup-toggles">
+              <label class="mission-toggle-row">
+                <span class="mission-toggle-copy">
+                  <strong>Camera signals</strong>
+                  <small>Optional gentle check-ins. Off by default.</small>
+                </span>
+                <input id="lockin-camera" type="checkbox" class="mission-toggle-input" />
+                <span class="mission-toggle-switch" aria-hidden="true"></span>
+              </label>
+              <label class="mission-toggle-row">
+                <span class="mission-toggle-copy">
+                  <strong>Screen sharing</strong>
+                  <small>Optional context for your mission. Off by default.</small>
+                </span>
+                <input id="lockin-screen" type="checkbox" class="mission-toggle-input" />
+                <span class="mission-toggle-switch" aria-hidden="true"></span>
+              </label>
+            </div>
 
-            <p id="lockin-wellness" class="composer-hint mission-setup-meta" aria-live="polite"></p>
+            <p id="lockin-wellness" class="mission-setup-meta" aria-live="polite"></p>
             <p id="lockin-error" class="lockin-error" role="alert" hidden></p>
             <button id="lockin-start" type="submit" class="primary wide mission-launch">
-              <span class="mission-launch-icon" aria-hidden="true">🚀</span>
-              <span class="mission-launch-label">Launch mission</span>
+              <span class="mission-launch-label">Launch mission ↗</span>
             </button>
+            <p class="mission-setup-foot">
+              You can fly with both inputs off. Nothing starts capturing until you give permission.
+            </p>
           </form>
         </div>
       </section>
 
       <section id="view-session" class="view view-session">
+        <div class="session-sky" aria-hidden="true">
+          <img class="session-constellation" src="/src/assets/figma/constellation.svg" alt="" />
+        </div>
         <header class="session-head">
           <div class="session-head-brand">
-            <p class="session-kicker">Active mission</p>
+            <p class="session-kicker">✦ Active mission</p>
             <p class="brand-inline session-brand">Waypoint</p>
           </div>
           <div class="session-head-actions">
             <button id="session-mute-voice" class="ghost session-pill" type="button" aria-pressed="false">
               Mute voice
             </button>
-            <button id="end-session" class="ghost danger session-pill" type="button">End mission</button>
           </div>
         </header>
-        <div class="session-orbit-wrap">
+        <article class="session-mission-card">
+          <p id="session-goals" class="session-goals"></p>
           <div
             id="session-orbit"
-            class="session-orbit"
+            class="session-flight-scene"
             data-state="watching"
             role="group"
-            aria-label="Active mission timer"
+            aria-label="Active mission flight path"
           >
-            <svg class="session-orbit-svg" viewBox="0 0 280 280" aria-hidden="true">
+            <img
+              class="session-flight-moon"
+              src="/src/assets/figma/moon.svg"
+              alt=""
+              width="48"
+              height="48"
+            />
+            <img
+              class="session-flight-dest"
+              src="/src/assets/figma/planet-ringed.svg"
+              alt=""
+              width="72"
+              height="72"
+            />
+            <svg class="session-flight-path-svg" viewBox="0 0 320 100" preserveAspectRatio="none" aria-hidden="true">
               <defs>
-                <linearGradient id="session-orbit-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#7c3aed" />
-                  <stop offset="100%" stop-color="#22d3ee" />
+                <linearGradient id="session-orbit-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#8b7cf7" />
+                  <stop offset="100%" stop-color="#43968f" />
                 </linearGradient>
-                <filter id="session-orbit-glow">
-                  <feGaussianBlur stdDeviation="3" result="blur" />
-                  <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
               </defs>
-              <circle class="session-orbit-track" cx="140" cy="140" r="124" />
-              <circle
+              <path
+                class="session-orbit-track session-flight-path"
+                d="M 28 58 Q 160 18 292 58"
+                pathLength="100"
+              />
+              <path
                 id="session-orbit-progress"
-                class="session-orbit-progress"
-                cx="140"
-                cy="140"
-                r="124"
+                class="session-orbit-progress session-flight-path"
+                d="M 28 58 Q 160 18 292 58"
                 pathLength="100"
               />
             </svg>
-            <div class="session-orbit-planet" aria-hidden="true"></div>
-            <div id="session-orbit-ship-wrap" class="session-orbit-ship-wrap" aria-hidden="true">
-              <span id="session-orbit-ship" class="session-orbit-ship"></span>
-            </div>
-            <div class="session-orbit-core">
-              <p id="session-status" class="status-chip session-status">watching</p>
-              <p id="session-timer" class="timer session-timer">45:00</p>
-              <p class="session-timer-caption">Time remaining</p>
+            <span class="session-flight-waypoint session-flight-waypoint--launch">Launch</span>
+            <span class="session-flight-waypoint session-flight-waypoint--dest">Destination</span>
+            <div id="session-orbit-ship-wrap" class="session-flight-ship-wrap" aria-hidden="true">
+              <span id="session-orbit-ship" class="session-orbit-ship">
+                <img
+                  class="session-figma-ship"
+                  src="/src/assets/figma/ship.svg"
+                  alt=""
+                  width="88"
+                  height="60"
+                />
+              </span>
             </div>
           </div>
-        </div>
+          <p id="session-status" class="status-chip session-status session-status--inline">watching</p>
+          <div class="session-timer-block">
+            <p id="session-timer" class="timer session-timer">45:00</p>
+            <p class="session-timer-caption">Remaining in your flight</p>
+          </div>
+          <div class="session-controls">
+            <button
+              id="session-pause"
+              type="button"
+              class="primary session-control-pill"
+              disabled
+              aria-disabled="true"
+            >
+              Pause
+            </button>
+            <button id="end-session" type="button" class="ghost session-control-pill session-control-pill--end">
+              End mission
+            </button>
+          </div>
+          <p class="session-pause-note">Pause isn&apos;t wired yet — use End mission to stop early.</p>
+          <p id="session-flight-minutes" class="session-flight-minutes">0 of 45 flight minutes earned</p>
+          <p class="session-flight-minutes-hint">Time in session, excluding breaks and resets.</p>
+        </article>
         <div id="session-ship-flight" class="session-ship-flight" hidden aria-hidden="true"></div>
         <div
           id="session-coach-log"
@@ -261,7 +418,6 @@
           aria-label="Coach messages"
           aria-live="polite"
         ></div>
-        <p id="session-goals" class="session-goals"></p>
         <p id="session-watch-note" class="session-watch-note"></p>
         <div id="session-vitals" class="vitals-panel" aria-live="polite">
           <p class="vitals-label">Wellness</p>
@@ -269,134 +425,245 @@
         </div>
       </section>
 
-      <section id="view-summary" class="view view-summary view-flight-log" aria-label="Flight log">
-        <header class="panel-head">
+      <section id="view-summary" class="view view-summary view-flight-log view-quest-complete" aria-label="Quest complete">
+        <header class="panel-head quest-complete-head">
           <button class="back" data-back type="button" aria-label="Back to home">←</button>
-          <p class="brand-inline">Flight log</p>
+          <p class="brand-inline">Mission Control</p>
         </header>
-        <div class="flight-log-scroll">
-          <div id="summary-celebration" class="mission-celebration" hidden>
-            <div class="mission-celebration__scene" aria-hidden="true">
-              <span class="celebration-planet"></span>
-              <span class="celebration-orbit"></span>
-              <span class="celebration-ship"></span>
-              <span class="celebration-confetti"></span>
-            </div>
-            <p id="summary-celebration-kicker" class="mission-celebration__kicker">Mission complete</p>
-            <h2 id="summary-celebration-title" class="mission-celebration__title">Flight log</h2>
-            <p id="summary-celebration-sub" class="mission-celebration__sub"></p>
+        <div class="quest-complete-stage">
+          <div class="quest-complete-decor" aria-hidden="true">
+            <img class="quest-complete-constellation" src="/src/assets/figma/constellation.svg" alt="" />
+            <img class="quest-complete-planet quest-complete-planet--left" src="/src/assets/figma/planet-ringed.svg" alt="" />
+            <img class="quest-complete-ship" src="/src/assets/figma/ship.svg" alt="" />
+            <img class="quest-complete-satellite" src="/src/assets/figma/satellite.svg" alt="" />
+            <span class="celebration-confetti quest-complete-confetti"></span>
           </div>
-          <div id="summary-ship" class="summary-ship" aria-live="polite"></div>
-          <p id="summary-closing" class="flight-log-closing"></p>
-          <div id="summary-stats" class="flight-log-stats" aria-label="Mission stats"></div>
-          <div id="summary-body" class="summary-body flight-log-details"></div>
+          <div class="flight-log-scroll quest-complete-card">
+            <div id="summary-celebration" class="mission-celebration" hidden>
+              <p id="summary-celebration-badge" class="quest-complete-badge">✓&nbsp;&nbsp;QUEST COMPLETE</p>
+              <h2 id="summary-celebration-title" class="mission-celebration__title">One mission. Well done.</h2>
+              <p id="summary-celebration-sub" class="mission-celebration__sub"></p>
+              <p id="summary-celebration-kicker" class="mission-celebration__kicker" hidden></p>
+            </div>
+            <div id="summary-ship" class="summary-ship" aria-live="polite" hidden></div>
+            <p id="summary-closing" class="flight-log-closing"></p>
+            <div id="summary-stats" class="flight-log-stats" aria-label="Mission stats"></div>
+            <div id="summary-body" class="summary-body flight-log-details"></div>
+          </div>
         </div>
-        <div class="summary-actions cta-row flight-log-actions">
-          <button type="button" class="primary wide" id="summary-lockin-again" aria-label="Relaunch mission with previous goals">Relaunch</button>
-          <button type="button" class="ghost wide" id="summary-go-home" aria-label="Return to Mission Control home">Home</button>
+        <div class="summary-actions cta-row flight-log-actions quest-complete-actions">
+          <button type="button" class="primary wide" id="summary-lockin-again" aria-label="Start another mission with previous goals">
+            Start another mission
+          </button>
+          <button type="button" class="ghost wide" id="summary-go-home" aria-label="Return to Mission Control home">Done</button>
+          <p class="quest-complete-footer muted">Mission ended · Camera, screen, and microphone capture stopped.</p>
         </div>
       </section>
 
       <section id="view-settings" class="view view-mc-settings">
-        <header class="mc-settings-head">
-          <button class="back" data-back type="button" aria-label="Back to home">←</button>
-          <div class="mc-settings-head-copy">
-            <p class="mc-kicker">Waypoint</p>
-            <h1 class="mc-settings-title">Mission Control</h1>
+        <img
+          class="settings-constellation"
+          src="/src/assets/figma/constellation.svg"
+          alt=""
+          aria-hidden="true"
+        />
+        <header class="settings-top-bar">
+          <p class="settings-brand"><span class="settings-brand-star" aria-hidden="true">✦</span> Waypoint</p>
+          <nav class="settings-nav" aria-label="Primary">
+            <button type="button" class="settings-nav-link" data-settings-nav="home">Home</button>
+            <button type="button" class="settings-nav-link" data-settings-nav="copilot">Copilot</button>
+            <button type="button" class="settings-nav-link" data-settings-nav="lockin">Lock in</button>
+          </nav>
+          <div class="settings-nav-end">
+            <span class="settings-nav-current" aria-current="page">Settings</span>
+            <span id="settings-avatar" class="settings-avatar" aria-hidden="true">—</span>
           </div>
         </header>
-        <div class="settings-tabs mc-settings-tabs" role="tablist" aria-label="Mission Control sections">
-          <button class="settings-tab active" type="button" role="tab" aria-selected="true" data-settings-tab="connection">Connection</button>
-          <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="permissions">Permissions</button>
-          <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="coaching">Coaching</button>
-          <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="account">Account</button>
-        </div>
-        <div class="settings-panels mc-settings-panels">
-          <div class="settings-panel active" id="settings-connection" role="tabpanel">
-            <article class="mc-settings-card">
-              <h2 class="settings-heading">Connection status</h2>
-              <p class="settings-copy tight">Cloud and local links Copilot and missions rely on.</p>
-              <ul id="connection-status-list" class="mc-settings-list" aria-live="polite"></ul>
-              <button id="connection-refresh" class="ghost pill" type="button">Refresh status</button>
-            </article>
-          </div>
-          <div class="settings-panel" id="settings-permissions" role="tabpanel" hidden>
-            <article class="mc-settings-card">
-              <h2 class="settings-heading">System permissions</h2>
-              <p class="settings-copy tight">
-                Grant these in <strong>System Settings → Privacy &amp; Security</strong>, then quit and reopen Waypoint.
-              </p>
-              <ul class="mc-permissions-list">
-                <li class="mc-perm-row">
-                  <div class="mc-perm-copy">
-                    <strong>Screen Recording</strong>
-                    <span>Required — reads your screen to see if you stay on mission objectives.</span>
-                  </div>
-                  <span id="perm-screen" class="mc-perm-badge" data-state="unknown">Checking…</span>
-                </li>
-                <li class="mc-perm-row">
-                  <div class="mc-perm-copy">
-                    <strong>Camera</strong>
-                    <span>Optional — webcam clips for Presage wellness and stress checks.</span>
-                  </div>
-                  <span id="perm-camera" class="mc-perm-badge" data-state="unknown">Checking…</span>
-                </li>
-                <li class="mc-perm-row">
-                  <div class="mc-perm-copy">
-                    <strong>Accessibility &amp; Automation</strong>
-                    <span>Reads frontmost app, window title, and browser tabs for instant coaching.</span>
-                  </div>
-                  <span id="perm-accessibility" class="mc-perm-badge" data-state="unknown">Checking…</span>
-                </li>
-                <li class="mc-perm-row">
-                  <div class="mc-perm-copy">
-                    <strong>Microphone</strong>
-                    <span>Optional — short clips for voice invoke tests before Grok Voice ships.</span>
-                  </div>
-                  <span id="perm-microphone" class="mc-perm-badge" data-state="optional">Grant when testing voice</span>
-                </li>
-              </ul>
-              <button id="permissions-refresh" class="ghost pill" type="button">Re-check permissions</button>
-            </article>
-          </div>
-          <div class="settings-panel" id="settings-coaching" role="tabpanel" hidden>
-            <article class="mc-settings-card">
-              <h2 class="settings-heading">Coaching</h2>
-              <p class="settings-copy tight">How gentle reminders feel during an active mission.</p>
-              <label class="settings-toggle mc-settings-toggle">
-                <input id="setting-silent-mode" type="checkbox" />
-                <span>
-                  <strong>Silent mode</strong>
-                  <small>Turns off spoken coach lines (macOS speech). Overlay popups still appear. This mutes speech output — not speech-to-text listening.</small>
-                </span>
-              </label>
-              <p id="settings-save-status" class="composer-hint" aria-live="polite"></p>
-            </article>
-            <article class="mc-settings-card mc-settings-card--sub">
-              <h3 class="mc-settings-subhead">Invoke commands</h3>
-              <p class="settings-copy tight">Quick tests for local Tauri voice hooks (same commands the coach uses).</p>
-              <div class="cta-row">
-                <button id="invoke-voice-speak" class="secondary pill" type="button">Test speak</button>
-                <button id="invoke-voice-listen" class="ghost pill" type="button">Test mic (4s)</button>
+
+        <div class="settings-page">
+          <header class="settings-intro">
+            <p class="settings-kicker"><span aria-hidden="true">✦</span> Make yourself at home</p>
+            <h1 class="settings-title">Your space, your settings.</h1>
+            <p class="settings-lead">Choose how your copilot joins you. You’re always in control.</p>
+          </header>
+
+          <div class="settings-layout">
+            <aside class="settings-aside">
+              <div class="settings-aside-actions">
+                <button type="button" class="settings-action settings-action--primary" id="settings-lock-in">
+                  Lock in
+                </button>
+                <button type="button" class="settings-action settings-action--ghost" data-back>
+                  Back to home
+                </button>
               </div>
-              <p id="invoke-voice-result" class="composer-hint" aria-live="polite"></p>
-            </article>
-          </div>
-          <div class="settings-panel" id="settings-account" role="tabpanel" hidden>
-            <article class="mc-settings-card">
-              <h2 class="settings-heading">Account</h2>
-              <p class="settings-copy tight">Waypoint sign-in and optional Google for Calendar / Drive in Copilot.</p>
-              <div class="account-block">
-                <p class="account-label">Waypoint</p>
-                <p id="account-waypoint-user" class="account-value">Not signed in</p>
+              <div class="settings-aside-art" aria-hidden="true">
+                <img class="settings-art-satellite" src="/src/assets/figma/satellite.svg" alt="" />
+                <img class="settings-art-moon" src="/src/assets/figma/moon.svg" alt="" />
               </div>
-              <div class="account-block">
-                <p class="account-label">Google (optional)</p>
-                <p id="account-google-status" class="account-value">Not connected</p>
-                <p class="settings-copy tight">Link Google for deadline context and Drive notes. Missions work without it.</p>
-                <div id="account-google-actions" class="cta-row"></div>
-              </div>
-            </article>
+            </aside>
+
+            <div class="settings-main">
+              <article class="settings-mission-card">
+                <h2 class="settings-mission-card-title">During a mission</h2>
+                <ul class="settings-toggle-list">
+                  <li class="settings-toggle-row">
+                    <div class="settings-toggle-copy">
+                      <strong>Copilot audio</strong>
+                      <span>Speak responses and, when needed, one gentle check-in.</span>
+                    </div>
+                    <label class="mc-switch">
+                      <input id="setting-copilot-audio" type="checkbox" checked />
+                      <span class="mc-switch-track" aria-hidden="true"></span>
+                      <span class="visually-hidden">Copilot audio</span>
+                    </label>
+                  </li>
+                  <li class="settings-toggle-row">
+                    <div class="settings-toggle-copy">
+                      <strong>Camera signals</strong>
+                      <span>Optional. Camera cues can suggest a gentle check-in.</span>
+                    </div>
+                    <label class="mc-switch">
+                      <input id="setting-camera-signals" type="checkbox" checked />
+                      <span class="mc-switch-track" aria-hidden="true"></span>
+                      <span class="visually-hidden">Camera signals</span>
+                    </label>
+                  </li>
+                  <li class="settings-toggle-row">
+                    <div class="settings-toggle-copy">
+                      <strong>Screen sharing</strong>
+                      <span>Optional. Check visible activity against your stated objective.</span>
+                    </div>
+                    <label class="mc-switch">
+                      <input id="setting-screen-sharing" type="checkbox" checked />
+                      <span class="mc-switch-track" aria-hidden="true"></span>
+                      <span class="visually-hidden">Screen sharing</span>
+                    </label>
+                  </li>
+                  <li class="settings-toggle-row">
+                    <div class="settings-toggle-copy">
+                      <strong>Reduce motion</strong>
+                      <span>Keep the ship still and show progress through the route and timer.</span>
+                    </div>
+                    <label class="mc-switch">
+                      <input id="setting-reduce-motion" type="checkbox" checked />
+                      <span class="mc-switch-track" aria-hidden="true"></span>
+                      <span class="visually-hidden">Reduce motion</span>
+                    </label>
+                  </li>
+                </ul>
+                <p class="settings-mission-foot">
+                  Camera and screen sharing start off for every new mission.<br />
+                  You can stop either input instantly from the session’s top bar.
+                </p>
+                <p id="settings-save-status" class="settings-save-hint" aria-live="polite"></p>
+                <input id="setting-silent-mode" type="checkbox" hidden aria-hidden="true" tabindex="-1" />
+              </article>
+
+              <section class="settings-privacy" aria-labelledby="settings-privacy-title">
+                <h2 id="settings-privacy-title" class="settings-privacy-title">Your session, not a recording.</h2>
+                <p class="settings-privacy-copy">
+                  Only session events and summaries are saved. No raw video, screenshots, or audio.
+                </p>
+              </section>
+
+              <details class="settings-advanced">
+                <summary>Mission Control &amp; permissions</summary>
+                <div class="settings-tabs mc-settings-tabs" role="tablist" aria-label="Mission Control sections">
+                  <button class="settings-tab active" type="button" role="tab" aria-selected="true" data-settings-tab="connection">
+                    Connection
+                  </button>
+                  <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="permissions">
+                    Permissions
+                  </button>
+                  <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="coaching">
+                    Voice tests
+                  </button>
+                  <button class="settings-tab" type="button" role="tab" aria-selected="false" data-settings-tab="account">
+                    Account
+                  </button>
+                </div>
+                <div class="settings-panels mc-settings-panels">
+                  <div class="settings-panel active" id="settings-connection" role="tabpanel">
+                    <article class="mc-settings-card">
+                      <h2 class="settings-heading">Connection status</h2>
+                      <p class="settings-copy tight">Cloud and local links Copilot and missions rely on.</p>
+                      <ul id="connection-status-list" class="mc-settings-list" aria-live="polite"></ul>
+                      <button id="connection-refresh" class="ghost pill" type="button">Refresh status</button>
+                    </article>
+                  </div>
+                  <div class="settings-panel" id="settings-permissions" role="tabpanel" hidden>
+                    <article class="mc-settings-card">
+                      <h2 class="settings-heading">System permissions</h2>
+                      <p class="settings-copy tight">
+                        Grant these in <strong>System Settings → Privacy &amp; Security</strong>, then quit and reopen
+                        Waypoint.
+                      </p>
+                      <ul class="mc-permissions-list">
+                        <li class="mc-perm-row">
+                          <div class="mc-perm-copy">
+                            <strong>Screen Recording</strong>
+                            <span>Required — reads your screen to see if you stay on mission objectives.</span>
+                          </div>
+                          <span id="perm-screen" class="mc-perm-badge" data-state="unknown">Checking…</span>
+                        </li>
+                        <li class="mc-perm-row">
+                          <div class="mc-perm-copy">
+                            <strong>Camera</strong>
+                            <span>Optional — webcam clips for Presage wellness and stress checks.</span>
+                          </div>
+                          <span id="perm-camera" class="mc-perm-badge" data-state="unknown">Checking…</span>
+                        </li>
+                        <li class="mc-perm-row">
+                          <div class="mc-perm-copy">
+                            <strong>Accessibility &amp; Automation</strong>
+                            <span>Reads frontmost app, window title, and browser tabs for instant coaching.</span>
+                          </div>
+                          <span id="perm-accessibility" class="mc-perm-badge" data-state="unknown">Checking…</span>
+                        </li>
+                        <li class="mc-perm-row">
+                          <div class="mc-perm-copy">
+                            <strong>Microphone</strong>
+                            <span>Optional — short clips for voice invoke tests before Grok Voice ships.</span>
+                          </div>
+                          <span id="perm-microphone" class="mc-perm-badge" data-state="optional">Grant when testing voice</span>
+                        </li>
+                      </ul>
+                      <button id="permissions-refresh" class="ghost pill" type="button">Re-check permissions</button>
+                    </article>
+                  </div>
+                  <div class="settings-panel" id="settings-coaching" role="tabpanel" hidden>
+                    <article class="mc-settings-card mc-settings-card--sub">
+                      <h3 class="mc-settings-subhead">Invoke commands</h3>
+                      <p class="settings-copy tight">Quick tests for local Tauri voice hooks (same commands the coach uses).</p>
+                      <div class="cta-row">
+                        <button id="invoke-voice-speak" class="secondary pill" type="button">Test speak</button>
+                        <button id="invoke-voice-listen" class="ghost pill" type="button">Test mic (4s)</button>
+                      </div>
+                      <p id="invoke-voice-result" class="composer-hint" aria-live="polite"></p>
+                    </article>
+                  </div>
+                  <div class="settings-panel" id="settings-account" role="tabpanel" hidden>
+                    <article class="mc-settings-card">
+                      <h2 class="settings-heading">Account</h2>
+                      <p class="settings-copy tight">Waypoint sign-in and optional Google for Calendar / Drive in Copilot.</p>
+                      <div class="account-block">
+                        <p class="account-label">Waypoint</p>
+                        <p id="account-waypoint-user" class="account-value">Not signed in</p>
+                      </div>
+                      <div class="account-block">
+                        <p class="account-label">Google (optional)</p>
+                        <p id="account-google-status" class="account-value">Not connected</p>
+                        <p class="settings-copy tight">
+                          Link Google for deadline context and Drive notes. Missions work without it.
+                        </p>
+                        <div id="account-google-actions" class="cta-row"></div>
+                      </div>
+                    </article>
+                  </div>
+                </div>
+              </details>
+            </div>
           </div>
         </div>
       </section>

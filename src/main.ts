@@ -7,7 +7,9 @@ import {
   initShipUI,
   onMissionCompleted,
   onMissionStarted,
+  readShipProgress,
   refreshAllShipViews,
+  refreshHomePersonalBest,
   refreshSessionFlight,
   updateSessionFlight,
 } from "./ship.ts";
@@ -75,6 +77,8 @@ interface LockInSession {
   camera_ready?: boolean;
   presage_ready?: boolean;
   watching_note?: string;
+  on_task_ticks?: number;
+  total_ticks?: number;
 }
 
 interface CoachPrompt {
@@ -103,7 +107,7 @@ let lastSummaryGoals = "";
 
 const LAUNCH_CELEBRATION_MS = 2200;
 
-function updateSummaryCelebration(firstFlight: boolean): void {
+function updateSummaryCelebration(summary: SessionSummary, firstFlight: boolean): void {
   const block = $("#summary-celebration");
   if (!block) return;
   block.hidden = false;
@@ -117,26 +121,28 @@ function updateSummaryCelebration(firstFlight: boolean): void {
     firstFlight ? "mission-celebration--first-flight" : "mission-celebration--quest",
     "mission-celebration--enter",
   );
-  const kicker = $("#summary-celebration-kicker");
+  const badge = $("#summary-celebration-badge");
   const title = $("#summary-celebration-title");
   const sub = $("#summary-celebration-sub");
-  if (kicker) kicker.textContent = "Mission complete";
+  const goalLine = summary.goals.trim().split("\n")[0]?.trim() || summary.goals.trim();
   if (firstFlight) {
-    if (title) title.textContent = "First flight";
+    if (badge) badge.textContent = "✦  FIRST FLIGHT";
+    if (title) title.textContent = "Every journey starts somewhere.";
     if (sub) {
       sub.textContent =
-        "You completed your first mission. Your flight log starts here — ready for the next orbit?";
+        goalLine || "Complete your first flight to set a personal best.";
     }
   } else {
-    if (title) title.textContent = "Flight log";
-    if (sub) sub.textContent = "Mission ended — your debrief and stats are below.";
+    if (badge) badge.textContent = "✓  QUEST COMPLETE";
+    if (title) title.textContent = "One mission. Well done.";
+    if (sub) sub.textContent = goalLine || "Mission ended — your debrief is below.";
   }
 }
 
 function showSummaryWithCelebration(summary: SessionSummary): void {
   const firstFlight = onMissionCompleted(summary, summary.duration_secs);
   renderSummary(summary);
-  updateSummaryCelebration(firstFlight);
+  updateSummaryCelebration(summary, firstFlight);
   show("view-summary");
 }
 
@@ -156,27 +162,16 @@ function playLaunchCelebration(then: () => void): void {
     then();
   }, LAUNCH_CELEBRATION_MS);
 }
-let welcomeSignInOpen = false;
-
 const START_HERE_KEY = "waypoint-start-here-dismissed";
 
-const DEMO_HOME_GOALS = [
-  {
-    title: "Finish Calc PSet 3",
-    meta: "2 missions left · due Wed",
-    planet: "lavender" as const,
-  },
-  {
-    title: "Draft history essay outline",
-    meta: "1 mission planned · due Fri",
-    planet: "teal" as const,
-  },
-  {
-    title: "Review orgo lab prep",
-    meta: "Not scheduled yet",
-    planet: "amber" as const,
-  },
-];
+function navInitials(username?: string | null): string {
+  const who = username?.trim() || "You";
+  const parts = who.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+  }
+  return who.slice(0, 2).toUpperCase();
+}
 
 function show(view: ViewId) {
   document.querySelectorAll(".view").forEach((el) => el.classList.remove("active"));
@@ -229,7 +224,7 @@ function restoreLockinFromLastSession() {
 }
 
 function missionLaunchLabel(loading: boolean) {
-  return loading ? "Launching…" : "Launch mission";
+  return loading ? "Launching…" : "Launch mission ↗";
 }
 
 function setMissionLaunchButton(loading: boolean) {
@@ -242,7 +237,7 @@ function setMissionLaunchButton(loading: boolean) {
 function syncStartHerePanel(signedIn: boolean) {
   const panel = $("#start-here");
   if (!panel) return;
-  if (signedIn || welcomeSignInOpen) {
+  if (signedIn) {
     panel.hidden = true;
     return;
   }
@@ -253,178 +248,168 @@ function syncStartHerePanel(signedIn: boolean) {
   }
 }
 
-function mountSignInForm(host: HTMLElement) {
-  const form = document.createElement("form");
-  form.className = "signin-box";
-  form.innerHTML = `
-    <button type="button" class="ghost signin-back" id="wp-signin-back">← Welcome</button>
-    <p class="signin-title">Log in to Mission Control</p>
-    <p class="signin-sub">Placeholder login — any username and password works for now.</p>
-    <label>
-      Username or email
-      <input id="wp-username" name="username" type="text" autocomplete="username" required placeholder="you@school.edu" />
-    </label>
-    <label>
-      Password
-      <input id="wp-password" name="password" type="password" autocomplete="current-password" placeholder="anything" />
-    </label>
-    <p class="signin-error" id="wp-signin-error" hidden></p>
-    <button class="primary wide pill" type="submit">Sign in</button>
-  `;
-  form.querySelector("#wp-signin-back")?.addEventListener("click", () => {
-    welcomeSignInOpen = false;
-    void refreshStatus();
-  });
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const username = (form.querySelector("#wp-username") as HTMLInputElement | null)?.value ?? "";
-    const password = (form.querySelector("#wp-password") as HTMLInputElement | null)?.value ?? "";
-    const err = form.querySelector("#wp-signin-error") as HTMLElement | null;
-    const btn = form.querySelector("button[type=submit]") as HTMLButtonElement | null;
+async function submitWelcomeSignIn(username: string, password: string) {
+  const form = $("#welcome-signin-form");
+  const err = $("#wp-signin-error");
+  const btn = form?.querySelector("button[type=submit]") as HTMLButtonElement | null;
+  if (err) {
+    err.hidden = true;
+    err.textContent = "";
+  }
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Signing in…";
+  }
+  try {
+    await invoke("sign_in_waypoint", { username, password });
+    await refreshStatus();
+  } catch (e) {
     if (err) {
-      err.hidden = true;
-      err.textContent = "";
+      err.hidden = false;
+      err.textContent = String(e);
+    } else {
+      alert(String(e));
     }
     if (btn) {
-      btn.disabled = true;
-      btn.textContent = "Signing in…";
+      btn.disabled = false;
+      btn.textContent = "Sign in →";
     }
-    try {
-      await invoke("sign_in_waypoint", { username, password });
-      welcomeSignInOpen = false;
-      await refreshStatus();
-    } catch (e) {
-      if (err) {
-        err.hidden = false;
-        err.textContent = String(e);
-      } else {
-        alert(String(e));
-      }
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = "Sign in";
-      }
-    }
-  });
-  host.appendChild(form);
-  (form.querySelector("#wp-username") as HTMLInputElement | null)?.focus();
-}
-
-function openWelcomeSignIn() {
-  welcomeSignInOpen = true;
-  void refreshStatus();
-}
-
-function renderHomeGoals() {
-  const list = $("#home-goals");
-  const count = $("#home-goal-count");
-  if (!list) return;
-  const goals = DEMO_HOME_GOALS.map((g) => ({ ...g }));
-  if (lastSummaryGoals.trim()) {
-    const line = lastSummaryGoals.trim().split("\n")[0]?.trim() || lastSummaryGoals.trim();
-    goals[0] = { ...goals[0], title: line, meta: "From your last mission" };
   }
-  list.innerHTML = goals.map(
-    (goal) => `
-    <li class="mc-goal-card">
-      <span class="mc-goal-planet mc-goal-planet--${goal.planet}" aria-hidden="true"></span>
-      <div class="mc-goal-body">
-        <p class="mc-goal-title">${escapeHtml(goal.title)}</p>
-        <p class="mc-goal-meta">${escapeHtml(goal.meta)}</p>
-      </div>
-    </li>`,
-  ).join("");
-  if (count) count.textContent = String(goals.length);
+}
+
+function wireWelcomeSignIn() {
+  const form = $("#welcome-signin-form");
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const username = ($("#wp-username") as HTMLInputElement | null)?.value ?? "";
+    const password = ($("#wp-password") as HTMLInputElement | null)?.value ?? "";
+    void submitWelcomeSignIn(username, password);
+  });
+  $("#welcome-continue-guest")?.addEventListener("click", () => {
+    void submitWelcomeSignIn("Guest", "");
+  });
+}
+
+function renderGuestNav() {
+  const brand = $("#home-nav-brand");
+  const nav = $("#home-nav-actions");
+  const center = $("#home-nav-center");
+  const header = document.querySelector(".welcome-nav");
+  header?.classList.add("welcome-nav--guest");
+  header?.classList.remove("welcome-nav--signed-in");
+  center?.toggleAttribute("hidden", true);
+  if (brand) {
+    brand.innerHTML = '<span class="welcome-brand-star" aria-hidden="true">✦</span> Waypoint';
+  }
+  if (nav) {
+    nav.innerHTML = "";
+    const tag = document.createElement("span");
+    tag.className = "welcome-nav-tag";
+    tag.textContent = "Your space to make progress";
+    nav.appendChild(tag);
+  }
 }
 
 function renderHomeNav(status: StatusPayload) {
   const nav = $("#home-nav-actions");
+  const center = $("#home-nav-center");
+  const brand = $("#home-nav-brand");
+  const header = document.querySelector(".welcome-nav");
   if (!nav) return;
   nav.innerHTML = "";
+  if (center) {
+    center.innerHTML = "";
+    center.toggleAttribute("hidden", !status.signed_in);
+  }
+  header?.classList.toggle("welcome-nav--signed-in", status.signed_in);
+  header?.classList.remove("welcome-nav--guest");
   if (!status.signed_in) return;
 
-  const who = status.username?.trim();
-  if (who) {
-    const label = document.createElement("span");
-    label.className = "mc-nav-user";
-    label.textContent = who;
-    nav.appendChild(label);
+  if (brand) {
+    brand.innerHTML = '<span class="mc-nav-star" aria-hidden="true">✦</span> Waypoint';
   }
 
-  const copilot = document.createElement("button");
-  copilot.className = "ghost pill";
-  copilot.type = "button";
-  copilot.textContent = "Copilot";
-  copilot.addEventListener("click", () => show("view-chat"));
+  const links: { label: string; view: ViewId; active?: boolean }[] = [
+    { label: "Home", view: "view-home", active: true },
+    { label: "Copilot", view: "view-chat" },
+    { label: "Lock in", view: "view-lockin" },
+  ];
+  for (const link of links) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = link.active ? "mc-nav-link mc-nav-link--active" : "mc-nav-link";
+    btn.textContent = link.label;
+    btn.addEventListener("click", () => show(link.view));
+    center?.appendChild(btn);
+  }
 
   const settings = document.createElement("button");
-  settings.className = "ghost pill";
   settings.type = "button";
-  settings.textContent = "Mission Control";
+  settings.className = "mc-nav-link";
+  settings.textContent = "Settings";
   settings.addEventListener("click", () => {
     void openSettings();
   });
 
-  nav.append(copilot, settings);
+  const avatar = document.createElement("span");
+  avatar.className = "mc-nav-avatar";
+  avatar.setAttribute("aria-hidden", "true");
+  avatar.textContent = navInitials(status.username);
+
+  nav.append(settings, avatar);
 }
 
 function renderHome(status: StatusPayload) {
   const home = $("#view-home");
   home?.classList.toggle("view-home--signed-in", status.signed_in);
+  home?.classList.toggle("view-home--guest", !status.signed_in);
 
   $("#home-guest")?.toggleAttribute("hidden", status.signed_in);
-  $("#home-dashboard")?.toggleAttribute("hidden", !status.signed_in);
+
+  if (!status.signed_in) {
+    $("#home-first-flight")?.toggleAttribute("hidden", true);
+    $("#home-dashboard")?.toggleAttribute("hidden", true);
+    renderGuestNav();
+    syncStartHerePanel(status.signed_in);
+    return;
+  }
+
+  const showFirstFlightHome = readShipProgress().completedMissions === 0;
+  $("#home-first-flight")?.toggleAttribute("hidden", !showFirstFlightHome);
+  $("#home-dashboard")?.toggleAttribute("hidden", showFirstFlightHome);
 
   renderHomeNav(status);
   syncStartHerePanel(status.signed_in);
 
-  if (!status.signed_in) {
-    const host = $("#home-guest-cta");
-    if (!host) return;
-    host.innerHTML = "";
-    host.classList.toggle("mc-guest-cta--signin", welcomeSignInOpen);
-
-    if (welcomeSignInOpen) {
-      mountSignInForm(host);
-      return;
-    }
-
-    const enter = document.createElement("button");
-    enter.className = "primary pill";
-    enter.type = "button";
-    enter.textContent = "Enter Mission Control";
-    enter.addEventListener("click", openWelcomeSignIn);
-
-    const login = document.createElement("button");
-    login.className = "secondary pill";
-    login.type = "button";
-    login.textContent = "Log in";
-    login.addEventListener("click", openWelcomeSignIn);
-
-    host.append(enter, login);
+  if (showFirstFlightHome) {
+    refreshAllShipViews();
     return;
   }
 
-  welcomeSignInOpen = false;
-  renderHomeGoals();
+  refreshHomePersonalBest();
 
   const host = $("#home-cta");
-  if (!host) return;
-  host.innerHTML = "";
+  if (host) {
+    host.innerHTML = "";
+    const lockIn = document.createElement("button");
+    lockIn.className = "mc-home-btn-primary";
+    lockIn.type = "button";
+    lockIn.textContent = "Let's lock in →";
+    lockIn.addEventListener("click", () => show("view-lockin"));
+    host.appendChild(lockIn);
+  }
 
-  const start = document.createElement("button");
-  start.className = "primary wide pill";
-  start.type = "button";
-  start.textContent = "Start mission";
-  start.addEventListener("click", () => show("view-lockin"));
+  const copilotHost = $("#home-copilot-cta");
+  if (copilotHost) {
+    copilotHost.innerHTML = "";
+    const copilot = document.createElement("button");
+    copilot.className = "mc-home-btn-secondary";
+    copilot.type = "button";
+    copilot.textContent = "Open copilot →";
+    copilot.addEventListener("click", () => show("view-chat"));
+    copilotHost.appendChild(copilot);
+  }
 
-  const copilot = document.createElement("button");
-  copilot.className = "secondary wide pill";
-  copilot.type = "button";
-  copilot.textContent = "Open Copilot";
-  copilot.addEventListener("click", () => show("view-chat"));
-
-  host.append(start, copilot);
   refreshAllShipViews();
 }
 
@@ -756,8 +741,27 @@ function updateSessionOrbit(endsAt: string, durationSecs: number) {
   }
   const shipWrap = $("#session-orbit-ship-wrap");
   if (shipWrap) {
-    shipWrap.style.setProperty("--orbit-deg", `${frac * 360 - 90}deg`);
+    shipWrap.style.setProperty("--flight-pct", String(frac));
   }
+}
+
+let currentOnTaskTicks = 0;
+let currentTotalTicks = 0;
+
+function flightMinutesEarned(endsAt: string, durationSecs: number, onTask: number, total: number): number {
+  const totalMins = Math.max(1, Math.round(durationSecs / 60));
+  const remaining = Math.max(0, new Date(endsAt).getTime() - Date.now()) / 1000;
+  const elapsedMins = Math.max(0, durationSecs - remaining) / 60;
+  const ratio = total > 0 ? onTask / total : 0;
+  return Math.min(totalMins, Math.floor(elapsedMins * ratio));
+}
+
+function updateFlightMinutesLine(endsAt: string, durationSecs: number) {
+  const el = $("#session-flight-minutes");
+  if (!el) return;
+  const totalMins = Math.max(1, Math.round(durationSecs / 60));
+  const earned = flightMinutesEarned(endsAt, durationSecs, currentOnTaskTicks, currentTotalTicks);
+  el.textContent = `${earned} of ${totalMins} flight minutes earned`;
 }
 
 function applySessionOrbitState(label: string) {
@@ -807,6 +811,8 @@ function renderSessionCoachLog(prompts: CoachPrompt[]) {
 
 function renderSession(session: LockInSession) {
   currentSessionDurationSecs = session.duration_secs;
+  currentOnTaskTicks = session.on_task_ticks ?? 0;
+  currentTotalTicks = session.total_ticks ?? 0;
   const timer = $("#session-timer");
   const status = $("#session-status");
   const goals = $("#session-goals");
@@ -815,10 +821,13 @@ function renderSession(session: LockInSession) {
   if (status) {
     const label = statusLabel(session.status);
     status.textContent = label.replace(/_/g, " ");
-    status.className = `status-chip session-status ${label}`;
+    status.className = `status-chip session-status session-status--inline ${label}`;
     applySessionOrbitState(label);
   }
-  if (goals) goals.textContent = session.goals;
+  if (goals) {
+    goals.textContent = session.goals ? `Current mission: ${session.goals}` : "";
+    goals.hidden = !session.goals;
+  }
   if (note) note.textContent = session.watching_note || "Watching your screen";
   renderVitals(session.vitals);
   renderSessionCoachLog(session.prompts);
@@ -826,6 +835,7 @@ function renderSession(session: LockInSession) {
   refreshSessionFlight();
   updateSessionOrbit(session.ends_at, session.duration_secs);
   updateSessionFlight(session.ends_at, session.duration_secs);
+  updateFlightMinutesLine(session.ends_at, session.duration_secs);
   void syncSessionMuteButton();
 }
 
@@ -1001,6 +1011,7 @@ function startTimer(endsAt: string) {
     if (currentSessionDurationSecs > 0) {
       updateSessionOrbit(currentEndsAt, currentSessionDurationSecs);
       updateSessionFlight(currentEndsAt, currentSessionDurationSecs);
+      updateFlightMinutesLine(currentEndsAt, currentSessionDurationSecs);
     }
     if (ms <= 0) {
       const statusEl = $("#session-status");
@@ -1055,6 +1066,8 @@ async function refreshStatus() {
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
+  wireWelcomeSignIn();
+
   document.querySelectorAll("[data-back]").forEach((btn) => {
     btn.addEventListener("click", () => show("view-home"));
   });
@@ -1147,14 +1160,14 @@ window.addEventListener("DOMContentLoaded", async () => {
       errEl.hidden = true;
       errEl.textContent = "";
     }
-    let duration = Math.min(180, Math.max(1, parsedDuration || 45));
+    let duration = Math.min(180, Math.max(1, parsedDuration || 25));
     let durationAdjusted = false;
     if (rawDuration === "" || Number.isNaN(parsedDuration)) {
-      duration = 45;
+      duration = 25;
       durationAdjusted = true;
       if (errEl) {
         errEl.hidden = false;
-        errEl.textContent = "Enter 1–180 minutes; using 45.";
+        errEl.textContent = "Enter 1–180 minutes; using 25.";
       }
     } else if (parsedDuration < 1 || parsedDuration > 180) {
       durationAdjusted = true;
