@@ -1775,7 +1775,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Set `#copilot-start-mission` / `.copilot-sidebar-cta` to `align-self:
     stretch` / `width: 100%`; keep `show("view-lockin")` wiring.
 - escalate: scrutinous
-- commit: PENDING
+- commit: b1c106a
 - change: |
     `.copilot-sidebar-cta` now `align-self: stretch` + `width: 100%`
     (full sidebar row); `#copilot-start-mission` → `show("view-lockin")`
@@ -1797,7 +1797,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Set Copilot (and optionally session) input-wrap fill to page lavender
     `#f7f2ff` / `--mc-bg-page`; keep Mic/Send/listening wiring.
 - escalate: scrutinous
-- commit: PENDING
+- commit: b1c106a
 - change: |
     `.view-copilot` / session `.copilot-input-wrap` fill `#f7f2ff`, border
     `#c8bfd7`, 16px radius; Mic/Send/listening wiring unchanged.
