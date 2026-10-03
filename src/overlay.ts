@@ -39,6 +39,11 @@ function showPrompt(prompt: CoachPrompt) {
   // Replace in place — never stack multiple toasts.
   if (hideTimer) window.clearTimeout(hideTimer);
   line.textContent = prompt.text;
+  if (prompt.kind) {
+    root.dataset.kind = prompt.kind;
+  } else {
+    delete root.dataset.kind;
+  }
   root.hidden = false;
   root.classList.remove("leaving");
   root.style.animation = "none";
