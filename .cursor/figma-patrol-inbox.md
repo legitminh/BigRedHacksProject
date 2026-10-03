@@ -538,7 +538,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - fix_hint: |
     If a next-step timer is active with remaining time, show an MC-styled modal matching Figma 15 before calling `startNextStepTimer(300)`; Keep current dismisses.
 - escalate: none
-- commit: PENDING
+- commit: 62f7171
 - change: |
     Suggest chip opens `#timer-replace-modal` when a next-step timer is
     already active; Keep current dismisses; Replace timer restarts 05:00.
@@ -1411,7 +1411,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     In the MC modal for `fp-timer-replace-modal`, set body from live `6:1566`
     template using current `#session-next-step-timer` value.
 - escalate: scrutinous
-- commit: PENDING
+- commit: 62f7171
 - change: |
     `#timer-replace-modal-body` interpolates live remaining as m:ss
     (“Your current timer has {m:ss} left. Replace it with a new five-minute
@@ -1788,7 +1788,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When showing the replace modal, leave next-step + suggest mounted;
     do not toggle `is-session-ending` / break / check-in hide classes.
 - escalate: scrutinous
-- commit: PENDING
+- commit: 62f7171
 - change: |
     `openTimerReplaceModal` does not toggle `is-session-ending` / break /
     check-in; `#session-next-step` + suggest stay visible under scrim.
@@ -1884,7 +1884,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When building the replace modal, style Keep current lavender secondary
     (dismiss) and Replace timer filled primary → `startNextStepTimer(300)`.
 - escalate: scrutinous
-- commit: PENDING
+- commit: 62f7171
 - change: |
     LEFT Keep current = lavender secondary dismiss; RIGHT Replace timer =
     filled primary → `startNextStepTimer(300)`.
@@ -2367,7 +2367,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     “…five-minute timer? Your mission timer keeps running.” Ignore the
     no-timer guidance on the sibling opens.
 - escalate: scrutinous
-- commit: PENDING
+- commit: 62f7171
 - change: |
     Body closer uses verbatim “Your mission timer keeps running.” (timer
     word included per live `6:1566`).
@@ -2448,7 +2448,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Set welcome inputs to `#f7f2ff` / `#c8bfd7` / 12px radius + min-height
     64px; keep Sign in → / guest path per sibling opens.
 - escalate: scrutinous
-- commit: PENDING
+- commit: 62f7171
 - change: |
     `.welcome-signin-card input` → fill `#f7f2ff`, border `#c8bfd7`,
     radius 12px, min-height 64px (Google-only form; tokens ready for fields).
@@ -2470,7 +2470,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When building the replace modal, use `#fffbff` / `#c8bfd7` / 28px /
     32px pad; Keep current tonal + Replace timer filled per CTA open.
 - escalate: scrutinous
-- commit: PENDING
+- commit: 62f7171
 - change: |
     `.mc-perm-modal__card--timer-replace` uses `#fffbff` / `#c8bfd7` /
     28px radius / 32px pad / 22px gap / max-width 580px.
