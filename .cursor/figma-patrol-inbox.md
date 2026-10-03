@@ -3375,3 +3375,111 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     your camera. Camera signals may inform a gentle check-in; they never
     prove you’re distracted.” Title “Allow camera signals?” + foot
     “Nothing is recorded…” + Not now · Continue unchanged.
+
+## open: fp-permission-handoff-title-live
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  title `7:418` · crop `_verify/tick26-handoff-modal-crop.png`
+- expected: |
+    Tick26 live modal (`7:415` / crop): title text `7:418` is **“Share an
+    optional input?”** (Medium). Badge stays uppercase “PERMISSION HANDOFF”.
+    Visible string matches frame name again — camera-only title is gone.
+- actual: |
+    After `af0dc1d` / verified camera-copy: `#permission-handoff-title` is
+    still “Allow camera signals?”; badge sentence-case “Permission handoff”.
+- deviation: |
+    Tick26 live Figma moved handoff title back to generic Share-an-optional-
+    input. Distinct from done camera-copy / body-browser-copy (tick25);
+    spot-check handoff regression.
+- fix_hint: |
+    Set handoff title to “Share an optional input?”; badge “PERMISSION
+    HANDOFF”. Keep Not now · Continue wiring. Preserve Settings five-tab;
+    do not block Launch.
+- escalate: scrutinous
+
+## open: fp-permission-handoff-body-live
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  body `7:419` · crop `_verify/tick26-handoff-modal-crop.png`
+- expected: |
+    Tick26 live body (`7:419`): “Your browser will ask for camera or screen
+    access. You can decline and still launch.” — generic camera/screen,
+    not the tick25 camera-signals / distracted sentence.
+- actual: |
+    `af0dc1d` body still: “Your browser asks to use your camera. Camera
+    signals may inform a gentle check-in; they never prove you’re
+    distracted.”
+- deviation: |
+    Tick26 — handoff body vs live `7:419`. Supersedes tick25
+    `fp-permission-handoff-body-browser-copy` expected string; live source
+    of truth changed. Distinct from title-live / foot-live.
+- fix_hint: |
+    Replace handoff body with live `7:419` verbatim; keep Continue
+    → permission request. Preserve Settings five-tab; do not block Launch.
+- escalate: scrutinous
+
+## open: fp-permission-handoff-foot-live
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  foot `7:427` · crop `_verify/tick26-handoff-modal-crop.png`
+- expected: |
+    Tick26 live foot (`7:427`): “Design reference: the next step is the
+    browser’s native permission UI.” — not the “Nothing is recorded…”
+    mission-controls sentence from tick25 camera crop.
+- actual: |
+    `#permission-handoff` foot still: “Nothing is recorded. You can turn
+    this input off at any time from your mission controls.”
+- deviation: |
+    Tick26 — handoff foot vs live `7:427`. Complements title-live /
+    body-live; spot-check handoff regression after `af0dc1d`.
+- fix_hint: |
+    Set foot to live `7:427` Design-reference sentence; keep modal
+    pad/gap + CTAs. Preserve Settings five-tab; do not block Launch.
+- escalate: scrutinous
+
+## open: fp-copilot-conversation-stack-gap
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  Conversation `5:232` · intro `5:234` · card `5:235` · chips `5:240`
+- expected: |
+    Live Conversation stack: title→sub already 22px (`b0e40e8`); then
+    sub→empty card (`5:234`→`5:235`) **22px** and card→chips
+    (`5:235`→`5:240`) **22px** (119−75−22=22; 258−119−117=22). Chips→
+    composer 125px stays on `d63cd52`.
+- actual: |
+    Copilot priority tick26: `d63cd52` chips→composer + foot pin OK;
+    `b0e40e8` title/intro OK; `c00ab73` Mic/hint/foot copy OK. But
+    `.copilot-main` uses `gap: 1.25rem` (20px) between intro / panel /
+    chips — 2px tight vs live 22px rhythm above composer.
+- deviation: |
+    Tick26 Copilot priority — conversation column gaps vs live `5:232`.
+    Distinct from intro-gap (title↔sub only) + composer-vertical-gap
+    (chips→composer) + responses-foot-placement.
+- fix_hint: |
+    Set `.copilot-main` gap (or intro→panel / panel→chips) to 22px; keep
+    composer margin-top 6.5625rem + Mic/Send wiring. Preserve
+    silent_mode true + `#app` padding 0.
+- escalate: scrutinous
+
+## open: fp-connection-lost-history-stack-gap
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  panel `6:1707` · header `6:1708` · presence `6:1711` · Latest `6:1719`
+- expected: |
+    Live lost panel above Latest uses **20px** gaps end-to-end: header
+    `6:1708` (y=25) → Reconnecting `6:1711` (y=80) → divider (y=131) →
+    AT LAUNCH (y=152) → mission body (y=186) → divider (y=248) → YOU
+    (y=269) → user turn (y=303) → Latest (y=345). Same 20px language as
+    Latest→Retry→composer (`fp-connection-lost-panel-stack-gap`).
+- actual: |
+    Opens lock panel height / Latest→Retry→composer / chrome-keep — not
+    history column rhythm before Latest. App has no lost UI; risk: reuse
+    denser session chat gaps (~12–14px) when mounting reconnect history.
+- deviation: |
+    Tick26 — lost history stack gap vs live `6:1707` above Latest.
+    Distinct from panel-stack-gap (Latest→Retry→composer only) +
+    panel-height / latest-type; under-covered `2:48`.
+- fix_hint: |
+    When mounting lost history, use 20px vertical gaps header→Latest;
+    keep Reconnecting pill + Mic composer. Preserve Pause/End.
+- escalate: scrutinous
