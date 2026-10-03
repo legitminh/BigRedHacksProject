@@ -315,7 +315,11 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                     last_fingerprint = fp.clone();
 
                     // 1) Instant keyword guess for obvious study vs entertainment.
-                    let heuristic = frontmost::local_context_guess(kind, &page_text, &goals);
+                    //    YouTube/video must never idle on "Checking…" — unclear = off-task.
+                    let mut heuristic = frontmost::local_context_guess(kind, &page_text, &goals);
+                    if heuristic.is_none() && matches!(kind, "youtube" | "video") {
+                        heuristic = Some(false);
+                    }
                     if let Some(on_task) = heuristic {
                         if on_task {
                             if was_distracted && switched {
@@ -357,36 +361,62 @@ async fn run_local_watch_loop(app: AppHandle, session_id: String, stop: Arc<Atom
                         }
                     }
 
-                    // 2) Ambiguous (or confirm) via local quantized model, then Gemini text.
-                    //    Skip cloud when heuristics already decided.
+                    // 2) Ambiguous via local model → Gemini text. Retry if a prior attempt failed.
                     if heuristic.is_none()
-                        && switched
                         && fp != last_judged_fingerprint
                         && context_judgments < MAX_CONTEXT_JUDGMENTS_PER_SESSION
                     {
-                        last_judged_fingerprint = fp;
                         context_judgments = context_judgments.saturating_add(1);
-                        let judged = judge_context_cascade(
-                            &app,
-                            &goals,
-                            kind,
-                            &info,
-                            &page_text,
-                            &mut last_vitals,
+                        let judged = tokio::time::timeout(
+                            Duration::from_secs(12),
+                            judge_context_cascade(
+                                &app,
+                                &goals,
+                                kind,
+                                &info,
+                                &page_text,
+                                &mut last_vitals,
+                            ),
                         )
                         .await;
-                        if let Some(on_task) = judged {
-                            if on_task {
-                                if was_distracted {
-                                    was_distracted = false;
-                                    push_ephemeral(
-                                        &app,
-                                        "Nice — this fits your lock-in. Keep going.",
-                                        "encourage",
-                                    );
+                        match judged {
+                            Ok(Some(on_task)) => {
+                                last_judged_fingerprint = fp;
+                                if on_task {
+                                    if was_distracted {
+                                        was_distracted = false;
+                                        push_ephemeral(
+                                            &app,
+                                            "Nice — this fits your lock-in. Keep going.",
+                                            "encourage",
+                                        );
+                                    }
+                                } else {
+                                    was_distracted = true;
                                 }
-                            } else {
+                            }
+                            Ok(None) | Err(_) => {
+                                // Don't pin fingerprint on failure — allow retry next tick.
+                                tracing::warn!(
+                                    "context judge failed/timed out for {kind} — treating as off-task"
+                                );
+                                let hit = frontmost::DistractionHit {
+                                    label: kind,
+                                    detail: info.summary(),
+                                    focused: true,
+                                };
+                                let result = CoachVisionResult {
+                                    on_task: false,
+                                    objects: vec![kind.into(), info.window_title.clone()],
+                                    distraction: Some(kind.into()),
+                                    needs_help: false,
+                                    stress_cue: last_vitals.stressed,
+                                    coach_line: frontmost::distraction_coach_line(&hit),
+                                    modality: Some("computer".into()),
+                                };
+                                apply_coach_tick(&app, &result, &mut last_vitals).await;
                                 was_distracted = true;
+                                last_judged_fingerprint = fp;
                             }
                         }
                     }

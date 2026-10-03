@@ -299,7 +299,8 @@ pub fn distraction_coach_line(hit: &DistractionHit) -> String {
 /// Cheap local guess for YouTube / video titles when Gemini text judge is slow.
 /// `Some(true)` = looks study-related, `Some(false)` = entertainment, `None` = unclear.
 pub fn local_context_guess(kind: &str, page_text: &str, goals: &str) -> Option<bool> {
-    let blob = format!("{page_text} {goals}").to_lowercase();
+    // Only scan the page/title — never let goal words (e.g. "course") mark every video as study.
+    let blob = page_text.to_lowercase();
     if kind != "youtube" && kind != "video" {
         return None;
     }
