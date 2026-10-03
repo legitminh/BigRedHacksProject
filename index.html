@@ -19,74 +19,235 @@
 
     <div id="app">
       <section id="view-home" class="view view-home active">
-        <div class="hero">
-          <p class="brand">Waypoint</p>
-          <h1 class="tagline">Navigate school. Lock in.</h1>
-          <div id="home-cta" class="cta-row"></div>
+        <header class="mc-nav">
+          <p class="mc-nav-brand">Waypoint</p>
+          <div id="home-nav-actions" class="mc-nav-actions"></div>
+        </header>
+
+        <div id="home-guest" class="mc-guest">
+          <div class="mc-guest-visual" aria-hidden="true">
+            <div class="mc-planet mc-planet--hero">
+              <span class="mc-orbit mc-orbit--a"></span>
+              <span class="mc-orbit mc-orbit--b"></span>
+              <span class="mc-planet-core"></span>
+            </div>
+          </div>
+          <div class="mc-guest-copy">
+            <p class="mc-kicker">Start here</p>
+            <h1 class="mc-guest-title">Big goals, small missions.</h1>
+            <p class="mc-guest-sub">
+              Waypoint is Mission Control for school — break work into flyable missions, stay on course with gentle
+              reminders, and ask Copilot when you’re stuck.
+            </p>
+            <aside id="start-here" class="start-here" hidden>
+              <p class="start-here-label">First flight</p>
+              <p class="start-here-text">
+                Placeholder login accepts any username. After sign-in, open <strong>Start mission</strong> or
+                <strong>Copilot</strong> from your dashboard.
+              </p>
+              <button type="button" class="ghost start-here-dismiss" id="start-here-dismiss">Got it</button>
+            </aside>
+            <div id="home-guest-cta" class="mc-guest-cta"></div>
+          </div>
+        </div>
+
+        <div id="home-dashboard" class="mc-dashboard" hidden>
+          <div class="mc-dashboard-main">
+            <div class="mc-hero-row">
+              <div class="mc-hero-copy">
+                <p class="mc-kicker">Mission Control</p>
+                <h1 class="mc-hero-title">
+                  A few major goals this week
+                  <span id="home-goal-count" class="mc-goal-badge">3</span>
+                </h1>
+              </div>
+              <div class="mc-hero-planet" aria-hidden="true">
+                <div class="mc-planet mc-planet--hero">
+                  <span class="mc-orbit mc-orbit--a"></span>
+                  <span class="mc-orbit mc-orbit--b"></span>
+                  <span class="mc-planet-core"></span>
+                </div>
+              </div>
+            </div>
+            <ul id="home-goals" class="mc-goals" aria-label="Big goals this week"></ul>
+          </div>
+          <aside class="mc-mission-panel">
+            <div class="mc-mission-card">
+              <div id="home-ship-hangar" class="home-ship-hangar" aria-live="polite"></div>
+              <p class="mc-kicker">Ready to fly</p>
+              <h2 class="mc-mission-title">Mission Control</h2>
+              <p class="mc-mission-blurb">
+                Launch a timed mission. Waypoint watches your screen against your objectives and checks in when you drift.
+              </p>
+              <div id="home-cta" class="mc-mission-actions"></div>
+            </div>
+          </aside>
         </div>
       </section>
 
-      <section id="view-chat" class="view">
-        <header class="panel-head">
-          <button class="back" data-back type="button" aria-label="Back to home">←</button>
-          <p class="brand-inline">Waypoint</p>
-          <button id="new-chat" class="ghost chat-reset" type="button">New chat</button>
+      <section id="view-chat" class="view view-copilot">
+        <header class="panel-head copilot-head">
+          <button class="back copilot-back" data-back type="button" aria-label="Back to home">←</button>
+          <div class="copilot-head-text">
+            <p class="copilot-eyebrow">Mission assistant</p>
+            <h2 class="copilot-title">Copilot</h2>
+          </div>
+          <button id="new-chat" class="ghost chat-reset copilot-reset" type="button">New chat</button>
         </header>
-        <div id="chat-log" class="chat-log" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text">
-          <div id="chat-empty" class="bubble assistant chat-empty">Ask a question below, try the study shortcuts, or connect Google in Settings for Calendar and Drive — optional.</div>
+        <div class="copilot-panel">
+          <div
+            id="chat-log"
+            class="chat-log copilot-log"
+            role="log"
+            aria-label="Copilot conversation"
+            aria-live="polite"
+            aria-relevant="additions text"
+          >
+            <div id="chat-empty" class="copilot-empty">
+              <div class="copilot-orbit" aria-hidden="true">
+                <span class="copilot-orbit-ring copilot-orbit-ring--outer"></span>
+                <span class="copilot-orbit-ring copilot-orbit-ring--inner"></span>
+                <span class="copilot-planet"></span>
+              </div>
+              <h3 class="copilot-empty-heading">How can I help on this mission?</h3>
+              <p class="copilot-empty-copy">
+                Ask a question below, try the study shortcuts, or connect Google in Settings for Calendar and
+                Drive — optional.
+              </p>
+            </div>
+          </div>
         </div>
-        <div class="study-actions" role="group" aria-label="Study shortcuts">
-          <button class="ghost" type="button" data-study="explain">Explain simply</button>
-          <button class="ghost" type="button" data-study="quiz">Quiz me</button>
-          <button class="ghost" type="button" data-study="plan">Make a plan</button>
-        </div>
-        <form id="chat-form" class="chat-form">
-          <textarea id="chat-input" rows="2" aria-label="Message Waypoint" aria-describedby="chat-hint" placeholder="Ask a question or paste what you’re working on…"></textarea>
-          <button id="chat-send" type="submit" class="primary">Send</button>
-        </form>
-        <p id="chat-hint" class="composer-hint">Enter to send · Shift+Enter for a new line</p>
+        <footer class="copilot-composer">
+          <div class="study-actions copilot-shortcuts" role="group" aria-label="Study shortcuts">
+            <button class="copilot-chip" type="button" data-study="explain">Explain simply</button>
+            <button class="copilot-chip" type="button" data-study="quiz">Quiz me</button>
+            <button class="copilot-chip" type="button" data-study="plan">Make a plan</button>
+          </div>
+          <form id="chat-form" class="chat-form copilot-form">
+            <textarea
+              id="chat-input"
+              rows="2"
+              aria-label="Message Copilot"
+              aria-describedby="chat-hint"
+              placeholder="Ask Copilot or paste what you’re working on…"
+            ></textarea>
+            <button id="chat-send" type="submit" class="primary copilot-send">Send</button>
+          </form>
+          <p id="chat-hint" class="composer-hint copilot-hint">Enter to send · Shift+Enter for a new line</p>
+        </footer>
       </section>
 
-      <section id="view-lockin" class="view">
-        <header class="panel-head">
+      <section id="view-lockin" class="view view-mission-setup">
+        <header class="panel-head mission-setup-head">
           <button class="back" data-back type="button" aria-label="Back to home">←</button>
-          <p class="brand-inline">Waypoint</p>
+          <p class="brand-inline">Mission control</p>
         </header>
-        <form id="lockin-form" class="lockin-form">
-          <p class="lockin-blurb">
-            Waypoint watches your <strong>screen</strong> against your goals and uses your
-            <strong>webcam + Presage</strong> for short stress / heart-rate checks. Allow Screen Recording
-            (required) and Camera (for wellness). For app/tab coaching, allow
-            <strong>Accessibility</strong> and <strong>Automation</strong> for Waypoint in System Settings.
-          </p>
-          <label>
-            Minutes
-            <input id="duration" type="number" min="1" max="180" value="45" />
-          </label>
-          <label>
-            What are you locking in on?
-            <textarea id="goals" rows="4" required placeholder="Calc PSet 3 · Q1–3 on my laptop"></textarea>
-          </label>
-          <p id="lockin-wellness" class="composer-hint" aria-live="polite"></p>
-          <p id="lockin-error" class="lockin-error" role="alert" hidden></p>
-          <button id="lockin-start" type="submit" class="primary wide">Start lock-in</button>
-        </form>
+        <div class="mission-setup-shell">
+          <form id="lockin-form" class="lockin-form mission-setup-card">
+            <div class="mission-setup-orbit" aria-hidden="true">
+              <span class="mission-setup-planet"></span>
+              <span class="mission-setup-ring"></span>
+            </div>
+            <h1 class="mission-setup-title">Mission setup</h1>
+            <p class="mission-setup-lead">Set your objectives and duration, then launch your focus flight.</p>
+
+            <div class="mission-field">
+              <label class="mission-field-label" for="goals">Objectives</label>
+              <p class="mission-field-hint" id="goals-hint">What are your objectives for this mission?</p>
+              <textarea
+                id="goals"
+                rows="4"
+                required
+                aria-describedby="goals-hint"
+                placeholder="e.g. Finish calc PSet 3 · draft essay intro · review lecture 6"
+              ></textarea>
+            </div>
+
+            <fieldset class="mission-duration">
+              <legend class="mission-field-label">Mission duration</legend>
+              <div class="duration-chips" role="group" aria-label="Preset duration">
+                <button type="button" class="duration-chip" data-minutes="25">25m</button>
+                <button type="button" class="duration-chip is-active" data-minutes="45">45m</button>
+                <button type="button" class="duration-chip" data-minutes="60">60m</button>
+                <button type="button" class="duration-chip" data-minutes="90">90m</button>
+              </div>
+              <label class="duration-custom">
+                <span class="duration-custom-label">Custom (minutes)</span>
+                <input id="duration" type="number" min="1" max="180" value="45" inputmode="numeric" />
+              </label>
+            </fieldset>
+
+            <details class="mission-permissions">
+              <summary>Permissions &amp; coaching</summary>
+              <p class="lockin-blurb">
+                Waypoint watches your <strong>screen</strong> against your objectives and uses your
+                <strong>webcam + Presage</strong> for short stress / heart-rate checks. Allow Screen Recording
+                (required) and Camera (for wellness). For app/tab coaching, allow
+                <strong>Accessibility</strong> and <strong>Automation</strong> for Waypoint in System Settings.
+              </p>
+            </details>
+
+            <p id="lockin-wellness" class="composer-hint mission-setup-meta" aria-live="polite"></p>
+            <p id="lockin-error" class="lockin-error" role="alert" hidden></p>
+            <button id="lockin-start" type="submit" class="primary wide mission-launch">
+              <span class="mission-launch-icon" aria-hidden="true">🚀</span>
+              <span class="mission-launch-label">Launch mission</span>
+            </button>
+          </form>
+        </div>
       </section>
 
       <section id="view-session" class="view view-session">
         <header class="session-head">
-          <p class="brand-inline">Waypoint</p>
+          <div class="session-head-brand">
+            <p class="session-kicker">Active mission</p>
+            <p class="brand-inline session-brand">Waypoint</p>
+          </div>
           <div class="session-head-actions">
-            <button id="session-mute-voice" class="ghost" type="button" aria-pressed="false">
+            <button id="session-mute-voice" class="ghost session-pill" type="button" aria-pressed="false">
               Mute voice
             </button>
-            <button id="end-session" class="ghost danger" type="button">End</button>
+            <button id="end-session" class="ghost danger session-pill" type="button">End mission</button>
           </div>
         </header>
-        <div class="timer-wrap">
-          <p id="session-timer" class="timer">45:00</p>
-          <p id="session-status" class="status-chip">watching</p>
+        <div class="session-orbit-wrap">
+          <div id="session-orbit" class="session-orbit" data-state="watching">
+            <svg class="session-orbit-svg" viewBox="0 0 280 280" aria-hidden="true">
+              <defs>
+                <linearGradient id="session-orbit-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#7c3aed" />
+                  <stop offset="100%" stop-color="#22d3ee" />
+                </linearGradient>
+                <filter id="session-orbit-glow">
+                  <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
+              <circle class="session-orbit-track" cx="140" cy="140" r="124" />
+              <circle
+                id="session-orbit-progress"
+                class="session-orbit-progress"
+                cx="140"
+                cy="140"
+                r="124"
+                pathLength="100"
+              />
+            </svg>
+            <div class="session-orbit-planet" aria-hidden="true"></div>
+            <div id="session-orbit-ship-wrap" class="session-orbit-ship-wrap" aria-hidden="true">
+              <span id="session-orbit-ship" class="session-orbit-ship"></span>
+            </div>
+            <div class="session-orbit-core">
+              <p id="session-status" class="status-chip session-status">watching</p>
+              <p id="session-timer" class="timer session-timer">45:00</p>
+              <p class="session-timer-caption">Time remaining</p>
+            </div>
+          </div>
         </div>
+        <div id="session-ship-flight" class="session-ship-flight" hidden aria-hidden="true"></div>
         <div
           id="session-coach-log"
           class="prompt-feed session-coach-log"
@@ -102,12 +263,26 @@
         </div>
       </section>
 
-      <section id="view-summary" class="view">
+      <section id="view-summary" class="view view-summary">
         <header class="panel-head">
           <button class="back" data-back type="button" aria-label="Back to home">←</button>
           <p class="brand-inline">Waypoint</p>
         </header>
-        <div id="summary-body" class="summary-body"></div>
+        <div id="summary-celebration" class="mission-celebration" hidden>
+          <div class="mission-celebration__scene" aria-hidden="true">
+            <span class="celebration-planet"></span>
+            <span class="celebration-orbit"></span>
+            <span class="celebration-ship"></span>
+            <span class="celebration-confetti"></span>
+          </div>
+          <p class="mission-celebration__kicker">Mission</p>
+          <h2 id="summary-celebration-title" class="mission-celebration__title">Quest complete</h2>
+          <p id="summary-celebration-sub" class="mission-celebration__sub"></p>
+        </div>
+        <div id="summary-ship" class="summary-ship" aria-live="polite"></div>
+        <p id="summary-closing" class="flight-log-closing"></p>
+        <div id="summary-stats" class="flight-log-stats"></div>
+        <div id="summary-body" class="summary-body flight-log-details"></div>
         <div class="summary-actions cta-row">
           <button type="button" class="primary" id="summary-lockin-again">Lock in again</button>
           <button type="button" class="ghost" id="summary-go-home">Home</button>
@@ -157,6 +332,16 @@
           </div>
         </div>
       </section>
+      <div id="celebration-launch" class="mission-launch-overlay" hidden aria-live="polite">
+        <div class="mission-launch__scene" aria-hidden="true">
+          <span class="celebration-planet celebration-planet--small"></span>
+          <span class="celebration-ship celebration-ship--launch"></span>
+          <span class="mission-launch__trail"></span>
+        </div>
+        <p class="mission-launch__kicker">Mission</p>
+        <h2 class="mission-launch__title">Launch</h2>
+        <p class="mission-launch__sub">Engines on — stay on course.</p>
+      </div>
     </div>
   </body>
 </html>

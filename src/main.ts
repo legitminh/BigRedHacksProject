@@ -3,6 +3,14 @@ import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { renderMarkdown } from "./markdown.ts";
 import { retryChat } from "./chat-retry.ts";
+import {
+  initShipUI,
+  onMissionCompleted,
+  onMissionStarted,
+  refreshAllShipViews,
+  refreshSessionFlight,
+  updateSessionFlight,
+} from "./ship.ts";
 
 type ViewId =
   | "view-home"
@@ -68,6 +76,7 @@ interface CoachPrompt {
 
 interface SessionSummary {
   goals: string;
+  duration_secs: number;
   modality: string;
   on_task_ratio: number;
   screen_checks?: number;
@@ -82,6 +91,81 @@ const $ = <T extends HTMLElement>(sel: string) =>
 
 let lastSummaryGoals = "";
 
+const LAUNCH_CELEBRATION_MS = 2200;
+
+function updateSummaryCelebration(firstFlight: boolean): void {
+  const block = $("#summary-celebration");
+  if (!block) return;
+  block.hidden = false;
+  block.classList.remove(
+    "mission-celebration--quest",
+    "mission-celebration--first-flight",
+    "mission-celebration--enter",
+  );
+  void block.offsetWidth;
+  block.classList.add(
+    firstFlight ? "mission-celebration--first-flight" : "mission-celebration--quest",
+    "mission-celebration--enter",
+  );
+  const title = $("#summary-celebration-title");
+  const sub = $("#summary-celebration-sub");
+  if (firstFlight) {
+    if (title) title.textContent = "First flight";
+    if (sub) {
+      sub.textContent =
+        "You completed your first mission. Your flight log starts here — ready for the next orbit?";
+    }
+  } else {
+    if (title) title.textContent = "Flight log";
+    if (sub) sub.textContent = "Mission ended — your debrief and stats are below.";
+  }
+}
+
+function showSummaryWithCelebration(summary: SessionSummary): void {
+  const firstFlight = onMissionCompleted(summary, summary.duration_secs);
+  renderSummary(summary);
+  updateSummaryCelebration(firstFlight);
+  show("view-summary");
+}
+
+function playLaunchCelebration(then: () => void): void {
+  const el = $("#celebration-launch");
+  if (!el) {
+    then();
+    return;
+  }
+  el.hidden = false;
+  el.classList.remove("mission-launch--active");
+  void el.offsetWidth;
+  el.classList.add("mission-launch--active");
+  window.setTimeout(() => {
+    el.hidden = true;
+    el.classList.remove("mission-launch--active");
+    then();
+  }, LAUNCH_CELEBRATION_MS);
+}
+let welcomeSignInOpen = false;
+
+const START_HERE_KEY = "waypoint-start-here-dismissed";
+
+const DEMO_HOME_GOALS = [
+  {
+    title: "Finish Calc PSet 3",
+    meta: "2 missions left · due Wed",
+    planet: "lavender" as const,
+  },
+  {
+    title: "Draft history essay outline",
+    meta: "1 mission planned · due Fri",
+    planet: "teal" as const,
+  },
+  {
+    title: "Review orgo lab prep",
+    meta: "Not scheduled yet",
+    planet: "amber" as const,
+  },
+];
+
 function show(view: ViewId) {
   document.querySelectorAll(".view").forEach((el) => el.classList.remove("active"));
   $(`#${view}`)?.classList.add("active");
@@ -90,6 +174,23 @@ function show(view: ViewId) {
       ($("#chat-input") as HTMLTextAreaElement | null)?.focus();
     });
   }
+}
+
+function syncDurationChips() {
+  const durationInput = $("#duration") as HTMLInputElement | null;
+  const mins = Number(durationInput?.value.trim() ?? "");
+  document.querySelectorAll<HTMLButtonElement>(".duration-chip").forEach((chip) => {
+    const preset = Number(chip.dataset.minutes);
+    chip.classList.toggle("is-active", !Number.isNaN(mins) && preset === mins);
+  });
+}
+
+function setMissionDuration(mins: number) {
+  const durationInput = $("#duration") as HTMLInputElement | null;
+  if (durationInput) {
+    durationInput.value = String(mins);
+  }
+  syncDurationChips();
 }
 
 function restoreLockinFromLastSession() {
@@ -106,94 +207,207 @@ function restoreLockinFromLastSession() {
   } catch {
     // ignore private mode / quota
   }
+  syncDurationChips();
 }
 
-function renderHome(status: StatusPayload) {
-  const host = $("#home-cta");
-  if (!host) return;
-  host.innerHTML = "";
+function missionLaunchLabel(loading: boolean) {
+  return loading ? "Launching…" : "Launch mission";
+}
 
-  if (!status.signed_in) {
-    const form = document.createElement("form");
-    form.className = "signin-box";
-    form.innerHTML = `
-      <p class="signin-title">Waypoint sign in</p>
-      <p class="signin-sub">Placeholder login — any username and password works for now.</p>
-      <label>
-        Username or email
-        <input id="wp-username" name="username" type="text" autocomplete="username" required placeholder="you@school.edu" />
-      </label>
-      <label>
-        Password
-        <input id="wp-password" name="password" type="password" autocomplete="current-password" placeholder="anything" />
-      </label>
-      <p class="signin-error" id="wp-signin-error" hidden></p>
-      <button class="primary wide" type="submit">Sign in</button>
-    `;
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const username = (form.querySelector("#wp-username") as HTMLInputElement | null)?.value ?? "";
-      const password = (form.querySelector("#wp-password") as HTMLInputElement | null)?.value ?? "";
-      const err = form.querySelector("#wp-signin-error") as HTMLElement | null;
-      const btn = form.querySelector("button[type=submit]") as HTMLButtonElement | null;
-      if (err) {
-        err.hidden = true;
-        err.textContent = "";
-      }
-      if (btn) {
-        btn.disabled = true;
-        btn.textContent = "Signing in…";
-      }
-      try {
-        await invoke("sign_in_waypoint", { username, password });
-        await refreshStatus();
-      } catch (e) {
-        if (err) {
-          err.hidden = false;
-          err.textContent = String(e);
-        } else {
-          alert(String(e));
-        }
-        if (btn) {
-          btn.disabled = false;
-          btn.textContent = "Sign in";
-        }
-      }
-    });
-    host.appendChild(form);
+function setMissionLaunchButton(loading: boolean) {
+  const startBtn = $("#lockin-start") as HTMLButtonElement | null;
+  const labelEl = startBtn?.querySelector(".mission-launch-label");
+  if (startBtn) startBtn.disabled = loading;
+  if (labelEl) labelEl.textContent = missionLaunchLabel(loading);
+}
+
+function syncStartHerePanel(signedIn: boolean) {
+  const panel = $("#start-here");
+  if (!panel) return;
+  if (signedIn || welcomeSignInOpen) {
+    panel.hidden = true;
     return;
   }
+  try {
+    panel.hidden = localStorage.getItem(START_HERE_KEY) === "1";
+  } catch {
+    panel.hidden = false;
+  }
+}
 
-  const chat = document.createElement("button");
-  chat.className = "primary";
-  chat.type = "button";
-  chat.textContent = "Ask";
-  chat.addEventListener("click", () => show("view-chat"));
+function mountSignInForm(host: HTMLElement) {
+  const form = document.createElement("form");
+  form.className = "signin-box";
+  form.innerHTML = `
+    <button type="button" class="ghost signin-back" id="wp-signin-back">← Welcome</button>
+    <p class="signin-title">Log in to Mission Control</p>
+    <p class="signin-sub">Placeholder login — any username and password works for now.</p>
+    <label>
+      Username or email
+      <input id="wp-username" name="username" type="text" autocomplete="username" required placeholder="you@school.edu" />
+    </label>
+    <label>
+      Password
+      <input id="wp-password" name="password" type="password" autocomplete="current-password" placeholder="anything" />
+    </label>
+    <p class="signin-error" id="wp-signin-error" hidden></p>
+    <button class="primary wide pill" type="submit">Sign in</button>
+  `;
+  form.querySelector("#wp-signin-back")?.addEventListener("click", () => {
+    welcomeSignInOpen = false;
+    void refreshStatus();
+  });
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const username = (form.querySelector("#wp-username") as HTMLInputElement | null)?.value ?? "";
+    const password = (form.querySelector("#wp-password") as HTMLInputElement | null)?.value ?? "";
+    const err = form.querySelector("#wp-signin-error") as HTMLElement | null;
+    const btn = form.querySelector("button[type=submit]") as HTMLButtonElement | null;
+    if (err) {
+      err.hidden = true;
+      err.textContent = "";
+    }
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Signing in…";
+    }
+    try {
+      await invoke("sign_in_waypoint", { username, password });
+      welcomeSignInOpen = false;
+      await refreshStatus();
+    } catch (e) {
+      if (err) {
+        err.hidden = false;
+        err.textContent = String(e);
+      } else {
+        alert(String(e));
+      }
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Sign in";
+      }
+    }
+  });
+  host.appendChild(form);
+  (form.querySelector("#wp-username") as HTMLInputElement | null)?.focus();
+}
 
-  const lock = document.createElement("button");
-  lock.className = "secondary";
-  lock.type = "button";
-  lock.textContent = "Lock in";
-  lock.addEventListener("click", () => show("view-lockin"));
+function openWelcomeSignIn() {
+  welcomeSignInOpen = true;
+  void refreshStatus();
+}
+
+function renderHomeGoals() {
+  const list = $("#home-goals");
+  const count = $("#home-goal-count");
+  if (!list) return;
+  const goals = DEMO_HOME_GOALS.map((g) => ({ ...g }));
+  if (lastSummaryGoals.trim()) {
+    const line = lastSummaryGoals.trim().split("\n")[0]?.trim() || lastSummaryGoals.trim();
+    goals[0] = { ...goals[0], title: line, meta: "From your last mission" };
+  }
+  list.innerHTML = goals.map(
+    (goal) => `
+    <li class="mc-goal-card">
+      <span class="mc-goal-planet mc-goal-planet--${goal.planet}" aria-hidden="true"></span>
+      <div class="mc-goal-body">
+        <p class="mc-goal-title">${escapeHtml(goal.title)}</p>
+        <p class="mc-goal-meta">${escapeHtml(goal.meta)}</p>
+      </div>
+    </li>`,
+  ).join("");
+  if (count) count.textContent = String(goals.length);
+}
+
+function renderHomeNav(status: StatusPayload) {
+  const nav = $("#home-nav-actions");
+  if (!nav) return;
+  nav.innerHTML = "";
+  if (!status.signed_in) return;
+
+  const who = status.username?.trim();
+  if (who) {
+    const label = document.createElement("span");
+    label.className = "mc-nav-user";
+    label.textContent = who;
+    nav.appendChild(label);
+  }
+
+  const copilot = document.createElement("button");
+  copilot.className = "ghost pill";
+  copilot.type = "button";
+  copilot.textContent = "Copilot";
+  copilot.addEventListener("click", () => show("view-chat"));
 
   const settings = document.createElement("button");
-  settings.className = "ghost";
+  settings.className = "ghost pill";
   settings.type = "button";
   settings.textContent = "Settings";
   settings.addEventListener("click", () => {
     void openSettings();
   });
 
-  const out = document.createElement("button");
-  out.className = "ghost";
-  out.type = "button";
-  out.textContent = "Sign out";
-  out.addEventListener("click", async () => {
-    await invoke("sign_out_waypoint");
-    await refreshStatus();
-  });
+  nav.append(copilot, settings);
+}
 
-  host.append(chat, lock, settings, out);
+function renderHome(status: StatusPayload) {
+  const home = $("#view-home");
+  home?.classList.toggle("view-home--signed-in", status.signed_in);
+
+  $("#home-guest")?.toggleAttribute("hidden", status.signed_in);
+  $("#home-dashboard")?.toggleAttribute("hidden", !status.signed_in);
+
+  renderHomeNav(status);
+  syncStartHerePanel(status.signed_in);
+
+  if (!status.signed_in) {
+    const host = $("#home-guest-cta");
+    if (!host) return;
+    host.innerHTML = "";
+    host.classList.toggle("mc-guest-cta--signin", welcomeSignInOpen);
+
+    if (welcomeSignInOpen) {
+      mountSignInForm(host);
+      return;
+    }
+
+    const enter = document.createElement("button");
+    enter.className = "primary pill";
+    enter.type = "button";
+    enter.textContent = "Enter Mission Control";
+    enter.addEventListener("click", openWelcomeSignIn);
+
+    const login = document.createElement("button");
+    login.className = "secondary pill";
+    login.type = "button";
+    login.textContent = "Log in";
+    login.addEventListener("click", openWelcomeSignIn);
+
+    host.append(enter, login);
+    return;
+  }
+
+  welcomeSignInOpen = false;
+  renderHomeGoals();
+
+  const host = $("#home-cta");
+  if (!host) return;
+  host.innerHTML = "";
+
+  const start = document.createElement("button");
+  start.className = "primary wide pill";
+  start.type = "button";
+  start.textContent = "Start mission";
+  start.addEventListener("click", () => show("view-lockin"));
+
+  const copilot = document.createElement("button");
+  copilot.className = "secondary wide pill";
+  copilot.type = "button";
+  copilot.textContent = "Open Copilot";
+  copilot.addEventListener("click", () => show("view-chat"));
+
+  host.append(start, copilot);
+  refreshAllShipViews();
 }
 
 function renderAccountSettings(status: StatusPayload) {
@@ -271,12 +485,20 @@ function renderAccountSettings(status: StatusPayload) {
 function renderChatEmptyState() {
   const log = $("#chat-log");
   if (!log || log.querySelector("#chat-empty")) return;
-  const bubble = document.createElement("div");
-  bubble.id = "chat-empty";
-  bubble.className = "bubble assistant chat-empty";
-  bubble.textContent =
-    "Ask a question below, try the study shortcuts, or connect Google in Settings for Calendar and Drive — optional.";
-  log.appendChild(bubble);
+  const empty = document.createElement("div");
+  empty.id = "chat-empty";
+  empty.className = "copilot-empty";
+  empty.innerHTML = `
+    <div class="copilot-orbit" aria-hidden="true">
+      <span class="copilot-orbit-ring copilot-orbit-ring--outer"></span>
+      <span class="copilot-orbit-ring copilot-orbit-ring--inner"></span>
+      <span class="copilot-planet"></span>
+    </div>
+    <h3 class="copilot-empty-heading">How can I help on this mission?</h3>
+    <p class="copilot-empty-copy">
+      Ask a question below, try the study shortcuts, or connect Google in Settings for Calendar and Drive — optional.
+    </p>`;
+  log.appendChild(empty);
 }
 
 function appendChat(role: "user" | "assistant", content: string) {
@@ -431,6 +653,7 @@ function renderSessionCoachLog(prompts: CoachPrompt[]) {
 }
 
 function renderSession(session: LockInSession) {
+  currentSessionDurationSecs = session.duration_secs;
   const timer = $("#session-timer");
   const status = $("#session-status");
   const goals = $("#session-goals");
@@ -445,6 +668,9 @@ function renderSession(session: LockInSession) {
   if (note) note.textContent = session.watching_note || "Watching your screen";
   renderVitals(session.vitals);
   renderSessionCoachLog(session.prompts);
+  onMissionStarted(session.duration_secs);
+  refreshSessionFlight();
+  updateSessionFlight(session.ends_at, session.duration_secs);
   void syncSessionMuteButton();
 }
 
@@ -516,36 +742,81 @@ async function toggleSessionMute() {
   }
 }
 
+function formatFlightDuration(secs: number): string {
+  const total = Math.max(0, Math.round(secs));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h`;
+  if (m > 0) return `${m}m`;
+  return `${total}s`;
+}
+
 function renderSummary(summary: SessionSummary) {
   lastSummaryGoals = summary.goals;
+  const closing = $("#summary-closing");
+  const stats = $("#summary-stats");
   const body = $("#summary-body");
-  if (!body) return;
+  if (!closing || !stats || !body) return;
+
   const checks = summary.screen_checks ?? 0;
-  const pct = checks === 0 ? "Unverified" : `${Math.round(summary.on_task_ratio * 100)}%`;
+  const onTaskValue = checks === 0 ? "—" : `${Math.round(summary.on_task_ratio * 100)}%`;
   const onTaskHint =
     checks === 0
-      ? '<p class="muted">No screen checks this session — focus ratio unavailable.</p>'
+      ? '<p class="flight-log-stat-hint muted">No screen checks — focus ratio unavailable.</p>'
       : "";
-  body.innerHTML = `
-    <p>${escapeHtml(summary.closing_note)}</p>
-    <h3>Goals</h3>
-    <p>${escapeHtml(summary.goals)}</p>
-    <h3>On task</h3>
-    <p>${pct}</p>
-    ${onTaskHint}
-    <h3>Screen checks</h3>
-    <p>${checks}</p>
-    <h3>Stress spikes</h3>
-    <p>${summary.stress_spikes}</p>
-    <h3>Wellness</h3>
-    <p>${escapeHtml(summary.vitals_summary || "No wellness reading this session.")}</p>
-    <h3>Distractions</h3>
-    <p>${summary.top_distractions.length ? escapeHtml(summary.top_distractions.join(", ")) : "None"}</p>
+
+  closing.textContent = summary.closing_note;
+
+  stats.innerHTML = `
+    <article class="flight-log-stat">
+      <span class="flight-log-stat-icon" aria-hidden="true">⏱</span>
+      <p class="flight-log-stat-value">${escapeHtml(formatFlightDuration(summary.duration_secs))}</p>
+      <p class="flight-log-stat-label">Flight time</p>
+    </article>
+    <article class="flight-log-stat">
+      <span class="flight-log-stat-icon" aria-hidden="true">◎</span>
+      <p class="flight-log-stat-value">${escapeHtml(onTaskValue)}</p>
+      <p class="flight-log-stat-label">On task</p>
+      ${onTaskHint}
+    </article>
+    <article class="flight-log-stat">
+      <span class="flight-log-stat-icon" aria-hidden="true">📡</span>
+      <p class="flight-log-stat-value">${checks}</p>
+      <p class="flight-log-stat-label">Screen checks</p>
+    </article>
+    <article class="flight-log-stat">
+      <span class="flight-log-stat-icon" aria-hidden="true">⚡</span>
+      <p class="flight-log-stat-value">${summary.stress_spikes}</p>
+      <p class="flight-log-stat-label">Stress spikes</p>
+    </article>
   `;
+
+  const distractions = summary.top_distractions.length
+    ? summary.top_distractions.map((d) => `<li>${escapeHtml(d)}</li>`).join("")
+    : '<li class="muted">None logged</li>';
+
+  body.innerHTML = `
+    <article class="flight-log-card">
+      <h3 class="flight-log-card-title">Mission objectives</h3>
+      <p class="flight-log-goals">${escapeHtml(summary.goals)}</p>
+      <p class="flight-log-modality muted">${escapeHtml(summary.modality)}</p>
+    </article>
+    <article class="flight-log-card">
+      <h3 class="flight-log-card-title">Wellness</h3>
+      <p>${escapeHtml(summary.vitals_summary || "No wellness reading this session.")}</p>
+    </article>
+    <article class="flight-log-card">
+      <h3 class="flight-log-card-title">Distractions</h3>
+      <ul class="flight-log-distractions">${distractions}</ul>
+    </article>
+  `;
+  refreshAllShipViews();
 }
 
 let timerHandle: number | undefined;
 let currentEndsAt: string | null = null;
+let currentSessionDurationSecs = 0;
 
 function stopTimer() {
   if (timerHandle) {
@@ -553,16 +824,23 @@ function stopTimer() {
     timerHandle = undefined;
   }
   currentEndsAt = null;
+  currentSessionDurationSecs = 0;
 }
 
 function startTimer(endsAt: string) {
-  stopTimer();
+  if (timerHandle) {
+    window.clearInterval(timerHandle);
+    timerHandle = undefined;
+  }
   currentEndsAt = endsAt;
   const tick = () => {
     if (!currentEndsAt) return;
     const el = $("#session-timer");
     const ms = new Date(currentEndsAt).getTime() - Date.now();
     if (el) el.textContent = formatRemaining(currentEndsAt);
+    if (currentSessionDurationSecs > 0) {
+      updateSessionFlight(currentEndsAt, currentSessionDurationSecs);
+    }
     if (ms <= 0) {
       const statusEl = $("#session-status");
       if (statusEl) {
@@ -703,7 +981,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     const durationInput = $("#duration") as HTMLInputElement | null;
     const rawDuration = durationInput?.value.trim() ?? "";
     const parsedDuration = Number(rawDuration);
-    const startBtn = $("#lockin-start") as HTMLButtonElement | null;
     const errEl = $("#lockin-error");
     if (errEl) {
       errEl.hidden = true;
@@ -731,15 +1008,12 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (!goals) {
       if (errEl) {
         errEl.hidden = false;
-        errEl.textContent = "Add a goal first — what are you locking in on?";
+        errEl.textContent = "Add your mission objectives before launch.";
       }
       goalsInput?.focus();
       return;
     }
-    if (startBtn) {
-      startBtn.disabled = true;
-      startBtn.textContent = "Starting…";
-    }
+    setMissionLaunchButton(true);
     try {
       const session = await invoke<LockInSession>("start_lock_in", {
         goals,
@@ -751,9 +1025,11 @@ window.addEventListener("DOMContentLoaded", async () => {
         // ignore
       }
       renderVitals(null);
-      renderSession(session);
-      startTimer(session.ends_at);
-      show("view-session");
+      playLaunchCelebration(() => {
+        renderSession(session);
+        startTimer(session.ends_at);
+        show("view-session");
+      });
     } catch (err) {
       const message = String(err);
       console.error("start_lock_in failed:", err);
@@ -764,12 +1040,18 @@ window.addEventListener("DOMContentLoaded", async () => {
         alert(message);
       }
     } finally {
-      if (startBtn) {
-        startBtn.disabled = false;
-        startBtn.textContent = "Start lock-in";
-      }
+      setMissionLaunchButton(false);
     }
   });
+
+  document.querySelectorAll<HTMLButtonElement>(".duration-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const mins = Number(chip.dataset.minutes);
+      if (!Number.isNaN(mins)) setMissionDuration(mins);
+    });
+  });
+  $("#duration")?.addEventListener("input", () => syncDurationChips());
+  syncDurationChips();
 
   $("#session-mute-voice")?.addEventListener("click", () => {
     void toggleSessionMute();
@@ -782,8 +1064,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     stopTimer();
     const summary = await invoke<SessionSummary | null>("stop_lock_in");
     if (summary) {
-      renderSummary(summary);
-      show("view-summary");
+      showSummaryWithCelebration(summary);
     } else {
       show("view-home");
     }
@@ -807,9 +1088,19 @@ window.addEventListener("DOMContentLoaded", async () => {
   });
   await listen<SessionSummary>("session-ended", (event) => {
     stopTimer();
-    renderSummary(event.payload);
-    show("view-summary");
+    showSummaryWithCelebration(event.payload);
   });
 
+  $("#start-here-dismiss")?.addEventListener("click", () => {
+    try {
+      localStorage.setItem(START_HERE_KEY, "1");
+    } catch {
+      // ignore private mode
+    }
+    const panel = $("#start-here");
+    if (panel) panel.hidden = true;
+  });
+
+  initShipUI();
   await refreshStatus();
 });
