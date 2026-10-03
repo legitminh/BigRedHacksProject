@@ -120,7 +120,7 @@ function updateSummaryCelebration(firstFlight: boolean): void {
   const kicker = $("#summary-celebration-kicker");
   const title = $("#summary-celebration-title");
   const sub = $("#summary-celebration-sub");
-  if (kicker) kicker.textContent = "Mission";
+  if (kicker) kicker.textContent = "Mission complete";
   if (firstFlight) {
     if (title) title.textContent = "First flight";
     if (sub) {
