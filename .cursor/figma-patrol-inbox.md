@@ -948,10 +948,11 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     “Your time counts. Choose one small next step when you return.”). Keep
     `.quest-copilot-kicker` hidden on this zero-relaunch path.
 - escalate: scrutinous
-- commit: 4f72419
+- commit: 5f9b96a
 - change: `buildCopilotNote` partly uses live 23 sentence (no goal/PB closer; “Your time counts. Choose one small next step when you return.”).
+- verified: 2026-10-03T15:50:04-04:00
 
-## open: fp-summary-relaunch-note
+## done: fp-summary-relaunch-note
 - screen: summary
 - ref: `.cursor/figma-refs/25-flight-logged-not-yet.png` · live `8:817` · card `8:886` ·
   kicker `8:887` · body `8:888`
@@ -969,6 +970,8 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     apply card modifier, rewrite note to relaunch sentence. Keep plain muted notes for
     zero-relaunch 22/23/24. Complements open `fp-summary-relaunch-note-card`.
 - escalate: scrutinous
+- commit: e03c5dd
+- change: Not yet + relaunches>0 uses live 25 relaunch sentence + teal kicker; zero-relaunch 22/23/24 plain notes unchanged.
 
 ## done: fp-summary-pb-stat-label
 - screen: summary
@@ -983,8 +986,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Change non-new third-tile label to “personal best”; keep new-PB “+N min” /
     “new personal best”. Do not reopen always-on `#summary-pb-banner` (ca08f47).
 - escalate: none
-- commit: 4f72419
+- commit: 5f9b96a
 - change: Non-new third-tile label is “personal best”; new-PB “new personal best” unchanged.
+- verified: 2026-10-03T15:50:04-04:00
 
 ## done: fp-active-signal-on-fill
 - screen: active
@@ -1000,10 +1004,11 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Restyle `.session-signal-pill.is-on` to solid purple fill + white text (match Pause
     primary); keep Camera/Screen/Audio order and existing toggle wiring.
 - escalate: none
-- commit: 4f72419
+- commit: 5f9b96a
 - change: `.session-signal-pill.is-on` uses solid `--mc-accent-purple` fill + white text.
+- verified: 2026-10-03T15:50:04-04:00
 
-## open: fp-summary-relaunch-note-card
+## done: fp-summary-relaunch-note-card
 - screen: summary
 - ref: `.cursor/figma-refs/25-flight-logged-not-yet.png` · live `8:817` · node `8:886`
 - deviation: |
@@ -1015,3 +1020,5 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Add a modifier (e.g. `.quest-copilot-note--card`) applied when relaunches>0 that
     restores lavender card chrome; leave default transparent for plain outcome notes.
 - escalate: none
+- commit: e03c5dd
+- change: `.quest-copilot-note--card` lavender chrome (20px pad, border, gap) when Not yet + relaunches>0.

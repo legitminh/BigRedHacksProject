@@ -4219,9 +4219,20 @@ body:has(.view-quest-complete.active) .grain {
   border: none;
 }
 
+/* Figma 25 — relaunch ≥1 Copilot summary card */
+.quest-copilot-note--card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  border-radius: 1rem;
+  background: var(--mc-surface-lavender, #ebe4f8);
+  border: 1px solid rgba(103, 80, 164, 0.16);
+  box-shadow: 0 6px 18px rgba(42, 36, 64, 0.04);
+}
+
 .quest-copilot-kicker {
-  display: none;
-  margin: 0 0 0.45rem;
+  margin: 0;
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.1em;
@@ -4229,11 +4240,20 @@ body:has(.view-quest-complete.active) .grain {
   color: #43968f;
 }
 
+.quest-copilot-note:not(.quest-copilot-note--card) .quest-copilot-kicker {
+  display: none;
+}
+
 .quest-copilot-body {
   margin: 0;
   font-size: 0.92rem;
   line-height: 1.5;
   color: #4a4560;
+}
+
+.quest-copilot-note--card .quest-copilot-body {
+  font-size: 0.875rem;
+  color: #2a2440;
 }
 
 .quest-flight-details {

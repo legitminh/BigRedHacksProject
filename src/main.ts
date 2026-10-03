@@ -230,10 +230,22 @@ function personalBestMinutes(
   return pb.isNew ? flightMinutes : Math.max(pb.previous, flightMinutes);
 }
 
+function relaunchPhrase(relaunches: number): string {
+  return relaunches === 1 ? "once" : `${relaunches} times`;
+}
+
+/** Figma 25: lavender card + teal kicker when Not yet + at least one relaunch. */
+function summaryUsesRelaunchNote(
+  relaunches: number,
+  outcome: ObjectiveOutcome | null,
+): boolean {
+  return relaunches > 0 && outcome === "not-yet";
+}
+
 function buildCopilotNote(
   summary: SessionSummary,
   flightMinutes: number,
-  _relaunches: number,
+  relaunches: number,
   pb: { previous: number; isNew: boolean; delta: number },
   outcome: ObjectiveOutcome,
 ): string {
@@ -249,6 +261,9 @@ function buildCopilotNote(
   if (outcome === "partly") {
     return `You logged ${flightMinutes} flight ${unit} and said you partly finished. Your time counts. Choose one small next step when you return.`;
   }
+  if (summaryUsesRelaunchNote(relaunches, outcome)) {
+    return `You logged ${flightMinutes} flight ${unit} and relaunched ${relaunchPhrase(relaunches)}. You said your objective is not finished yet. Your time still counts; pick one small step for your next flight.`;
+  }
   return `You logged ${flightMinutes} flight ${unit} and said your objective is not finished yet. Your time still counts, and your personal best remains ${best} minutes.`;
 }
 
@@ -258,11 +273,25 @@ function resetObjectiveButtons(): void {
   });
 }
 
-function setSummaryNoteVisible(visible: boolean): void {
+function syncSummaryCopilotNoteChrome(
+  visible: boolean,
+  relaunches = lastSummaryRelaunches,
+  outcome: ObjectiveOutcome | null = lastSummaryObjective,
+): void {
   const note = document.querySelector<HTMLElement>(".quest-copilot-note");
+  const kicker = document.querySelector<HTMLElement>(".quest-copilot-kicker");
   const helper = document.querySelector<HTMLElement>(".quest-objective-helper");
-  if (note) note.hidden = !visible;
+  const asCard = visible && summaryUsesRelaunchNote(relaunches, outcome);
+  if (note) {
+    note.hidden = !visible;
+    note.classList.toggle("quest-copilot-note--card", asCard);
+  }
+  if (kicker) kicker.hidden = !asCard;
   if (helper) helper.hidden = visible;
+}
+
+function setSummaryNoteVisible(visible: boolean): void {
+  syncSummaryCopilotNoteChrome(visible);
 }
 
 function refreshSummaryCopilotNote(): void {
