@@ -164,13 +164,86 @@ const $ = <T extends HTMLElement>(sel: string) =>
   document.querySelector(sel) as T | null;
 
 let lastSummaryGoals = "";
+let lastSessionSummary: SessionSummary | null = null;
+let lastSummaryPersonalBest: { previous: number; isNew: boolean; delta: number } | null = null;
+let lastSummaryRelaunches = 0;
+
+type ObjectiveOutcome = "finished" | "partly" | "not-yet";
+let lastSummaryObjective: ObjectiveOutcome = "finished";
+
+const LONGEST_FLIGHT_KEY = "waypoint-longest-flight-min";
+const RELAUNCH_FLAG_KEY = "waypoint-summary-from-relaunch";
 
 const LAUNCH_CELEBRATION_MS = 2200;
+
+function flightMinutesFromSecs(secs: number): number {
+  return Math.max(0, Math.round(secs / 60));
+}
+
+function recordLongestFlight(minutes: number): { previous: number; isNew: boolean; delta: number } {
+  const previous = Number(localStorage.getItem(LONGEST_FLIGHT_KEY)) || 0;
+  const isNew = minutes > previous && minutes > 0;
+  if (isNew) localStorage.setItem(LONGEST_FLIGHT_KEY, String(minutes));
+  return { previous, isNew, delta: isNew ? minutes - previous : 0 };
+}
+
+function consumeRelaunchFlag(): number {
+  const fromRelaunch = sessionStorage.getItem(RELAUNCH_FLAG_KEY) === "1";
+  sessionStorage.removeItem(RELAUNCH_FLAG_KEY);
+  return fromRelaunch ? 1 : 0;
+}
+
+function objectivePhrase(outcome: ObjectiveOutcome): string {
+  if (outcome === "finished") return "finished your objective";
+  if (outcome === "partly") return "partly finished your objective";
+  return "didn't finish your objective yet";
+}
+
+function buildCopilotNote(
+  summary: SessionSummary,
+  flightMinutes: number,
+  relaunches: number,
+  pb: { previous: number; isNew: boolean; delta: number },
+  outcome: ObjectiveOutcome,
+): string {
+  const goalLine = summary.goals.trim().split("\n")[0]?.trim();
+  let note = `You logged ${flightMinutes} flight minute${flightMinutes === 1 ? "" : "s"}`;
+  if (relaunches > 0) {
+    note += `, relaunched ${relaunches === 1 ? "once" : `${relaunches} times`}`;
+  }
+  note += `, and said you ${objectivePhrase(outcome)}`;
+  if (goalLine) note += ` — ${goalLine}`;
+  note += ".";
+  if (pb.isNew && pb.delta > 0) {
+    note += ` That's ${pb.delta} minute${pb.delta === 1 ? "" : "s"} beyond your previous longest flight.`;
+  } else if (summary.closing_note) {
+    note += ` ${summary.closing_note}`;
+  }
+  return note;
+}
+
+function resetObjectiveButtons(): void {
+  document.querySelectorAll<HTMLButtonElement>(".quest-objective-btn").forEach((btn) => {
+    btn.classList.toggle("is-selected", btn.dataset.objective === "finished");
+  });
+}
+
+function refreshSummaryCopilotNote(): void {
+  if (!lastSessionSummary || !lastSummaryPersonalBest) return;
+  const closing = $("#summary-closing");
+  if (!closing) return;
+  closing.textContent = buildCopilotNote(
+    lastSessionSummary,
+    flightMinutesFromSecs(lastSessionSummary.duration_secs),
+    lastSummaryRelaunches,
+    lastSummaryPersonalBest,
+    lastSummaryObjective,
+  );
+}
 
 function updateSummaryCelebration(summary: SessionSummary, firstFlight: boolean): void {
   const block = $("#summary-celebration");
   if (!block) return;
-  block.hidden = false;
   block.classList.remove(
     "mission-celebration--quest",
     "mission-celebration--first-flight",
@@ -201,6 +274,10 @@ function updateSummaryCelebration(summary: SessionSummary, firstFlight: boolean)
 
 function showSummaryWithCelebration(summary: SessionSummary): void {
   const firstFlight = onMissionCompleted(summary, summary.duration_secs);
+  lastSummaryPersonalBest = recordLongestFlight(flightMinutesFromSecs(summary.duration_secs));
+  lastSummaryRelaunches = consumeRelaunchFlag();
+  lastSummaryObjective = "finished";
+  resetObjectiveButtons();
   renderSummary(summary);
   updateSummaryCelebration(summary, firstFlight);
   show("view-summary");
@@ -243,6 +320,9 @@ function show(view: ViewId) {
   }
   if (view === "view-lockin") {
     syncDurationChips();
+    void invoke<StatusPayload>("get_status")
+      .then(renderLockinHints)
+      .catch(() => {});
     requestAnimationFrame(() => {
       ($("#goals") as HTMLTextAreaElement | null)?.focus();
     });
@@ -994,27 +1074,24 @@ function formatFlightDuration(secs: number): string {
 
 function renderSummary(summary: SessionSummary) {
   lastSummaryGoals = summary.goals;
+  lastSessionSummary = summary;
   const closing = $("#summary-closing");
   const stats = $("#summary-stats");
   const body = $("#summary-body");
+  const pbBanner = $("#summary-pb-banner");
   if (!closing || !stats || !body) return;
 
+  const flightMinutes = flightMinutesFromSecs(summary.duration_secs);
+  const relaunches = lastSummaryRelaunches;
+  const pb = lastSummaryPersonalBest ?? recordLongestFlight(flightMinutes);
   const checks = summary.screen_checks ?? 0;
   const onTaskValue = checks === 0 ? "—" : `${Math.round(summary.on_task_ratio * 100)}%`;
-  const onTaskHint =
-    checks === 0
-      ? '<p class="flight-log-stat-hint muted">No screen checks — focus ratio unavailable.</p>'
-      : "";
 
-  if (summary.closing_note) {
-    closing.textContent = summary.closing_note;
-    closing.hidden = false;
-  } else {
-    closing.textContent = "";
-    closing.hidden = true;
-  }
+  closing.textContent = buildCopilotNote(summary, flightMinutes, relaunches, pb, lastSummaryObjective);
 
-  const flightMinutes = Math.max(0, Math.round(summary.duration_secs / 60));
+  const pbStatValue =
+    pb.isNew && pb.delta > 0 ? `+${pb.delta} min` : `${Math.max(flightMinutes, pb.previous)} min`;
+  const pbStatLabel = pb.isNew && pb.delta > 0 ? "new personal best" : "longest flight";
 
   stats.innerHTML = `
     <article class="flight-log-stat flight-log-stat--hero">
@@ -1022,21 +1099,34 @@ function renderSummary(summary: SessionSummary) {
       <p class="flight-log-stat-label">flight minutes</p>
     </article>
     <article class="flight-log-stat flight-log-stat--hero">
-      <p class="flight-log-stat-value">${escapeHtml(onTaskValue)}</p>
-      <p class="flight-log-stat-label">on task</p>
-      ${onTaskHint}
+      <p class="flight-log-stat-value">${relaunches}</p>
+      <p class="flight-log-stat-label">relaunch</p>
     </article>
     <article class="flight-log-stat flight-log-stat--hero flight-log-stat--cream">
-      <p class="flight-log-stat-value">${checks}</p>
-      <p class="flight-log-stat-label">screen checks</p>
+      <p class="flight-log-stat-value">${escapeHtml(pbStatValue)}</p>
+      <p class="flight-log-stat-label">${escapeHtml(pbStatLabel)}</p>
     </article>
   `;
+
+  if (pbBanner) {
+    if (pb.isNew && pb.previous > 0) {
+      pbBanner.hidden = false;
+      pbBanner.textContent = `New longest flight! ${pb.previous} → ${flightMinutes} min`;
+    } else {
+      pbBanner.hidden = true;
+      pbBanner.textContent = "";
+    }
+  }
 
   const distractions = summary.top_distractions.length
     ? summary.top_distractions.map((d) => `<li>${escapeHtml(d)}</li>`).join("")
     : '<li class="muted">None logged</li>';
 
   body.innerHTML = `
+    <article class="flight-log-card">
+      <h3 class="flight-log-card-title">Focus</h3>
+      <p><strong>On task:</strong> ${escapeHtml(onTaskValue)} · <strong>Screen checks:</strong> ${checks} · <strong>Stress spikes:</strong> ${summary.stress_spikes}</p>
+    </article>
     <article class="flight-log-card">
       <h3 class="flight-log-card-title">Mission objectives</h3>
       <p class="flight-log-goals">${escapeHtml(summary.goals)}</p>
@@ -1051,7 +1141,6 @@ function renderSummary(summary: SessionSummary) {
       <ul class="flight-log-distractions">${distractions}</ul>
     </article>
   `;
-  refreshAllShipViews();
 }
 
 let timerHandle: number | undefined;
