@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Waypoint</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+  <body>
+    <div class="atmosphere" aria-hidden="true"></div>
+    <div class="grain" aria-hidden="true"></div>
+
+    <div id="app">
+      <section id="view-home" class="view view-home active">
+        <div class="hero">
+          <p class="brand">Waypoint</p>
+          <h1 class="tagline">Navigate school. Lock in.</h1>
+          <div id="home-cta" class="cta-row"></div>
+        </div>
+      </section>
+
+      <section id="view-chat" class="view">
+        <header class="panel-head">
+          <button class="back" data-back type="button">←</button>
+          <p class="brand-inline">Waypoint</p>
+          <button id="new-chat" class="ghost chat-reset" type="button">New chat</button>
+        </header>
+        <div id="chat-log" class="chat-log" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text"></div>
+        <div class="study-actions" role="group" aria-label="Study shortcuts">
+          <button class="ghost" type="button" data-study="explain">Explain simply</button>
+          <button class="ghost" type="button" data-study="quiz">Quiz me</button>
+          <button class="ghost" type="button" data-study="plan">Make a plan</button>
+        </div>
+        <form id="chat-form" class="chat-form">
+          <textarea id="chat-input" rows="2" aria-label="Message Waypoint" aria-describedby="chat-hint" placeholder="Ask a question or paste what you’re working on…"></textarea>
+          <button id="chat-send" type="submit" class="primary">Send</button>
+        </form>
+        <p id="chat-hint" class="composer-hint">Enter to send · Shift+Enter for a new line</p>
+      </section>
+
+      <section id="view-lockin" class="view">
+        <header class="panel-head">
+          <button class="back" data-back type="button">←</button>
+          <p class="brand-inline">Waypoint</p>
+        </header>
+        <form id="lockin-form" class="lockin-form">
+          <label>
+            Minutes
+            <input id="duration" type="number" min="1" max="180" value="45" />
+          </label>
+          <label>
+            Goals
+            <textarea id="goals" rows="4" placeholder="Calc PSet 3 · Q1–3"></textarea>
+          </label>
+          <button type="submit" class="primary wide">Lock in</button>
+        </form>
+      </section>
+
+      <section id="view-session" class="view view-session">
+        <header class="session-head">
+          <p class="brand-inline">Waypoint</p>
+          <button id="end-session" class="ghost danger" type="button">End</button>
+        </header>
+        <div class="timer-wrap">
+          <p id="session-timer" class="timer">45:00</p>
+          <p id="session-status" class="status-chip">ready</p>
+        </div>
+        <p id="session-goals" class="session-goals"></p>
+        <div id="prompt-feed" class="prompt-feed" aria-live="polite"></div>
+      </section>
+
+      <section id="view-summary" class="view">
+        <header class="panel-head">
+          <button class="back" data-back type="button">←</button>
+          <p class="brand-inline">Waypoint</p>
+        </header>
+        <div id="summary-body" class="summary-body"></div>
+      </section>
+    </div>
+  </body>
+</html>
