@@ -184,6 +184,12 @@ function show(view: ViewId) {
       ($("#chat-input") as HTMLTextAreaElement | null)?.focus();
     });
   }
+  if (view === "view-lockin") {
+    syncDurationChips();
+    requestAnimationFrame(() => {
+      ($("#goals") as HTMLTextAreaElement | null)?.focus();
+    });
+  }
 }
 
 function syncDurationChips() {
