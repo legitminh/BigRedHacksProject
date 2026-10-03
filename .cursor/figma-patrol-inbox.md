@@ -277,7 +277,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     In `index.html`, delete the `.copilot-chip-plus` span from `[data-study="explain"]` and `[data-study="stuck"]` only. Keep the span on `.copilot-chip--next` / `[data-study="plan"]`. Do not touch Settings five-tab, Pause/End, LTR orbit, objective ✦ Launch, or `silent_mode` default true.
 - escalate: scrutinous
 - reopened: true
-- commit: b9a857a
+- commit: 52749cd
 - change: Removed `.copilot-chip-plus` from explain + stuck chips; kept only on `copilot-chip--next` / plan.
 - note: |
     Compliance 2026-10-03 — prior claim that all three chips should have + does not match Figma 03; reopen to strip extras.
@@ -292,7 +292,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - fix_hint: |
     Restyle `.copilot-chip-plus` to a plain inline glyph (drop circle dimensions/background/radius); keep mounted only on `.copilot-chip--next` after `fp-copilot-chip-plus` strip. Tune spacing with `.copilot-chip` `gap` / margin so “step” → `+` matches the ref gap.
 - escalate: none
-- commit: b9a857a
+- commit: 52749cd
 - change: Restyled `.copilot-chip-plus` as thin plain ink glyph (no circular lavender badge).
 
 ## verified: fp-summary-decor-moon
@@ -388,15 +388,17 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - deviation: Hero body ends with a purple `✦` (`.welcome-hero-star`); Figma ends the same sentence with a trailing “+” after “one step forward.”
 - fix_hint: Replace the inline star span with a “+” (or match Figma asset) and tune color/size to the ref.
 - escalate: none
-- commit: b9a857a
+- commit: 52749cd
 - change: Replaced welcome hero body ✦ with trailing `+` (`.welcome-hero-plus`).
 
-## open: fp-settings-topnav-home-active
+## done: fp-settings-topnav-home-active
 - screen: settings
 - ref: `.cursor/figma-refs/04-settings.png`
 - deviation: On Settings, top nav leaves Home/Copilot/Lock in as plain links and marks “Settings” via `.settings-nav-current`; Figma shows Home on the lavender active pill (Settings is plain text on the right).
 - fix_hint: Apply `settings-nav-link--active` to Home when `#view-settings` is active; render Settings as a normal trailing link, not the active pill.
 - escalate: none
+- commit: f4264a1
+- change: Settings top nav marks Home with `settings-nav-link--active`; trailing Settings is plain `.settings-nav-link` (no current pill).
 
 ## verified: fp-settings-aside-figma-shortcuts
 - screen: settings
@@ -409,19 +411,23 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: Kept five-tab Settings rail; do not revert.
 - verified: 2026-10-03T14:32:29-04:00
 
-## open: fp-summary-pb-banner-flag
+## done: fp-summary-pb-banner-flag
 - screen: summary
 - ref: `.cursor/figma-refs/12-quest-complete.png`
 - deviation: “New longest flight! …” banner (`#summary-pb-banner`) is text-only from `renderSummary()`; Figma shows a small flag icon ahead of that line in `.quest-complete-pb-banner`.
 - fix_hint: Insert the same flag SVG used on home longest-flight (or a Figma asset) inside the banner markup before the dynamic text.
 - escalate: none
+- commit: f4264a1
+- change: `#summary-pb-banner` prepends home longest-flight flag SVG before “New longest flight! …” text.
 
-## open: fp-welcome-foot-plus
+## done: fp-welcome-foot-plus
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png`
 - deviation: Below the hero card, Figma shows “YOUR NEXT CHAPTER STARTS HERE” with a small “+” under the line; `.welcome-hero-foot` is plain text with no trailing/under “+”.
 - fix_hint: Add a decorative “+” under or after `.welcome-hero-foot` matching the ref spacing.
 - escalate: none
+- commit: f4264a1
+- change: Decorative purple `+` under `.welcome-hero-foot` via `.welcome-hero-foot-plus`.
 
 ## verified: fp-summary-ctas-in-card
 - screen: summary
@@ -461,4 +467,54 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - commit: 33a98f6
 - change: Added `#session-chat-hint` under session composer; session mic feedback targets it instead of empty-state copy.
 - verified: 2026-10-03T14:10:57-04:00
+
+## open: fp-break-session-panel
+- screen: active
+- ref: `.cursor/figma-refs/10---On-a-break.svg`
+- deviation: |
+    EXPECTED (Figma 10 On a break): progress pill “On a break”; timer caption “REMAINING • TIMER PAUSED”; primary control “Resume mission”; session copilot sidebar replaced by an “ON A BREAK” card (“A little breathing room.” / “Your timer is paused…” / Resume mission / “Your spaceship will continue from right here.”).
+    ACTUAL: `updateSessionProgressPill("paused")` sets “On a break” and Pause→“Resume”, but caption stays “REMAINING IN YOUR FLIGHT”, note is visually-hidden, and `.session-copilot-panel` stays the chat composer (no break card).
+- fix_hint: |
+    When `session.paused`, swap/overlay `.session-copilot-panel` with a Figma break card; set `.session-timer-caption` to “REMAINING • TIMER PAUSED”; keep existing pause invoke / Resume wiring (do not change End mission).
+- escalate: none
+
+## open: fp-relaunch-session-panel
+- screen: active
+- ref: `.cursor/figma-refs/09---Reset-&-relaunch.svg`
+- deviation: |
+    EXPECTED (Figma 09 Reset & relaunch): left progress pill “→ Ready to relaunch?”; primary row “Take a break” + “End mission”; right sidebar “READY TO RELAUNCH?” with next-step field, Relaunch + Take a break, footer “Same objective. Same flight. A fresh start.”
+    ACTUAL: No relaunch UI surface — only a `RELAUNCH_FLAG_KEY` sessionStorage counter for summary stats; copilot sidebar never becomes a relaunch card.
+- fix_hint: |
+    Add a session-state panel matching Figma 09 (next-step input + Relaunch); wire Relaunch to existing relaunch flag / resume path without changing Pause/End contracts.
+- escalate: none
+
+## open: fp-connection-lost-panel
+- screen: active
+- ref: `.cursor/figma-refs/16---Connection-lost.svg`
+- deviation: |
+    EXPECTED (Figma 16): session copilot presence becomes “Reconnecting…”; chat area shows a lavender “Connection lost. Your flight keeps going.” callout plus “Retry connection” control above the composer.
+    ACTUAL: Session presence is always “Here when you need me”; no connection-lost callout or retry affordance in `#view-session` (connection UI lives only under Settings → Connection).
+- fix_hint: |
+    On coach/Gemini disconnect during a mission, restyle `.session-copilot-presence` and insert a Figma-styled lost/retry block above the session composer; Retry can re-invoke existing status/connect helpers.
+- escalate: none
+
+## open: fp-timer-replace-modal
+- screen: active
+- ref: `.cursor/figma-refs/15---Timer-replacement.svg`
+- deviation: |
+    EXPECTED (Figma 15): tapping “Set a five-minute timer” while a next-step timer is already running opens a cream modal (“ONE TIMER AT A TIME” / “Replace your step timer?” / Keep current · Replace timer).
+    ACTUAL: `#session-copilot-suggest` → `startNextStepTimer()` silently overwrites the running countdown; no confirm dialog.
+- fix_hint: |
+    If a next-step timer is active with remaining time, show an MC-styled modal matching Figma 15 before calling `startNextStepTimer(300)`; Keep current dismisses.
+- escalate: none
+
+## open: fp-summary-flight-logged
+- screen: summary
+- ref: `.cursor/figma-refs/13---Flight-logged.svg` · also `21---Ended-early---reflection.svg`
+- deviation: |
+    EXPECTED (Figma 13/21): non–quest-complete / ended-early celebration uses badge “✦ FLIGHT LOGGED” and title “Every flight moves you forward.” (quest-complete keeps ✓ QUEST COMPLETE / “One mission. Well done.”).
+    ACTUAL: `updateSummaryCelebration` only branches first-flight vs quest-complete — every non-first summary shows “✓ QUEST COMPLETE” / “One mission. Well done.” with no flight-logged variant.
+- fix_hint: |
+    Add a flight-logged celebration branch (badge + title + optional ended-early helper under objective choices) when ending early / not marking quest complete; keep quest-complete + first-flight paths.
+- escalate: none
 

@@ -51,7 +51,10 @@
                   <img class="welcome-art-planet" src="/src/assets/figma/planet-ringed.svg" alt="" />
                 </div>
               </div>
-              <p class="welcome-hero-foot">Your next chapter starts here</p>
+              <p class="welcome-hero-foot">
+                Your next chapter starts here
+                <span class="welcome-hero-foot-plus" aria-hidden="true">+</span>
+              </p>
             </div>
 
             <aside id="home-guest-signin" class="welcome-signin">
@@ -722,12 +725,12 @@
         <header class="settings-top-bar">
           <p class="settings-brand"><span class="settings-brand-star" aria-hidden="true">✦</span> Waypoint</p>
           <nav class="settings-nav" aria-label="Primary">
-            <button type="button" class="settings-nav-link" data-settings-nav="home">Home</button>
+            <button type="button" class="settings-nav-link settings-nav-link--active" data-settings-nav="home" aria-current="page">Home</button>
             <button type="button" class="settings-nav-link" data-settings-nav="copilot">Copilot</button>
             <button type="button" class="settings-nav-link" data-settings-nav="lockin">Lock in</button>
           </nav>
           <div class="settings-nav-end">
-            <span class="settings-nav-current" aria-current="page">Settings</span>
+            <span class="settings-nav-link">Settings</span>
             <span id="settings-avatar" class="settings-avatar" aria-hidden="true">—</span>
           </div>
         </header>

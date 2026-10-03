@@ -927,12 +927,25 @@ body:has(.view-home.view-home--guest.active) .grain {
 }
 
 .welcome-hero-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
   margin: 0.85rem 0 0 0.35rem;
   font-size: 0.62rem;
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #8a7fa8;
+}
+
+.welcome-hero-foot-plus {
+  font-size: 0.85rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #6b4cff;
+  line-height: 1;
 }
 
 .welcome-signin {
@@ -4102,6 +4115,13 @@ body:has(.view-quest-complete.active) .grain {
   color: #4a4560;
   font-size: 0.82rem;
   font-weight: 500;
+}
+
+.quest-complete-pb-banner-flag {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  color: #6b4cff;
 }
 
 .quest-objective-section {

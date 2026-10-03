@@ -1413,7 +1413,15 @@ function renderSummary(summary: SessionSummary) {
   if (pbBanner) {
     if (pb.isNew && pb.previous > 0) {
       pbBanner.hidden = false;
-      pbBanner.textContent = `New longest flight! ${pb.previous} → ${flightMinutes} min`;
+      pbBanner.innerHTML = `
+        <svg class="quest-complete-pb-banner-flag" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M2 1.5v9M2 2.5h6.2c.3 0 .5.2.5.5v2.8c0 .3-.2.5-.5.5H2"
+          />
+        </svg>
+        <span>New longest flight! ${escapeHtml(String(pb.previous))} → ${escapeHtml(String(flightMinutes))} min</span>
+      `;
     } else {
       pbBanner.hidden = true;
       pbBanner.textContent = "";
