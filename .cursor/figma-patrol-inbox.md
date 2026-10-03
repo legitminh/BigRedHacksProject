@@ -2077,7 +2077,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - fix_hint: |
     Restore `#session-chat-input` idle placeholder to “Message your copilot…”
     (U+2026); keep Talk/Mic + send wiring. Do not touch Copilot `#chat-input`.
-- commit: PENDING
+- commit: adecf0c
 - change: |
     Restored `#session-chat-input` HTML placeholder to “Message your
     copilot…” (U+2026) after 10bb695 companion Live regression.
