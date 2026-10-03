@@ -4390,8 +4390,8 @@ body:has(.view-quest-complete.active) .grain {
   display: grid;
   place-items: center;
   padding: 1.5rem;
-  background: rgba(6, 8, 18, 0.82);
-  backdrop-filter: blur(6px);
+  background: rgba(232, 224, 245, 0.92);
+  backdrop-filter: blur(8px);
   animation: rise 0.35s ease both;
 }
 
@@ -4401,9 +4401,9 @@ body:has(.view-quest-complete.active) .grain {
   padding: 1.5rem;
   text-align: center;
   border-radius: 18px;
-  border: 1px solid rgba(167, 139, 250, 0.45);
-  background: linear-gradient(160deg, rgba(124, 58, 237, 0.22), rgba(12, 16, 28, 0.95));
-  box-shadow: 0 0 40px rgba(34, 211, 238, 0.15);
+  border: 1px solid var(--mc-border-default);
+  background: var(--mc-bg-card);
+  box-shadow: 0 16px 48px rgba(42, 36, 64, 0.1);
 }
 
 .ship-first-flight-badge {
@@ -4414,8 +4414,8 @@ body:has(.view-quest-complete.active) .grain {
   font-size: 0.72rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #1a1208;
-  background: linear-gradient(135deg, var(--cyan-glow), #a78bfa);
+  color: var(--mc-accent-purple);
+  background: var(--mc-surface-lavender);
   font-weight: 700;
 }
 
