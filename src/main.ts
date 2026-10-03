@@ -1311,6 +1311,9 @@ function syncPauseControls(paused: boolean) {
   if (note) note.hidden = !paused;
 }
 
+/** Captured MM:SS while paused so session-update cannot thaw the display. */
+let missionTimerFrozenDisplay: string | null = null;
+
 function renderSession(session: LockInSession) {
   currentSessionDurationSecs = session.duration_secs;
   currentOnTaskTicks = session.on_task_ticks ?? 0;
@@ -1319,7 +1322,13 @@ function renderSession(session: LockInSession) {
   const status = $("#session-status");
   const goals = $("#session-goals");
   const note = $("#session-watch-note");
-  if (timer) timer.textContent = formatRemaining(session.ends_at);
+  if (timer) {
+    // While paused, keep the captured freeze (session-update must not thaw countdown).
+    timer.textContent =
+      session.paused && missionTimerFrozenDisplay != null
+        ? missionTimerFrozenDisplay
+        : formatRemaining(session.ends_at);
+  }
   if (status) {
     const label = session.paused ? "paused" : statusLabel(session.status);
     status.textContent = session.paused
@@ -1531,6 +1540,7 @@ function stopTimer() {
   }
   currentEndsAt = null;
   currentSessionDurationSecs = 0;
+  missionTimerFrozenDisplay = null;
   clearNextStepTimer();
 }
 
@@ -1540,8 +1550,9 @@ function startTimer(endsAt: string) {
     timerHandle = undefined;
   }
   currentEndsAt = endsAt;
+  missionTimerFrozenDisplay = null;
   const tick = () => {
-    if (!currentEndsAt) return;
+    if (!currentEndsAt || missionTimerFrozenDisplay != null) return;
     const el = $("#session-timer");
     const ms = new Date(currentEndsAt).getTime() - Date.now();
     if (el) el.textContent = formatRemaining(currentEndsAt);
@@ -1562,20 +1573,37 @@ function startTimer(endsAt: string) {
       }
     }
   };
-  tick();
+  // Schedule first so a throw inside tick cannot leave the mission without an interval.
   timerHandle = window.setInterval(tick, 1000);
+  tick();
 }
 
-/** Keep the mission countdown frozen while paused; resume via startTimer. */
+/**
+ * Keep the mission countdown ticking while active; freeze while paused.
+ * Must not thrash-restart on every session-update (coach emits ~1Hz).
+ */
 function syncMissionTimer(session: Pick<LockInSession, "paused" | "ends_at">) {
   if (session.paused) {
     if (timerHandle) {
       window.clearInterval(timerHandle);
       timerHandle = undefined;
     }
-    currentEndsAt = session.ends_at;
+    if (session.ends_at) currentEndsAt = session.ends_at;
+    if (missionTimerFrozenDisplay == null) {
+      missionTimerFrozenDisplay = formatRemaining(
+        session.ends_at || currentEndsAt || new Date().toISOString(),
+      );
+    }
     const el = $("#session-timer");
-    if (el) el.textContent = formatRemaining(session.ends_at);
+    if (el) el.textContent = missionTimerFrozenDisplay;
+    return;
+  }
+
+  missionTimerFrozenDisplay = null;
+  if (!session.ends_at) return;
+
+  // Same deadline already scheduled — leave the 1s interval alone.
+  if (timerHandle && currentEndsAt === session.ends_at) {
     return;
   }
   startTimer(session.ends_at);
@@ -1954,6 +1982,9 @@ window.addEventListener("DOMContentLoaded", async () => {
       const session = await invoke<LockInSession>("set_lock_in_paused", { paused: next });
       renderSession(session);
       syncMissionTimer(session);
+      // Belt-and-suspenders: renderSession also syncs next-step; keep explicit for Pause/Resume.
+      if (session.paused) pauseNextStepTimer();
+      else resumeNextStepTimer();
     } catch (err) {
       const msg = String(err);
       alert(/no active mission/i.test(msg) ? msg : "Couldn’t pause right now. Try again.");
