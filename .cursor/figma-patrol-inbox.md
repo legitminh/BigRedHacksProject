@@ -1861,3 +1861,113 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     full-width lavender secondary button under Sign in →; keep guest
     unlock wiring.
 - escalate: scrutinous
+
+## done: fp-break-extraneous-pause-note
+- screen: active
+- ref: `.cursor/figma-refs/10-on-a-break.png` · live `2:42` · tick13
+- expected: |
+    Live 10 under the Resume/End row: only earned-minutes + hint — NO
+    coaching-hold note. Break copy lives in the right card only.
+- actual: |
+    `syncPauseControls(true)` sets `#session-pause-note.hidden = false`
+    with “Timer paused — coaching is on hold until you resume.” CSS is
+    visible (not visually-hidden). Live frame has no such line.
+- deviation: |
+    Extraneous pause note vs live 10. Distinct from break panel/copy/
+    Resume-label opens.
+- fix_hint: |
+    Keep `#session-pause-note` hidden (or remove) while paused; rely on
+    break card body for coaching-paused copy. Keep Pause/End wiring.
+- escalate: scrutinous
+- commit: PENDING
+- change: |
+    `syncPauseControls` always keeps `#session-pause-note` hidden; CSS
+    `display: none` so the coaching-hold line never appears under Pause/End.
+
+## done: fp-break-resume-mission-label
+- screen: active
+- ref: `.cursor/figma-refs/10-on-a-break.png` · live `2:42` · left `6:819`
+- expected: |
+    Live 10 left primary is exactly “Resume mission” (`6:819`, 210×52
+    filled); End mission stays tonal secondary. Card CTA matches.
+- actual: |
+    `syncPauseControls` sets `#session-pause` text to “Resume” (not
+    “Resume mission”). Open `fp-break-live-panel-copy` only notes this
+    optionally.
+- deviation: |
+    Left control label must be “Resume mission” per live `6:819`.
+    Elevates soft note in panel-copy open.
+- fix_hint: |
+    When paused: `btn.textContent = "Resume mission"`; idle → “Pause”.
+    Keep pause invoke / End. Pair with break panel shell.
+- escalate: scrutinous
+- commit: PENDING
+- change: |
+    Paused `#session-pause` label is “Resume mission”; idle “Pause”.
+    Left control stays filled primary while paused; End mission unchanged.
+
+## open: fp-relaunch-cta-hierarchy
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  left `6:644`/`6:647` · card `8:423`/`8:426`
+- expected: |
+    Live 09: LEFT “Take a break” filled primary + “End mission” tonal;
+    RIGHT card “Relaunch” filled primary full-width + “Take a break”
+    tonal secondary full-width under it.
+- actual: |
+    No relaunch surface (`fp-relaunch-session-panel` /
+    `fp-relaunch-live-panel-copy`). Opens lock copy/existence, not which
+    CTAs are filled.
+- deviation: |
+    CTA hierarchy vs live — left Take a break primary; card Relaunch
+    primary / Take a break secondary. Complements panel/copy/chrome-hide.
+- fix_hint: |
+    When building relaunch UI: style left Take a break as filled (Pause
+    slot), End tonal; card Relaunch filled → relaunch path, Take a break
+    tonal → same pause path. Keep End wiring.
+- escalate: scrutinous
+
+## open: fp-connection-lost-composer-stays
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  composer `6:1725`
+- expected: |
+    Live 16 keeps the idle message composer under Retry (placeholder
+    “Message your copilot…”, Mic + Send ↑, stable hint). Only suggest
+    becomes “Retry connection”; presence “○  Reconnecting…”.
+- actual: |
+    Opens cover presence/callout/Retry/latest-card/chrome-hide — not
+    that composer must remain mounted and enabled. Risk: fixer disables
+    chat while disconnected.
+- deviation: |
+    Composer stays idle while lost; do not strip Mic/Send. Distinct from
+    `fp-connection-lost-latest-card` (Retry-as-suggest).
+- fix_hint: |
+    On disconnect: swap suggest→Retry + show lost Latest card; leave
+    `#session-chat-form` / Mic / Send as idle. Restore suggest on reconnect.
+- escalate: scrutinous
+
+## done: fp-break-panel-compact
+- screen: active
+- ref: `.cursor/figma-refs/10-on-a-break.png` · live `2:42` · panel `6:828`
+- expected: |
+    Live 10 right panel height 376 — badge “Ⅱ  ON A BREAK”, title, body,
+    divider, Resume mission, footer only. NO ✦ Your copilot header,
+    presence, chat history, suggest, or composer.
+- actual: |
+    Open `fp-break-session-panel` / `fp-break-live-panel-copy` say swap
+    to break card but don’t lock compact chrome (no chat stack). App
+    keeps full `.session-copilot-panel` chat column while paused.
+- deviation: |
+    Break panel is a short status card, not a chat sidebar with a card
+    overlay. Complements panel/copy; pairs with chrome-hide (already
+    verified for next-step/suggest).
+- fix_hint: |
+    Replace copilot column contents with the compact break card (no
+    chat/composer/presence); restore chat on Resume. Keep End + pause.
+- escalate: scrutinous
+- commit: PENDING
+- change: |
+    `#view-session.is-session-break` swaps `.session-copilot-chat` for
+    `#session-break-card` (badge/title/body/divider/Resume/footer). Card
+    Resume clicks `#session-pause`; chat column restores on resume.

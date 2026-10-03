@@ -565,53 +565,76 @@
             </article>
 
             <aside class="session-copilot-panel" aria-label="Mission copilot">
-              <header class="session-copilot-head">
-                <p class="session-copilot-kicker"><span aria-hidden="true">✦</span> Your copilot</p>
-                <p class="session-copilot-presence">
-                  <span class="session-copilot-presence-dot" aria-hidden="true"></span>
-                  Here when you need me
-                </p>
-              </header>
               <div
-                id="session-chat-log"
-                class="chat-log session-copilot-log"
-                role="log"
-                aria-label="Copilot conversation during mission"
-                aria-live="polite"
+                id="session-break-card"
+                class="session-break-card"
+                hidden
+                aria-hidden="true"
               >
-                <p id="session-chat-empty" class="session-copilot-empty muted">
-                  Message your copilot if you hit a roadblock mid-flight.
+                <p class="session-break-badge">Ⅱ&nbsp;&nbsp;ON A BREAK</p>
+                <h2 class="session-break-title">A little breathing room.</h2>
+                <p class="session-break-body">
+                  Your timer is paused. Automatic check-ins are paused too.
                 </p>
-              </div>
-              <footer class="session-copilot-composer copilot-composer">
+                <hr class="session-break-divider" />
                 <button
                   type="button"
-                  id="session-copilot-suggest"
-                  class="session-copilot-suggest"
+                  id="session-break-resume"
+                  class="primary wide session-break-resume"
                 >
-                  Set a five-minute timer
+                  Resume mission
                 </button>
-                <form id="session-chat-form" class="chat-form copilot-form">
-                  <div class="copilot-input-wrap">
-                    <textarea
-                      id="session-chat-input"
-                      rows="1"
-                      aria-label="Message your copilot"
-                      aria-describedby="session-chat-hint"
-                      placeholder="Message your copilot..."
-                    ></textarea>
-                    <button id="session-chat-mic" type="button" class="copilot-mic" aria-label="Microphone">
-                      Mic
-                    </button>
-                    <button id="session-chat-send" type="submit" class="primary copilot-send" aria-label="Send message">
-                      <span aria-hidden="true">↑</span>
-                    </button>
-                  </div>
-                </form>
-                <p id="session-chat-hint" class="composer-hint session-composer-hint">
-                  Enter to send · Click the microphone to start or stop a voice turn
-                </p>
-              </footer>
+                <p class="session-break-footer">Your spaceship will continue from right here.</p>
+              </div>
+              <div class="session-copilot-chat">
+                <header class="session-copilot-head">
+                  <p class="session-copilot-kicker"><span aria-hidden="true">✦</span> Your copilot</p>
+                  <p class="session-copilot-presence">
+                    <span class="session-copilot-presence-dot" aria-hidden="true"></span>
+                    Here when you need me
+                  </p>
+                </header>
+                <div
+                  id="session-chat-log"
+                  class="chat-log session-copilot-log"
+                  role="log"
+                  aria-label="Copilot conversation during mission"
+                  aria-live="polite"
+                >
+                  <p id="session-chat-empty" class="session-copilot-empty muted">
+                    Message your copilot if you hit a roadblock mid-flight.
+                  </p>
+                </div>
+                <footer class="session-copilot-composer copilot-composer">
+                  <button
+                    type="button"
+                    id="session-copilot-suggest"
+                    class="session-copilot-suggest"
+                  >
+                    Set a five-minute timer
+                  </button>
+                  <form id="session-chat-form" class="chat-form copilot-form">
+                    <div class="copilot-input-wrap">
+                      <textarea
+                        id="session-chat-input"
+                        rows="1"
+                        aria-label="Message your copilot"
+                        aria-describedby="session-chat-hint"
+                        placeholder="Message your copilot..."
+                      ></textarea>
+                      <button id="session-chat-mic" type="button" class="copilot-mic" aria-label="Microphone">
+                        Mic
+                      </button>
+                      <button id="session-chat-send" type="submit" class="primary copilot-send" aria-label="Send message">
+                        <span aria-hidden="true">↑</span>
+                      </button>
+                    </div>
+                  </form>
+                  <p id="session-chat-hint" class="composer-hint session-composer-hint">
+                    Enter to send · Click the microphone to start or stop a voice turn
+                  </p>
+                </footer>
+              </div>
             </aside>
           </div>
         </div>

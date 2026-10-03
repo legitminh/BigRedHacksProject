@@ -3463,10 +3463,11 @@ body:has(.view-mission-setup.active) .grain {
   animation: none;
 }
 
-.session-control-pill.is-paused {
-  background: var(--mc-surface-lavender);
-  color: var(--mc-accent-purple);
-  border: 1px solid rgba(107, 76, 255, 0.35);
+/* Live 10: paused left control stays filled primary (“Resume mission”). */
+.session-control-pill.primary.is-paused {
+  background: var(--mc-accent-purple);
+  color: #fff;
+  border-color: transparent;
 }
 
 .session-mission-id {
@@ -3487,6 +3488,97 @@ body:has(.view-mission-setup.active) .grain {
   border: 1px solid var(--mc-border-default);
   background: var(--mc-bg-card);
   box-shadow: var(--mc-shadow-soft);
+}
+
+.session-copilot-chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.session-break-card {
+  display: none;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+}
+
+.session-break-badge {
+  margin: 0 0 1rem;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mc-accent-purple);
+  background: var(--mc-surface-lavender);
+  border: 1px solid rgba(107, 76, 255, 0.14);
+}
+
+.session-break-title {
+  margin: 0 0 0.65rem;
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--mc-text-primary);
+}
+
+.session-break-body {
+  margin: 0 0 1.15rem;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--mc-text-secondary);
+}
+
+.session-break-divider {
+  margin: 0 0 1.15rem;
+  border: none;
+  border-top: 1px solid var(--mc-border-subtle);
+}
+
+.session-break-resume {
+  width: 100%;
+  min-height: 3.25rem;
+  border-radius: var(--radius-pill);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.session-break-footer {
+  margin: 1rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--mc-text-muted);
+  text-align: center;
+}
+
+/* Live 10: compact break card only — no chat stack while paused. */
+#view-session.is-session-break .session-layout {
+  align-items: start;
+}
+
+#view-session.is-session-break .session-copilot-panel {
+  align-self: start;
+  flex: 0 0 auto;
+  min-height: unset;
+  max-width: 100%;
+  width: 100%;
+  padding: 1.35rem 1.35rem 1.25rem;
+}
+
+#view-session.is-session-break .session-copilot-chat {
+  display: none;
+}
+
+#view-session.is-session-break .session-break-card {
+  display: flex;
 }
 
 .session-copilot-kicker {
@@ -3933,6 +4025,7 @@ body:has(.view-session.active) .grain {
 }
 
 .session-pause-note {
+  display: none;
   margin: 0;
   font-size: 0.75rem;
   color: var(--mc-text-muted);

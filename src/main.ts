@@ -1640,15 +1640,25 @@ function syncPauseControls(paused: boolean) {
   const note = $("#session-pause-note");
   const endBtn = $("#end-session") as HTMLButtonElement | null;
   const caption = $("#session-timer-caption");
+  const breakCard = $("#session-break-card");
+  const panel = $(".session-copilot-panel");
   $("#view-session")?.classList.toggle("is-session-break", paused);
   if (btn) {
     btn.disabled = false;
     btn.setAttribute("aria-pressed", paused ? "true" : "false");
-    btn.textContent = paused ? "Resume" : "Pause";
+    btn.textContent = paused ? "Resume mission" : "Pause";
     btn.classList.toggle("is-paused", paused);
   }
   if (endBtn) endBtn.disabled = false;
-  if (note) note.hidden = !paused;
+  // Live 10: break copy lives in the right card only — never show left pause note.
+  if (note) note.hidden = true;
+  if (breakCard) {
+    breakCard.hidden = !paused;
+    breakCard.setAttribute("aria-hidden", paused ? "false" : "true");
+  }
+  if (panel) {
+    panel.setAttribute("aria-label", paused ? "On a break" : "Mission copilot");
+  }
   if (caption) {
     caption.textContent = paused ? "REMAINING · TIMER PAUSED" : "REMAINING IN YOUR FLIGHT";
   }
@@ -2492,6 +2502,13 @@ async function bootApp() {
     } finally {
       if (btn) btn.disabled = false;
     }
+  });
+
+  $("#session-break-resume")?.addEventListener("click", () => {
+    const pauseBtn = $("#session-pause") as HTMLButtonElement | null;
+    if (!pauseBtn || pauseBtn.disabled) return;
+    if (pauseBtn.getAttribute("aria-pressed") !== "true") return;
+    pauseBtn.click();
   });
 
   $("#end-session")?.addEventListener("click", async () => {
