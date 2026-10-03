@@ -15,12 +15,24 @@ interface StatusPayload {
   google_connected: boolean;
   gemini_ready: boolean;
   google_oauth_ready: boolean;
+  presage_ready: boolean;
   session: LockInSession | null;
 }
 
 interface ChatMessage {
   role: string;
   content: string;
+}
+
+interface VitalsSnapshot {
+  heart_rate?: number | null;
+  breathing_rate?: number | null;
+  hrv_rmssd?: number | null;
+  stress_index?: number | null;
+  stressed: boolean;
+  focus_ok: boolean;
+  raw_summary: string;
+  source: string;
 }
 
 interface LockInSession {
@@ -32,6 +44,10 @@ interface LockInSession {
   status: string;
   active: boolean;
   prompts: CoachPrompt[];
+  vitals?: VitalsSnapshot;
+  camera_ready?: boolean;
+  presage_ready?: boolean;
+  watching_note?: string;
 }
 
 interface CoachPrompt {
@@ -48,6 +64,7 @@ interface SessionSummary {
   top_distractions: string[];
   stress_spikes: number;
   closing_note: string;
+  vitals_summary?: string;
 }
 
 const $ = <T extends HTMLElement>(sel: string) =>
@@ -170,10 +187,32 @@ function statusLabel(status: string): string {
     .toLowerCase();
 }
 
+function formatVitals(vitals?: VitalsSnapshot | null): string {
+  if (!vitals || (!vitals.raw_summary && vitals.source !== "presage" && vitals.source !== "fallback")) {
+    return "Waiting for first Presage reading…";
+  }
+  const bits: string[] = [];
+  if (typeof vitals.heart_rate === "number") bits.push(`HR ${Math.round(vitals.heart_rate)}`);
+  if (typeof vitals.breathing_rate === "number") bits.push(`RR ${vitals.breathing_rate.toFixed(1)}`);
+  if (typeof vitals.stress_index === "number") bits.push(`stress ${Math.round(vitals.stress_index)}`);
+  const state = vitals.stressed ? "elevated stress" : "steady";
+  const source = vitals.source === "presage" ? "Presage" : vitals.source === "fallback" ? "vision estimate" : vitals.source || "—";
+  if (bits.length) return `${bits.join(" · ")} · ${state} (${source})`;
+  return vitals.raw_summary || `${state} (${source})`;
+}
+
+function renderVitals(vitals?: VitalsSnapshot | null) {
+  const line = $("#vitals-line");
+  const panel = $("#session-vitals");
+  if (line) line.textContent = formatVitals(vitals);
+  if (panel) panel.classList.toggle("stressed", Boolean(vitals?.stressed));
+}
+
 function renderSession(session: LockInSession) {
   const timer = $("#session-timer");
   const status = $("#session-status");
   const goals = $("#session-goals");
+  const note = $("#session-watch-note");
   if (timer) timer.textContent = formatRemaining(session.ends_at);
   if (status) {
     const label = statusLabel(session.status);
@@ -181,6 +220,8 @@ function renderSession(session: LockInSession) {
     status.className = `status-chip ${label}`;
   }
   if (goals) goals.textContent = session.goals;
+  if (note) note.textContent = session.watching_note || "Watching your screen";
+  renderVitals(session.vitals);
 }
 
 function appendPrompt(prompt: CoachPrompt) {
@@ -196,14 +237,20 @@ function renderSummary(summary: SessionSummary) {
   const body = $("#summary-body");
   if (!body) return;
   const pct = Math.round(summary.on_task_ratio * 100);
+  const escape = (value: string) =>
+    value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   body.innerHTML = `
-    <p>${summary.closing_note}</p>
+    <p>${escape(summary.closing_note)}</p>
     <h3>Goals</h3>
-    <p>${summary.goals}</p>
+    <p>${escape(summary.goals)}</p>
     <h3>On task</h3>
     <p>${pct}%</p>
+    <h3>Stress spikes</h3>
+    <p>${summary.stress_spikes}</p>
+    <h3>Wellness</h3>
+    <p>${escape(summary.vitals_summary || "No wellness reading this session.")}</p>
     <h3>Distractions</h3>
-    <p>${summary.top_distractions.length ? summary.top_distractions.join(", ") : "None"}</p>
+    <p>${summary.top_distractions.length ? escape(summary.top_distractions.join(", ")) : "None"}</p>
   `;
 }
 
@@ -221,9 +268,20 @@ function startTimer(endsAt: string) {
   timerHandle = window.setInterval(tick, 1000);
 }
 
+function renderLockinHints(status: StatusPayload) {
+  const hint = $("#lockin-wellness");
+  if (!hint) return;
+  if (status.presage_ready) {
+    hint.textContent = "Presage key detected — wellness checks will use your webcam during the session.";
+  } else {
+    hint.textContent = "No Presage key yet — screen coaching still works; add presage_api_key in secrets.toml for stress readings.";
+  }
+}
+
 async function refreshStatus() {
   const status = await invoke<StatusPayload>("get_status");
   renderHome(status);
+  renderLockinHints(status);
   return status;
 }
 
@@ -295,6 +353,11 @@ window.addEventListener("DOMContentLoaded", async () => {
     e.preventDefault();
     const goals = ($("#goals") as HTMLTextAreaElement | null)?.value ?? "";
     const duration = Number(($("#duration") as HTMLInputElement | null)?.value || 45);
+    const startBtn = $("#lockin-start") as HTMLButtonElement | null;
+    if (startBtn) {
+      startBtn.disabled = true;
+      startBtn.textContent = "Starting…";
+    }
     try {
       const session = await invoke<LockInSession>("start_lock_in", {
         goals,
@@ -302,11 +365,17 @@ window.addEventListener("DOMContentLoaded", async () => {
       });
       const feed = $("#prompt-feed");
       if (feed) feed.innerHTML = "";
+      renderVitals(null);
       renderSession(session);
       startTimer(session.ends_at);
       show("view-session");
     } catch (err) {
       alert(String(err));
+    } finally {
+      if (startBtn) {
+        startBtn.disabled = false;
+        startBtn.textContent = "Start lock-in";
+      }
     }
   });
 
@@ -325,6 +394,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     startTimer(event.payload.ends_at);
   });
   await listen<CoachPrompt>("coach-prompt", (event) => appendPrompt(event.payload));
+  await listen<VitalsSnapshot>("vitals-update", (event) => renderVitals(event.payload));
   await listen<SessionSummary>("session-ended", (event) => {
     renderSummary(event.payload);
     show("view-summary");

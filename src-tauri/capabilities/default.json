@@ -1,10 +1,17 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
-  "windows": ["main"],
+  "description": "Capability for main + coach overlay windows",
+  "windows": ["main", "coach-overlay"],
   "permissions": [
     "core:default",
+    "core:event:default",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-set-focus",
+    "core:window:allow-unminimize",
+    "core:webview:allow-create-webview-window",
     "opener:default"
   ]
 }

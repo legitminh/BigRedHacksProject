@@ -11,8 +11,10 @@
   },
   "app": {
     "withGlobalTauri": true,
+    "macOSPrivateApi": true,
     "windows": [
       {
+        "label": "main",
         "title": "Waypoint",
         "width": 1180,
         "height": 760,

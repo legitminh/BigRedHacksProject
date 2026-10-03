@@ -11,6 +11,7 @@ pub enum SessionStatusKind {
     Stressed,
     NeedsHelp,
     Idle,
+    Watching,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,6 +38,9 @@ pub struct LockInSession {
     pub on_task_ticks: u32,
     pub total_ticks: u32,
     pub stress_spikes: u32,
+    pub camera_ready: bool,
+    pub presage_ready: bool,
+    pub watching_note: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,12 +53,28 @@ pub struct SessionSummary {
     pub stress_spikes: u32,
     pub prompts: Vec<CoachPrompt>,
     pub closing_note: String,
+    pub vitals_summary: String,
 }
 
 impl LockInSession {
-    pub fn start(goals: String, duration_mins: u64, modality: String) -> Self {
+    pub fn start(
+        goals: String,
+        duration_mins: u64,
+        modality: String,
+        camera_ready: bool,
+        presage_ready: bool,
+    ) -> Self {
         let now = chrono::Utc::now();
         let duration_secs = duration_mins.saturating_mul(60).max(60);
+        let watching_note = if camera_ready && presage_ready {
+            "Watching your screen · webcam ready for Presage stress checks".into()
+        } else if camera_ready {
+            "Watching your screen · webcam on (Presage key not set — stress from vision only)".into()
+        } else if presage_ready {
+            "Watching your screen · allow Camera to enable Presage stress checks".into()
+        } else {
+            "Watching your screen · stress checks need Camera + Presage API key".into()
+        };
         Self {
             id: Uuid::new_v4().to_string(),
             goals,
@@ -62,7 +82,7 @@ impl LockInSession {
             started_at: now.to_rfc3339(),
             ends_at: (now + chrono::Duration::seconds(duration_secs as i64)).to_rfc3339(),
             modality,
-            status: SessionStatusKind::Idle,
+            status: SessionStatusKind::Watching,
             active: true,
             prompts: Vec::new(),
             vitals: VitalsSnapshot::default(),
@@ -70,6 +90,9 @@ impl LockInSession {
             on_task_ticks: 0,
             total_ticks: 0,
             stress_spikes: 0,
+            camera_ready,
+            presage_ready,
+            watching_note,
         }
     }
 
@@ -107,12 +130,14 @@ impl LockInSession {
             .map(|(k, v)| format!("{k} ×{v}"))
             .collect();
 
-        let closing_note = if ratio > 0.8 {
-            "Strong lock-in. You stayed with the map most of the session.".into()
+        let closing_note = if ratio > 0.8 && self.stress_spikes <= 1 {
+            "Strong lock-in. You stayed with the work and kept stress mostly steady.".into()
         } else if self.stress_spikes > 2 {
-            "You pushed through some stress spikes — next time, shorter blocks may help.".into()
+            "You pushed through stress spikes — next time try shorter blocks or a quick reset breath.".into()
+        } else if ratio < 0.5 {
+            "Focus drifted often. Tighten the next goal to one concrete task on screen.".into()
         } else {
-            "Decent effort. Review the distractions and tighten the next waypoint.".into()
+            "Solid effort. Review what pulled you off-screen and set a clearer next waypoint.".into()
         };
 
         SessionSummary {
@@ -124,6 +149,11 @@ impl LockInSession {
             stress_spikes: self.stress_spikes,
             prompts: self.prompts.clone(),
             closing_note,
+            vitals_summary: if self.vitals.raw_summary.is_empty() {
+                "No wellness reading this session.".into()
+            } else {
+                self.vitals.raw_summary.clone()
+            },
         }
     }
 }

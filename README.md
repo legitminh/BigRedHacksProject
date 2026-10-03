@@ -93,6 +93,9 @@ google_client_id = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
 google_client_secret = "YOUR_GOOGLE_CLIENT_SECRET"
 ```
 
+`gemini_api_key` is **required** — the Rust crate will not compile if it is empty (unless you export a non-empty `GEMINI_API_KEY`).  
+`presage_api_key` unlocks webcam stress / HR–RR checks during lock-in.
+
 Save the file.  
 `src-tauri/secrets.toml` is **gitignored** — it will not go to GitHub. It gets compiled into `Waypoint.app`.
 
@@ -119,7 +122,7 @@ Or Finder → go to that folder → double-click **Waypoint.app**.
 
 If macOS blocks it: **System Settings → Privacy & Security → Open Anyway**.
 
-Also allow **Camera** and **Screen Recording** when lock-in asks.
+For lock-in, allow **Screen Recording** (required — Waypoint watches your screen) and **Camera** (for Presage wellness). Install `ffmpeg` if you want Presage clips to encode.
 
 A `.dmg` (if produced) will be under:
 
@@ -156,6 +159,8 @@ npm run app:dev
 - Run `npm test` (Node 26+) for Markdown safety and chat interaction checks.
 - If Calendar works but Drive does not, enable **Google Drive API** in the same Google Cloud project as the desktop OAuth client. Adding consent-screen scopes alone does not enable the API. Wait a few minutes after enabling it; reconnect Google if the error instead says permissions are missing.
 - Drive chat reads excerpts from Google Docs, Slides, Sheets (first sheet only), and text files. Other formats currently provide filenames and metadata only. Ask with a specific title or topic for files outside the recent listing.
+- Lock-in is screen-first: Gemini coaches from periodic screenshots against your goals. Presage runs separate ~20s webcam clips for stress / HR / RR when Camera + `presage_api_key` + `ffmpeg` are available. Lock-in still starts if the camera is denied; wellness just stays offline.
+- Coach lines pop up in an always-on-top overlay and are spoken with a local macOS `say` stand-in (`waypoint-voice` crate). Swap that crate’s TTS/STT for Grok Voice later. `voice_listen_test` records a short mic clip through the stub STT pipeline.
 - Keep `src-tauri/Info.plist` in the build: it declares why Waypoint needs camera access. Without `NSCameraUsageDescription`, macOS terminates the app when lock-in touches the camera. Reopen the rebuilt `.app` after updating; allow Camera and Screen Recording in System Settings.
 - Rebuild after any change to `src-tauri/secrets.toml` (`npm run app:build` again).
 - Embedded keys can be extracted from a desktop binary — fine for a hackathon demo; rotate keys after the event if the repo/app is shared widely.

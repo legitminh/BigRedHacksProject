@@ -148,15 +148,18 @@ impl GeminiClient {
         let mut parts = vec![json!({
             "text": format!(
                 r#"You are Waypoint, a calm study lock-in coach.
+Primary job: watch the SCREEN and judge whether it matches the student's goals.
 Session goals: {goals}
 Expected modality: {modality}
-Live wellness signals (informational only, not medical): {vitals_summary}
+Live wellness signals from Presage / fallback (informational only, not medical): {vitals_summary}
 
-Look at the webcam and/or screen frames.
-Decide if the student is on task.
-Distinguish a phone (distraction) from a calculator (often OK for math).
-If they look stuck or confused, needs_help=true.
-If they look tense/stressed, stress_cue=true.
+Rules:
+- on_task=true only if the visible screen work clearly advances the goals (docs, IDE, problem set, slides, etc.).
+- Social feeds, shopping, unrelated videos, messaging, or random browsing → on_task=false and set distraction.
+- Phone in a webcam frame is a distraction; a calculator for math is usually OK.
+- needs_help=true if they appear stuck on the same problem/error with no progress.
+- stress_cue=true if Presage reports stress OR they look tense/overwhelmed; do not invent medical claims.
+- coach_line: one short, kind, specific sentence about what you see on screen (or a brief stress reset). No lectures.
 
 Reply ONLY valid JSON with keys:
 on_task (bool), objects (string array), distraction (string|null),
@@ -165,9 +168,9 @@ modality (computer|paper|mixed)."#
             )
         })];
 
-        if let Some(bytes) = camera_jpeg {
+        if let Some(bytes) = screen_jpeg {
             parts.push(json!({
-                "text": "Webcam frame:"
+                "text": "PRIMARY — current screen:"
             }));
             parts.push(json!({
                 "inline_data": {
@@ -175,10 +178,15 @@ modality (computer|paper|mixed)."#
                     "data": B64.encode(bytes)
                 }
             }));
-        }
-        if let Some(bytes) = screen_jpeg {
+        } else {
             parts.push(json!({
-                "text": "Screen frame:"
+                "text": "PRIMARY — screen frame unavailable this tick."
+            }));
+        }
+
+        if let Some(bytes) = camera_jpeg {
+            parts.push(json!({
+                "text": "OPTIONAL webcam context (face / posture only):"
             }));
             parts.push(json!({
                 "inline_data": {

@@ -3,6 +3,7 @@ mod coach;
 mod config;
 mod gemini;
 mod google;
+mod overlay;
 mod presage;
 mod session;
 
@@ -16,6 +17,7 @@ use tauri::State;
 use config::AppConfig;
 use gemini::{ChatMessage, GeminiClient};
 use google::GoogleContext;
+use presage::PresageClient;
 use session::{LockInSession, SessionSummary};
 
 pub struct AppState {
@@ -167,28 +169,43 @@ async fn start_lock_in(
         return Err("Describe what you want to lock in on.".into());
     }
     coach::stop_coach(&app);
-
-    capture::camera::request_permission().await?;
+    let _ = overlay::ensure_overlay(&app);
 
     let cfg = state.config.lock().clone();
+    let gemini = GeminiClient::from_config(&cfg)?;
+    let presage_ready = PresageClient::configured(&cfg);
+
+    // Screen watch is required — fail early with a clear permission message.
     let screen_jpeg = tokio::task::spawn_blocking(capture::screen::grab_primary_jpeg)
         .await
-        .ok()
-        .and_then(|r| r.ok());
+        .map_err(|e| format!("Screen capture task failed: {e}"))?
+        .map_err(|e| e)?;
 
-    let modality = match GeminiClient::from_config(&cfg) {
-        Ok(client) => client
-            .classify_modality(&goals, screen_jpeg.as_deref())
-            .await
-            .unwrap_or_else(|_| "computer".into()),
-        Err(_) => "computer".into(),
-    };
+    // Camera is for Presage stress / HR — optional; never block lock-in.
+    let mut camera_ready = capture::camera::permission_granted();
+    if !camera_ready {
+        match capture::camera::request_permission().await {
+            Ok(()) => camera_ready = true,
+            Err(e) => tracing::warn!("camera permission skipped: {e}"),
+        }
+    }
 
-    let session = LockInSession::start(goals, duration_mins.max(1), modality);
+    let modality = gemini
+        .classify_modality(&goals, Some(&screen_jpeg))
+        .await
+        .unwrap_or_else(|_| "computer".into());
+
+    let session = LockInSession::start(
+        goals,
+        duration_mins.max(1),
+        modality,
+        camera_ready,
+        presage_ready,
+    );
     let id = session.id.clone();
     *state.session.lock() = Some(session.clone());
 
-    coach::spawn_coach_loop(app, id);
+    coach::spawn_coach_loop(app, id, camera_ready, presage_ready);
     Ok(session)
 }
 
@@ -207,6 +224,26 @@ fn get_session(state: State<'_, AppState>) -> Option<LockInSession> {
     state.session.lock().clone()
 }
 
+/// Speak arbitrary text with the local TTS stand-in (macOS `say`).
+#[tauri::command]
+fn voice_speak(text: String) -> Result<(), String> {
+    waypoint_voice::speak(&text).map_err(|e| e.to_string())
+}
+
+/// Record a short mic clip and run the stub STT pipeline (swap for Grok Voice later).
+#[tauri::command]
+async fn voice_listen_test(
+    seconds: Option<u64>,
+) -> Result<waypoint_voice::Transcript, String> {
+    let secs = seconds.unwrap_or(4);
+    tokio::task::spawn_blocking(move || {
+        let stub = waypoint_voice::StubTranscriber;
+        waypoint_voice::listen_once(secs, &stub).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("voice listen task: {e}"))?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = tracing_subscriber::fmt()
@@ -214,6 +251,12 @@ pub fn run() {
         .try_init();
 
     let config = AppConfig::load();
+    if config.gemini_api_key.is_none() {
+        panic!(
+            "GEMINI_API_KEY is missing. Set gemini_api_key in src-tauri/secrets.toml \
+             (or export GEMINI_API_KEY) and rebuild."
+        );
+    }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -222,6 +265,10 @@ pub fn run() {
             session: Mutex::new(None),
             chat_history: Mutex::new(Vec::new()),
             coach_stop: Mutex::new(None),
+        })
+        .setup(|app| {
+            let _ = overlay::ensure_overlay(app.handle());
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             get_status,
@@ -232,7 +279,9 @@ pub fn run() {
             clear_chat,
             start_lock_in,
             stop_lock_in,
-            get_session
+            get_session,
+            voice_speak,
+            voice_listen_test
         ])
         .run(tauri::generate_context!())
         .expect("error while running Waypoint");
