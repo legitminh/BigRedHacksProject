@@ -158,9 +158,7 @@ pub fn companion_live_info(state: State<'_, AppState>) -> Result<CompanionLiveIn
     let tokens = auth::load_tokens(&cfg).ok_or_else(|| {
         "Sign in with Google to talk with your companion.".to_string()
     })?;
-    if state.session.lock().is_none() {
-        return Err("Start a study session to talk with your companion.".into());
-    }
+    // Live is allowed from Copilot or an active lock-in — JWT only; Gemini key stays on the API.
     let http = cfg.api_base().trim_end_matches('/');
     let ws = if let Some(rest) = http.strip_prefix("https://") {
         format!("wss://{rest}/v1/companion/live")

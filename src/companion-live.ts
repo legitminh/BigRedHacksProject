@@ -1,7 +1,9 @@
 /**
- * Thin Gemini Live client for study sessions.
- * Talks only to Waypoint API `/v1/companion/live` — never to Google / Gemini directly.
- * Patterns adapted from legitminh/gemini_live_demo (assets/index.html).
+ * Thin Live voice client for Copilot / lock-in.
+ * Streams only to Waypoint `/v1/companion/live` — never opens Google sockets.
+ *
+ * Audio uses the wp1 binary frame protocol (see backend audioProtocol.ts)
+ * with a client jitter buffer so playback stays continuous.
  */
 
 import { invoke } from "@tauri-apps/api/core";
@@ -33,14 +35,59 @@ export type CompanionLiveHandlers = {
 
 type LiveInfo = { ws_url: string; access_token: string };
 
-function bytesToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  const stride = 0x8000;
-  for (let i = 0; i < bytes.length; i += stride) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + stride));
+const AUDIO_PROTOCOL = "wp1";
+const AUDIO_KIND_DOWNLINK = 1;
+const AUDIO_KIND_UPLINK = 2;
+const HEADER_BYTES = 16;
+/** Wait this long before starting playback (smooths network jitter). */
+const PREROLL_SEC = 0.12;
+/** Prefer scheduling chunks of at least this duration. */
+const MIN_CHUNK_SEC = 0.06;
+/** If the playhead falls behind, rebuild with this lead. */
+const RECOVER_LEAD_SEC = 0.08;
+
+function encodePcmFrame(
+  kind: number,
+  epoch: number,
+  sampleRate: number,
+  seq: number,
+  pcm: ArrayBuffer,
+): ArrayBuffer {
+  const pcmBytes = new Uint8Array(pcm);
+  const out = new ArrayBuffer(HEADER_BYTES + pcmBytes.length);
+  const view = new DataView(out);
+  view.setUint8(0, 0x57); // W
+  view.setUint8(1, 0x50); // P
+  view.setUint8(2, 1);
+  view.setUint8(3, kind);
+  view.setUint32(4, epoch >>> 0, false);
+  view.setUint32(8, sampleRate >>> 0, false);
+  view.setUint32(12, seq >>> 0, false);
+  new Uint8Array(out, HEADER_BYTES).set(pcmBytes);
+  return out;
+}
+
+function decodePcmFrame(buffer: ArrayBuffer): {
+  kind: number;
+  epoch: number;
+  sampleRate: number;
+  seq: number;
+  pcm: Uint8Array;
+} | null {
+  if (buffer.byteLength < HEADER_BYTES) return null;
+  const view = new DataView(buffer);
+  if (view.getUint8(0) !== 0x57 || view.getUint8(1) !== 0x50 || view.getUint8(2) !== 1) {
+    return null;
   }
-  return btoa(binary);
+  const kind = view.getUint8(3);
+  if (kind !== AUDIO_KIND_DOWNLINK && kind !== AUDIO_KIND_UPLINK) return null;
+  return {
+    kind,
+    epoch: view.getUint32(4, false),
+    sampleRate: view.getUint32(8, false),
+    seq: view.getUint32(12, false),
+    pcm: new Uint8Array(buffer, HEADER_BYTES),
+  };
 }
 
 export class CompanionLiveSession {
@@ -52,10 +99,17 @@ export class CompanionLiveSession {
   private epoch = 1;
   private playhead = 0;
   private sources: AudioBufferSourceNode[] = [];
-  private leftover = new Uint8Array(0);
+  private queueRaw = new Uint8Array(0);
+  private oddByte: number | null = null;
   private bargeHits = 0;
   private barged = false;
   private handlers: CompanionLiveHandlers;
+  private useBinaryAudio = true;
+  private uplinkSeq = 0;
+  private downlinkRate = 24000;
+  private startedPlayback = false;
+  private pendingSamples = 0;
+  private pumpTimer: number | undefined;
 
   constructor(handlers: CompanionLiveHandlers = {}) {
     this.handlers = handlers;
@@ -81,6 +135,10 @@ export class CompanionLiveSession {
   }
 
   private stopPlayback() {
+    if (this.pumpTimer != null) {
+      window.clearInterval(this.pumpTimer);
+      this.pumpTimer = undefined;
+    }
     for (const source of this.sources) {
       try {
         source.stop();
@@ -90,39 +148,113 @@ export class CompanionLiveSession {
     }
     this.sources = [];
     this.playhead = 0;
-    this.leftover = new Uint8Array(0);
+    this.queueRaw = new Uint8Array(0);
+    this.oddByte = null;
+    this.pendingSamples = 0;
+    this.startedPlayback = false;
     this.barged = false;
     this.bargeHits = 0;
   }
 
-  private enqueuePcm(base64: string, sampleRate: number, messageEpoch: number) {
+  private appendPcmBytes(bytes: Uint8Array) {
+    if (bytes.length === 0) return;
+    let input = bytes;
+    if (this.oddByte != null) {
+      const merged = new Uint8Array(1 + bytes.length);
+      merged[0] = this.oddByte;
+      merged.set(bytes, 1);
+      input = merged;
+      this.oddByte = null;
+    }
+    if (input.length % 2 === 1) {
+      this.oddByte = input[input.length - 1] ?? null;
+      input = input.subarray(0, input.length - 1);
+    }
+    if (input.length === 0) return;
+    this.queueRaw = this.concatUint8(this.queueRaw, input);
+    this.pendingSamples = this.queueRaw.length >> 1;
+    this.ensurePump();
+  }
+
+  private concatUint8(a: Uint8Array, b: Uint8Array): Uint8Array {
+    if (a.length === 0) return b.slice();
+    if (b.length === 0) return a;
+    const out = new Uint8Array(a.length + b.length);
+    out.set(a, 0);
+    out.set(b, a.length);
+    return out;
+  }
+
+  private ensurePump() {
+    if (this.pumpTimer != null) return;
+    this.pumpTimer = window.setInterval(() => this.pumpPlayback(), 20);
+  }
+
+  private takeSamples(count: number): Float32Array | null {
+    const need = count * 2;
+    if (this.queueRaw.length < need) return null;
+    const slice = this.queueRaw.subarray(0, need);
+    this.queueRaw = this.queueRaw.slice(need);
+    this.pendingSamples = this.queueRaw.length >> 1;
+    const floats = new Float32Array(count);
+    const view = new DataView(slice.buffer, slice.byteOffset, slice.byteLength);
+    for (let i = 0; i < count; i += 1) {
+      floats[i] = view.getInt16(i * 2, true) / 32768;
+    }
+    return floats;
+  }
+
+  private pumpPlayback() {
+    if (!this.audioCtx || this.barged) return;
+    const rate = this.downlinkRate > 0 ? this.downlinkRate : 24000;
+    const pendingSec = this.pendingSamples / rate;
+
+    if (!this.startedPlayback) {
+      if (pendingSec < PREROLL_SEC) return;
+      this.startedPlayback = true;
+      const now = this.audioCtx.currentTime;
+      this.playhead = now + RECOVER_LEAD_SEC;
+    }
+
+    const now = this.audioCtx.currentTime;
+    // Heal underruns instead of scheduling in the past (main source of chop).
+    if (this.playhead < now + 0.02) {
+      this.playhead = now + RECOVER_LEAD_SEC;
+    }
+
+    // Keep ~250ms scheduled ahead when possible.
+    const minSamples = Math.floor(MIN_CHUNK_SEC * rate);
+    while (this.playhead - now < 0.25) {
+      if (this.pendingSamples < minSamples) break;
+      const want = Math.min(this.pendingSamples, Math.floor(0.12 * rate));
+      const samples = this.takeSamples(want);
+      if (!samples) break;
+      const buffer = this.audioCtx.createBuffer(1, samples.length, rate);
+      buffer.copyToChannel(samples, 0);
+      const source = this.audioCtx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(this.audioCtx.destination);
+      source.start(this.playhead);
+      this.playhead += buffer.duration;
+      this.sources.push(source);
+      source.onended = () => {
+        this.sources = this.sources.filter((item) => item !== source);
+      };
+    }
+
+    if (this.pendingSamples === 0 && this.sources.length === 0 && this.startedPlayback) {
+      // Idle — allow next utterance to re-preroll.
+      this.startedPlayback = false;
+    }
+  }
+
+  private enqueuePcmBase64(base64: string, sampleRate: number, messageEpoch: number) {
     if (!this.audioCtx || messageEpoch !== this.epoch) return;
+    if (sampleRate > 0) this.downlinkRate = sampleRate;
     const binary = atob(base64);
     const fresh = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i += 1) fresh[i] = binary.charCodeAt(i);
-    const combined = new Uint8Array(this.leftover.length + fresh.length);
-    combined.set(this.leftover, 0);
-    combined.set(fresh, this.leftover.length);
-    const samples = combined.length >> 1;
-    this.leftover = combined.slice(samples * 2);
-    if (samples === 0) return;
-    const floats = new Float32Array(samples);
-    const view = new DataView(combined.buffer, combined.byteOffset, samples * 2);
-    for (let i = 0; i < samples; i += 1) floats[i] = view.getInt16(i * 2, true) / 32768;
-    const rate = sampleRate > 0 ? sampleRate : 24000;
-    const buffer = this.audioCtx.createBuffer(1, samples, rate);
-    buffer.copyToChannel(floats, 0);
-    const source = this.audioCtx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(this.audioCtx.destination);
-    const now = this.audioCtx.currentTime;
-    if (this.playhead < now + 0.02) this.playhead = now + 0.02;
-    source.start(this.playhead);
-    this.playhead += buffer.duration;
-    this.sources.push(source);
-    source.onended = () => {
-      this.sources = this.sources.filter((item) => item !== source);
-    };
+    this.appendPcmBytes(fresh);
   }
 
   private onLevel(rms: number) {
@@ -137,6 +269,24 @@ export class CompanionLiveSession {
       this.stopPlayback();
       this.setPhase("listening");
     }
+  }
+
+  private sendUplinkPcm(pcm: ArrayBuffer) {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
+    if (this.useBinaryAudio) {
+      const seq = this.uplinkSeq;
+      this.uplinkSeq = (this.uplinkSeq + 1) >>> 0;
+      this.socket.send(encodePcmFrame(AUDIO_KIND_UPLINK, this.epoch, 16000, seq, pcm));
+      return;
+    }
+    // Fallback JSON base64
+    const bytes = new Uint8Array(pcm);
+    let binary = "";
+    const stride = 0x8000;
+    for (let i = 0; i < bytes.length; i += stride) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + stride));
+    }
+    this.sendJson({ type: "audio", pcm: btoa(binary) });
   }
 
   private async startMic() {
@@ -158,7 +308,7 @@ export class CompanionLiveSession {
       if (typeof data.rms === "number") this.handlers.onLevel?.(data.rms);
       if (data.pcm) {
         if (typeof data.rms === "number") this.onLevel(data.rms);
-        this.sendJson({ type: "audio", pcm: bytesToBase64(data.pcm) });
+        this.sendUplinkPcm(data.pcm);
       }
     };
     source.connect(this.worklet);
@@ -175,6 +325,14 @@ export class CompanionLiveSession {
     }
   }
 
+  private handleBinary(buffer: ArrayBuffer) {
+    const frame = decodePcmFrame(buffer);
+    if (!frame || frame.kind !== AUDIO_KIND_DOWNLINK) return;
+    if (frame.epoch !== this.epoch) return;
+    if (frame.sampleRate > 0) this.downlinkRate = frame.sampleRate;
+    this.appendPcmBytes(frame.pcm);
+  }
+
   private handleMessage(raw: string) {
     let message: Record<string, unknown>;
     try {
@@ -183,7 +341,10 @@ export class CompanionLiveSession {
       return;
     }
     const type = message.type;
-    if (type === "ready") return;
+    if (type === "ready") {
+      if (message.audio_protocol === AUDIO_PROTOCOL) this.useBinaryAudio = true;
+      return;
+    }
     if (type === "status" && typeof message.phase === "string") {
       this.setPhase(message.phase as CompanionPhase);
       if (message.phase === "listening") this.barged = false;
@@ -202,15 +363,20 @@ export class CompanionLiveSession {
         typeof message.sample_rate === "number" ? message.sample_rate : 24000;
       const messageEpoch =
         typeof message.epoch === "number" ? message.epoch : this.epoch;
-      this.enqueuePcm(message.pcm, rate, messageEpoch);
+      this.enqueuePcmBase64(message.pcm, rate, messageEpoch);
       return;
     }
     if (type === "audio_end") {
-      if (message.epoch === this.epoch) this.barged = false;
+      if (message.epoch === this.epoch) {
+        this.barged = false;
+        // Flush any remainder through the pump.
+        this.ensurePump();
+      }
       return;
     }
     if (type === "clear_audio" && typeof message.epoch === "number") {
       this.epoch = message.epoch;
+      this.uplinkSeq = 0;
       this.stopPlayback();
       return;
     }
@@ -247,26 +413,42 @@ export class CompanionLiveSession {
   async start(context: CompanionContext): Promise<void> {
     if (this.phase !== "idle") return;
     const info = await invoke<LiveInfo>("companion_live_info");
-    this.audioCtx = new AudioContext();
+    this.audioCtx = new AudioContext({ sampleRate: 48000 });
     if (this.audioCtx.state === "suspended") await this.audioCtx.resume();
     this.setPhase("connecting");
+    this.useBinaryAudio = true;
+    this.uplinkSeq = 0;
+    this.epoch = 1;
 
     const url = `${info.ws_url}?access_token=${encodeURIComponent(info.access_token)}`;
     this.socket = new WebSocket(url);
+    this.socket.binaryType = "arraybuffer";
     await new Promise<void>((resolve, reject) => {
       if (!this.socket) return reject(new Error("No socket"));
       this.socket.onopen = () => resolve();
       this.socket.onerror = () =>
-        reject(new Error("Could not open the companion Live socket"));
+        reject(new Error("Couldn't start live voice. Check your connection and try again."));
     });
-    this.socket.onmessage = (event) => this.handleMessage(String(event.data));
+    this.socket.onmessage = (event) => {
+      if (typeof event.data === "string") this.handleMessage(event.data);
+      else if (event.data instanceof ArrayBuffer) this.handleBinary(event.data);
+      else if (event.data instanceof Blob) {
+        void event.data.arrayBuffer().then((buf) => this.handleBinary(buf));
+      }
+    };
     this.socket.onerror = () => {
-      this.handlers.onError?.("The companion voice connection failed.");
+      this.handlers.onError?.(
+        "Live voice disconnected. Tap Talk to start again, or type a message.",
+      );
     };
     this.socket.onclose = () => {
       if (this.phase !== "idle") this.end(false);
     };
-    this.sendJson({ type: "start", context });
+    this.sendJson({
+      type: "start",
+      context,
+      audio_protocol: AUDIO_PROTOCOL,
+    });
     try {
       await this.startMic();
     } catch (err) {

@@ -1,4 +1,4 @@
-/** Lightweight ship gamification — progress in localStorage only. */
+/** Lightweight ship gamification — progress scoped per signed-in account. */
 
 import shipAssetUrl from "./assets/figma/ship.svg?url";
 
@@ -14,26 +14,63 @@ export interface MissionCompleteInput {
   screen_checks?: number;
 }
 
-const STORAGE_KEY = "waypoint-ship-progress";
+export type StudyStatsLite = {
+  total_sessions?: number;
+  total_on_task_minutes?: number;
+  longest_flight_minutes?: number;
+};
+
+const STORAGE_PREFIX = "waypoint-ship-progress";
+/** @deprecated device-global key — removed on account switch so PB cannot leak. */
+const LEGACY_STORAGE_KEY = "waypoint-ship-progress";
+const LEGACY_LONGEST_KEY = "waypoint-longest-flight-min";
 
 const LEVEL_THRESHOLDS = [0, 12, 36, 90] as const; // cumulative "flight points"
 const POINTS_PER_MISSION = 8;
+
+/** Current account scope (`user_id`, `"guest"`, or signed-out). */
+let accountId: string | null = null;
+
+function storageKey(): string {
+  return accountId ? `${STORAGE_PREFIX}:${accountId}` : `${STORAGE_PREFIX}:signed-out`;
+}
+
+/** Bind ship/PB storage to the signed-in user (or guest / signed-out). */
+export function setShipAccountId(userId: string | null) {
+  accountId = userId && userId.trim() ? userId.trim() : null;
+}
+
+export function currentShipAccountId(): string | null {
+  return accountId;
+}
+
+/** Drop device-global keys that used to leak across Google accounts. */
+export function wipeLegacyUnscopedShipKeys() {
+  try {
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
+    localStorage.removeItem(LEGACY_LONGEST_KEY);
+  } catch {
+    // private mode / quota
+  }
+}
 
 export function readShipProgress(): ShipProgress {
   return loadProgress();
 }
 
+function emptyProgress(): ShipProgress {
+  return {
+    completedMissions: 0,
+    onTaskMinutes: 0,
+    longestFlightMinutes: 0,
+    firstFlightCelebrated: false,
+  };
+}
+
 function loadProgress(): ShipProgress {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return {
-        completedMissions: 0,
-        onTaskMinutes: 0,
-        longestFlightMinutes: 0,
-        firstFlightCelebrated: false,
-      };
-    }
+    const raw = localStorage.getItem(storageKey());
+    if (!raw) return emptyProgress();
     const parsed = JSON.parse(raw) as Partial<ShipProgress>;
     return {
       completedMissions: Number(parsed.completedMissions) || 0,
@@ -42,21 +79,45 @@ function loadProgress(): ShipProgress {
       firstFlightCelebrated: Boolean(parsed.firstFlightCelebrated),
     };
   } catch {
-    return {
-      completedMissions: 0,
-      onTaskMinutes: 0,
-      longestFlightMinutes: 0,
-      firstFlightCelebrated: false,
-    };
+    return emptyProgress();
   }
 }
 
 function saveProgress(p: ShipProgress) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
+    localStorage.setItem(storageKey(), JSON.stringify(p));
   } catch {
     // private mode / quota
   }
+}
+
+/** Replace local ship stats from server study memory after account switch. */
+export function hydrateShipFromStudyStats(stats: StudyStatsLite | null | undefined) {
+  const p = emptyProgress();
+  if (stats) {
+    p.completedMissions = Math.max(0, Number(stats.total_sessions) || 0);
+    p.onTaskMinutes = Math.max(0, Number(stats.total_on_task_minutes) || 0);
+    p.longestFlightMinutes = Math.max(0, Number(stats.longest_flight_minutes) || 0);
+    p.firstFlightCelebrated = p.completedMissions > 0;
+  }
+  saveProgress(p);
+  refreshAllShipViews();
+}
+
+/** Record personal-best flight minutes for the current account only. */
+export function recordLongestFlightMinutes(minutes: number): {
+  previous: number;
+  isNew: boolean;
+  delta: number;
+} {
+  const p = loadProgress();
+  const previous = p.longestFlightMinutes || 0;
+  const isNew = minutes > previous && minutes > 0;
+  if (isNew) {
+    p.longestFlightMinutes = minutes;
+    saveProgress(p);
+  }
+  return { previous, isNew, delta: isNew ? minutes - previous : 0 };
 }
 
 export function flightPoints(p: ShipProgress): number {
@@ -131,7 +192,7 @@ export function onMissionCompleted(summary: MissionCompleteInput, elapsedSecs: n
   const checks = summary.screen_checks ?? 0;
   const ratio = checks === 0 ? 0.35 : Math.min(1, Math.max(0, summary.on_task_ratio));
   p.onTaskMinutes += mins * ratio;
-  const flightMins = Math.max(1, Math.round(Math.max(0, elapsedSecs) / 60));
+  const flightMins = Math.max(0, Math.round(Math.max(0, elapsedSecs) / 60));
   p.longestFlightMinutes = Math.max(p.longestFlightMinutes || 0, flightMins);
   p.completedMissions += 1;
   saveProgress(p);

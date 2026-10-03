@@ -1660,13 +1660,15 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     “Fly on your own terms.”; sub “Optional signals. Clear controls.
     No recordings.”; left ringed planet + right ship art.
 - actual: |
-    Handoff + denied modals exist (b7ea57b verified) but mount as fixed
-    overlays over whatever view is current (setup toggles / Settings).
+    Handoff + denied modals + surface chrome verified (b7ea57b / 69037e0
+    `.mc-perm-modal__card` 580/#fffbff/#c8bfd7/28/33) but still mount as
+    fixed overlays over whatever view is current (setup / Settings).
     Still no “YOUR CHOICE” / “Fly on your own terms.” interstitial page
     or art plane under the modals.
 - deviation: |
     Missing interstitial permissions-choice page that hosts the handoff
-    and denied modals in Figma. Distinct from verified modal-only items.
+    and denied modals in Figma. Distinct from verified modal shell/copy/
+    surface (`fp-permission-handoff-modal-surface`).
 - fix_hint: |
     Add a lightweight MC “YOUR CHOICE” view (or setup substate) matching
     live intro + art; show handoff/denied modals over it. Keep five-tab
@@ -1916,7 +1918,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     disconnected.
 - escalate: scrutinous
 
-## open: fp-welcome-guest-button-chrome
+## verified: fp-welcome-guest-button-chrome
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · guest `5:74`
 - expected: |
@@ -1936,6 +1938,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     drop; focus remaining welcome work on Email/Password card
     (`fp-welcome-signin-form`).
 - escalate: scrutinous
+- commit: 254b24b
+- change: Quiet `#fffbff` 438×52 guest pill; guest unlock wiring kept.
+- verified: 2026-10-03T18:32:50-04:00
 
 ## verified: fp-break-extraneous-pause-note
 - screen: active
@@ -2615,7 +2620,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: Mounted `#welcome-continue-guest` as full-width Quiet `#fffbff` 52px pill; wired `sign_in_waypoint_guest` + `guest_mode` unlock.
 - verified: 2026-10-03T18:13:56-04:00
 
-## done: fp-welcome-card-surface
+## verified: fp-welcome-card-surface
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · card `5:58`
 - expected: |
@@ -2635,6 +2640,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: scrutinous
 - commit: 69037e0
 - change: `.welcome-signin-card` → `#fffbff` / `#c8bfd7` / 28px radius / 37px pad / `min(100%, 510px)`; kicker/fields/guest/Sign in wiring unchanged.
+- verified: 2026-10-03T18:32:50-04:00
 
 ## open: fp-relaunch-title-scale
 - screen: active
@@ -2691,7 +2697,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     (`#e9ddfd`); wire reconnect helper. Do not use filled primary.
 - escalate: scrutinous
 
-## done: fp-permission-handoff-modal-surface
+## verified: fp-permission-handoff-modal-surface
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   modal `7:415`
@@ -2715,3 +2721,129 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: scrutinous
 - commit: 69037e0
 - change: Base `.mc-perm-modal__card` → 580px / `#fffbff` / `#c8bfd7` / 28px / 33px pad (handoff + denied + end-session); Continue/Not now CTAs unchanged.
+- verified: 2026-10-03T18:32:50-04:00
+
+## done: fp-copilot-mic-idle-label
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · Mic `5:251` ·
+  listening `10:667` / `10:736`
+- expected: |
+    Live 03 idle Mic (`5:251`, 52×52) is tonal `#e9ddfd` circle labeled
+    “Mic” (title case). Live 31 listening (`10:736`) keeps the same “Mic”
+    label while the field shows “Listening… click mic to stop” — session
+    14 uses ■ (`6:1389`), Copilot 31 does not.
+- actual: |
+    Tick20 Copilot priority after `254b24b` / `62162e9` / `b8b30e0`:
+    `#chat-mic` idle label is “Talk” (HTML + `applyMicLiveUi(..., "Talk")`).
+    Verified `fp-copilot-listening-composer` taught ■ for Copilot STT, but
+    Live path never restores “Mic”.
+- deviation: |
+    Idle (and Copilot listening) control label vs live `5:251` / `10:736`.
+    Distinct from chip/empty/composer surface dones. Escalate after Live
+    companion rewrote Mic → Talk.
+- fix_hint: |
+    Idle `#chat-mic` text “Mic” to match live 03/31; keep Live start/end
+    wiring (aria can say live voice). Do not use “Talk” on Copilot tab.
+    Preserve Send ↑ + chip wiring.
+- escalate: scrutinous
+- commit: PENDING
+- change: |
+    `#chat-mic` idle/live label → “Mic” (HTML + `applyMicLiveUi(..., "Mic",
+    { stickyLabel: true })`); Live start/end wiring kept; session Talk unchanged.
+
+## done: fp-copilot-composer-hint-copy
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · hint `5:256`
+- expected: |
+    Live 03 under-composer hint (`5:256`): “Enter to send · Click the
+    microphone to start or stop a voice turn.” (muted). Verified via
+    `fp-copilot-responses-footnote` / live-match — Enter/mic only in
+    `#chat-hint`.
+- actual: |
+    Tick20: `#chat-hint` reads “Talk for live voice · type + Enter for a
+    turn · Live ends when you tap Live again” — Live companion copy
+    replaced Figma Enter/mic line.
+- deviation: |
+    Composer hint regression vs live `5:256` after Live land. Complements
+    mic-idle-label; not covered by chip/height/empty dones (`62162e9` /
+    `254b24b`).
+- fix_hint: |
+    Restore `#chat-hint` to live Enter/mic sentence; keep Live affordance
+    in aria/title or Settings Voice — not this hint. Leave responses-foot
+    as its own open.
+- escalate: scrutinous
+- commit: PENDING
+- change: |
+    `#chat-hint` idle → live `5:256` Enter/mic sentence; temporary Live
+    status hints still ok and restore idle copy when Live ends.
+
+## done: fp-copilot-responses-foot-copy
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · foot `5:257`
+- expected: |
+    Live 03 responses foot (`5:257`): “Responses always appear as text.
+    Audio is yours to turn on.” — verified `fp-copilot-responses-footnote`.
+- actual: |
+    Tick20: `.copilot-responses-foot` reads “Live voice talks with your
+    coach. Typed chat still works when Live is off.” — diverges from live
+    and from verified foot copy.
+- deviation: |
+    Responses-foot regression vs live `5:257` / verified footnote. Copilot
+    priority tick20; distinct from hint-line open.
+- fix_hint: |
+    Restore `.copilot-responses-foot` to live Responses/Audio sentence;
+    document Live elsewhere if needed. Keep Mic/Send wiring.
+- escalate: scrutinous
+- commit: PENDING
+- change: |
+    `.copilot-responses-foot` → live `5:257` “Responses always appear as
+    text. Audio is yours to turn on.”
+
+## done: fp-copilot-mic-live-phase-chrome
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · `31-copilot-listening.png` ·
+  live `2:35` / `10:667` · Mic `5:251` / `10:736`
+- expected: |
+    Live Copilot mic chrome stays tonal `#e9ddfd` + dark “Mic” label in
+    idle and listening (31). No purple/green/brown fills; listening only
+    changes field copy to “Listening… click mic to stop”.
+- actual: |
+    Spot-check `b8b30e0` restored `.view-copilot .copilot-mic.is-live|
+    .is-thinking|.is-speaking|.is-connecting` fills (`#6b4cff` / `#3d2a99` /
+    `#2f6b45` / `#5c5348`) with labels “Live” / “…”. Not present on live
+    03/31. Field never shows listening placeholder during Live.
+- deviation: |
+    Live-phase mic colors/labels vs Figma Copilot mic instances. Product
+    Live states overshoot live 03/31 chrome; pairs with idle-label + hint
+    opens.
+- fix_hint: |
+    Prefer Figma tonal Mic during Copilot voice; if Live needs phase
+    feedback, use presence/hint — not non-Figma mic fills/labels. Keep
+    end-Live click wiring.
+- escalate: scrutinous
+- commit: PENDING
+- change: |
+    Copilot `.copilot-mic.is-*` stays tonal `#e9ddfd` + “Mic”; session
+    Talk phase fills kept; listening sets `#chat-input` placeholder to
+    “Listening… click mic to stop”.
+
+## open: fp-welcome-title-scale
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · title `5:61`
+- expected: |
+    Live Sign in title “Your seat is ready.” (`5:61`, 438×45): large
+    display ~36px on `#fffbff` card — not ~28px. String already verified
+    (`fp-welcome-signin-title`).
+- actual: |
+    Tick20 welcome spot-check after `69037e0` card surface (no live
+    regression on `#fffbff`/`#c8bfd7`/28px). `.welcome-signin-title` is
+    `clamp(1.45rem, 2.8vw, 1.75rem)` (~23–28px) `font-weight: 700` —
+    under-scaled vs 45px box. Form fields still Google-only (open
+    `fp-welcome-signin-form`).
+- deviation: |
+    Title type scale vs live `5:61`. Distinct from verified string + card
+    surface; under-covered welcome form chrome.
+- fix_hint: |
+    Set `.welcome-signin-title` ~36px (medium/bold per live); keep Google/
+    guest wiring + card surface tokens from `69037e0`.
+- escalate: scrutinous

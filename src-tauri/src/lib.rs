@@ -267,6 +267,32 @@ async fn sign_out_waypoint(state: State<'_, AppState>) -> Result<(), String> {
     auth::sign_out_remote(&cfg).await
 }
 
+/// Study stats for the signed-in account (API), used to hydrate home PB after account switch.
+#[tauri::command]
+async fn study_memory_stats(state: State<'_, AppState>) -> Result<study_memory::StudyStats, String> {
+    let cfg = state.config.lock().clone();
+    if auth::load_tokens(&cfg).is_some() {
+        #[derive(serde::Deserialize)]
+        struct StudyMemResp {
+            study_memory: Option<study_memory::ConsolidatedMemory>,
+        }
+        if let Ok(mem) = api::authed_json::<StudyMemResp>(
+            &cfg,
+            reqwest::Method::GET,
+            "/v1/study-memory",
+            None,
+        )
+        .await
+        {
+            if let Some(blob) = mem.study_memory {
+                return Ok(blob.stats);
+            }
+            return Ok(study_memory::StudyStats::default());
+        }
+    }
+    Ok(study_memory::load_consolidated(&cfg.data_dir).stats)
+}
+
 #[tauri::command]
 async fn connect_google(state: State<'_, AppState>) -> Result<(), String> {
     let cfg = state.config.lock().clone();
@@ -1013,6 +1039,7 @@ pub fn run() {
             sign_in_waypoint_google,
             sign_in_waypoint_guest,
             sign_out_waypoint,
+            study_memory_stats,
             connect_google,
             disconnect_google,
             get_google_context,

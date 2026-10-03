@@ -2679,25 +2679,30 @@ button:active {
   background: #ddd0f5;
 }
 
-.view-session .session-companion-talk.is-live,
-.view-copilot .copilot-mic.is-live {
+/* Session Talk may use phase fills; Copilot Mic stays tonal #e9ddfd (live 03/31). */
+.view-session .session-companion-talk.is-live {
   background: #6b4cff;
   color: #f7f4ff;
 }
-.view-session .session-companion-talk.is-thinking,
-.view-copilot .copilot-mic.is-thinking {
+.view-session .session-companion-talk.is-thinking {
   background: #3d2a99;
   color: #f7f4ff;
 }
-.view-session .session-companion-talk.is-speaking,
-.view-copilot .copilot-mic.is-speaking {
+.view-session .session-companion-talk.is-speaking {
   background: #2f6b45;
   color: #f4fff7;
 }
-.view-session .session-companion-talk.is-connecting,
-.view-copilot .copilot-mic.is-connecting {
+.view-session .session-companion-talk.is-connecting {
   background: #5c5348;
   color: #f6f0e6;
+}
+
+.view-copilot .copilot-mic.is-live,
+.view-copilot .copilot-mic.is-thinking,
+.view-copilot .copilot-mic.is-speaking,
+.view-copilot .copilot-mic.is-connecting {
+  background: #e9ddfd;
+  color: var(--mc-text-primary);
 }
 
 .view-copilot .copilot-send.primary,

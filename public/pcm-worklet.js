@@ -31,7 +31,8 @@ class PcmCaptureProcessor extends AudioWorkletProcessor {
     }
     this.cursor = cursor - channel.length;
 
-    if (this.pending.length >= 640) {
+    // ~80ms at 16 kHz — fewer WS frames, steadier uplink for the Live proxy.
+    if (this.pending.length >= 1280) {
       const pcm = new Int16Array(this.pending.length);
       for (let i = 0; i < this.pending.length; i += 1) {
         const sample = Math.max(-1, Math.min(1, this.pending[i]));

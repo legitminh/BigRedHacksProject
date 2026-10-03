@@ -9,14 +9,18 @@ import {
   type CompanionPhase,
 } from "./companion-live.ts";
 import {
+  hydrateShipFromStudyStats,
   initShipUI,
   onMissionCompleted,
   onMissionStarted,
   readShipProgress,
+  recordLongestFlightMinutes,
   refreshAllShipViews,
   refreshHomePersonalBest,
   refreshSessionFlight,
+  setShipAccountId,
   updateSessionFlight,
+  wipeLegacyUnscopedShipKeys,
 } from "./ship.ts";
 
 type ViewId =
@@ -216,20 +220,63 @@ let lastSummaryObjective: ObjectiveOutcome | null = null;
 let lastSummaryEndedEarly = false;
 let lastSummaryFirstFlight = false;
 
-const LONGEST_FLIGHT_KEY = "waypoint-longest-flight-min";
 const RELAUNCH_FLAG_KEY = "waypoint-summary-from-relaunch";
 
 const LAUNCH_CELEBRATION_MS = 2200;
+
+/** Tracks which account’s local ship/PB data is loaded (null = signed out). */
+let activeShipAccountKey: string | null = null;
 
 function flightMinutesFromSecs(secs: number): number {
   return Math.max(0, Math.round(secs / 60));
 }
 
 function recordLongestFlight(minutes: number): { previous: number; isNew: boolean; delta: number } {
-  const previous = Number(localStorage.getItem(LONGEST_FLIGHT_KEY)) || 0;
-  const isNew = minutes > previous && minutes > 0;
-  if (isNew) localStorage.setItem(LONGEST_FLIGHT_KEY, String(minutes));
-  return { previous, isNew, delta: isNew ? minutes - previous : 0 };
+  return recordLongestFlightMinutes(minutes);
+}
+
+function accountKeyFromStatus(status: StatusPayload): string | null {
+  if (status.signed_in && status.user_id) return status.user_id;
+  if (status.guest_mode) return "guest";
+  return null;
+}
+
+async function applyAccountLocalScope(status: StatusPayload): Promise<void> {
+  const next = accountKeyFromStatus(status);
+  const switched = next !== activeShipAccountKey;
+  wipeLegacyUnscopedShipKeys();
+  setShipAccountId(next);
+  if (!switched) {
+    activeShipAccountKey = next;
+    refreshHomePersonalBest();
+    return;
+  }
+  activeShipAccountKey = next;
+  teardownCompanionLive();
+  const chatLog = $("#chat-log");
+  if (chatLog) {
+    chatLog.innerHTML = "";
+    // Restore empty-state card if present in markup elsewhere — home refresh handles ship.
+  }
+  hasChatReply = false;
+  void invoke("clear_chat").catch(() => {});
+  void invoke("companion_clear").catch(() => {});
+
+  if (next && status.signed_in) {
+    try {
+      const stats = await invoke<{
+        total_sessions?: number;
+        total_on_task_minutes?: number;
+        longest_flight_minutes?: number;
+      }>("study_memory_stats");
+      hydrateShipFromStudyStats(stats);
+    } catch {
+      hydrateShipFromStudyStats(null);
+    }
+  } else {
+    hydrateShipFromStudyStats(null);
+  }
+  refreshAllShipViews();
 }
 
 function consumeRelaunchFlag(): number {
@@ -965,6 +1012,82 @@ function asConnState(value: string): ConnState {
   return "warn";
 }
 
+/** Map backend health rows to plain student-facing labels/details. */
+function friendlyServiceCopy(s: ServiceIndicator): { label: string; detail: string } {
+  const state = asConnState(String(s.state));
+  const status = String(s.status ?? "");
+  switch (s.id) {
+    case "api":
+      return {
+        label: "Waypoint service",
+        detail:
+          state === "ok" ? "Online and reachable" : "Can't reach Waypoint right now",
+      };
+    case "gemini":
+      return {
+        label: "Cloud coach",
+        detail:
+          state === "ok"
+            ? "Ready for coaching"
+            : /quota/i.test(status)
+              ? "Daily usage limit reached — try again later"
+              : "Unavailable right now",
+      };
+    case "ollama":
+      return {
+        label: "Lock-in coach",
+        detail:
+          state === "ok"
+            ? "Ready for lock-in coaching"
+            : state === "warn"
+              ? "Partly ready"
+              : "Unavailable right now",
+      };
+    case "chat_provider":
+      return {
+        label: "Copilot chat",
+        detail:
+          state === "ok"
+            ? "Ready"
+            : state === "warn"
+              ? "Working with limited capacity"
+              : "Unavailable right now",
+      };
+    case "google_oauth":
+      return {
+        label: "Google sign-in",
+        detail:
+          state === "ok"
+            ? "Sign-in is ready"
+            : "Sign-in isn't available right now",
+      };
+    case "account":
+      return {
+        label: "Waypoint account",
+        detail: s.detail?.trim() || (state === "ok" ? "Signed in" : "Sign in required"),
+      };
+    case "google":
+      return {
+        label: "Google",
+        detail:
+          s.detail?.trim() ||
+          (state === "ok"
+            ? "Calendar and Drive linked"
+            : "Link Calendar and Drive to continue"),
+      };
+    default:
+      return {
+        label: s.label?.trim() || "Service",
+        detail:
+          state === "ok"
+            ? "Connected"
+            : state === "warn"
+              ? "Needs attention"
+              : "Unavailable right now",
+      };
+  }
+}
+
 async function renderConnectionStatus(_status?: StatusPayload) {
   const list = $("#connection-status-list");
   if (!list) return;
@@ -973,13 +1096,14 @@ async function renderConnectionStatus(_status?: StatusPayload) {
   try {
     const payload = await invoke<ServiceStatusPayload>("service_status");
     if (!payload.services?.length) {
-      list.innerHTML = `<li class="mc-conn-row"><span class="muted">No status indicators from API.</span></li>`;
+      list.innerHTML = `<li class="mc-conn-row"><span class="muted">No connection details available right now.</span></li>`;
       return;
     }
     list.innerHTML = payload.services
       .map((s) => {
         const state = asConnState(String(s.state));
-        return connectionRow(s.label, s.detail, state === "ok", {
+        const copy = friendlyServiceCopy(s);
+        return connectionRow(copy.label, copy.detail, state === "ok", {
           state,
           status: s.status,
         });
@@ -987,7 +1111,7 @@ async function renderConnectionStatus(_status?: StatusPayload) {
       .join("");
   } catch (e) {
     list.innerHTML = connectionRow(
-      "Waypoint API",
+      "Waypoint service",
       connectionErrorMessage(e),
       false,
       { state: "err", status: "Offline" },
@@ -1181,39 +1305,57 @@ function maybeShowStudySuggestion(
 let chatBusy = false;
 let hasChatReply = false;
 
+/** Live companion — backend-mediated Gemini Live (Copilot tab or lock-in session). */
+type LiveSurface = "copilot" | "session";
+let companionLive: CompanionLiveSession | null = null;
+let companionBusy = false;
+let liveSurface: LiveSurface | null = null;
+
 const CHAT_FAIL_MSG =
   "Sorry, I couldn’t get a reply right now. Please try again in a moment.";
 
-/** Map backend errors to short UI copy — never dump raw API JSON. */
+/** Map backend errors to short UI copy — never dump raw JSON or vendor names. */
 function chatErrorMessage(err: unknown): string {
   const raw = String(err ?? "").trim();
   if (!raw || raw === "undefined" || raw === "[object Object]") return CHAT_FAIL_MSG;
-  // Prefer already-friendly backend strings (no JSON / HTTP dumps).
+  // Prefer already-friendly strings that don't expose stack/vendor jargon.
   if (
     !/[{\[]/.test(raw) &&
-    !/generativelanguage\.googleapis|error\":|\"status\"|HTTP\s*\d{3}/i.test(raw) &&
+    !/generativelanguage\.googleapis|error\":|\"status\"|HTTP\s*\d{3}|gemini|ollama|xai|grok|jwt|websocket|\/v1\//i.test(
+      raw,
+    ) &&
     raw.length <= 160 &&
-    /cloud coach|gemini|quota|rate-limited|busy|timed out|sign in|configured|try again/i.test(raw)
+    /coach|quota|busy|timed out|sign in|configured|try again|live voice|microphone/i.test(raw)
   ) {
     return raw;
   }
   if (/quota|free_tier|free limit|resource_exhausted|429/i.test(raw)) {
-    return "Cloud coach hit today’s free limit. Try again later — local watching still works.";
+    return "Your coach hit today’s usage limit. Try again later — mission watching still works.";
   }
   if (/rate limit|rate-limited/i.test(raw)) {
-    return "Cloud coach is rate-limited. Please try again in a moment.";
+    return "Your coach is getting too many requests. Please try again in a moment.";
   }
   if (/api[_ ]?key|invalid|permission|unauthorized|403|401/i.test(raw)) {
-    return "Cloud coach couldn’t sign in. Check your connection settings and try again.";
+    return "Your coach couldn’t connect. Check Connection in Settings and try again.";
   }
   if (/timeout|timed out|unavailable|503|busy|high demand/i.test(raw)) {
-    return "Cloud coach is busy right now. Please try again shortly.";
+    return "Your coach is busy right now. Please try again shortly.";
   }
   return CHAT_FAIL_MSG;
 }
 
 function connectionErrorMessage(err: unknown): string {
   return chatErrorMessage(err);
+}
+
+function setComposerMicHint(message: string, target: "chat" | "session" = "chat") {
+  if (target === "session") {
+    const hint = $("#session-chat-hint");
+    if (hint) hint.textContent = message;
+    return;
+  }
+  const hint = $("#chat-hint");
+  if (hint) hint.textContent = message;
 }
 
 function setChatControlsBusy(busy: boolean) {
@@ -1224,6 +1366,14 @@ function setChatControlsBusy(busy: boolean) {
       "#chat-send, #chat-mic, #session-chat-send, #session-chat-mic, [data-study], #new-chat",
     )
     .forEach((button) => {
+      // Keep Talk/Live available so the user can end an active Live session.
+      if (
+        companionLive?.active &&
+        (button.id === "chat-mic" || button.id === "session-chat-mic")
+      ) {
+        button.disabled = false;
+        return;
+      }
       button.disabled = busy;
     });
 }
@@ -1367,8 +1517,13 @@ async function dispatchChatMessage(
 async function sendChat() {
   const input = $<HTMLTextAreaElement>("#chat-input");
   if (chatBusy || !input?.value.trim()) return;
-  const message = input.value;
+  const message = input.value.trim();
   input.value = "";
+  // While Copilot Live is open, typed lines go over the Live socket (not STT→composer).
+  if (companionLive?.active && liveSurface === "copilot") {
+    companionLive.sendText(message);
+    return;
+  }
   await dispatchChatMessage(
     message,
     (text) => appendChat("user", text),
@@ -1376,10 +1531,6 @@ async function sendChat() {
     input,
   );
 }
-
-/** Live companion session — backend-mediated Gemini Live (never talks to Google directly). */
-let companionLive: CompanionLiveSession | null = null;
-let companionBusy = false;
 
 const COMPANION_PHASE_COPY: Record<CompanionPhase, string> = {
   idle: "Tap Talk to start a live voice turn",
@@ -1389,22 +1540,80 @@ const COMPANION_PHASE_COPY: Record<CompanionPhase, string> = {
   speaking: "Companion speaking — talk to interrupt",
 };
 
+/** Live Figma 03 `5:256` — restore when Copilot Live returns to idle. */
+const COPILOT_IDLE_HINT =
+  "Enter to send · Click the microphone to start or stop a voice turn.";
+const COPILOT_IDLE_PLACEHOLDER = "Message your copilot…";
+const COPILOT_LISTENING_PLACEHOLDER = "Listening… click mic to stop";
+
+function applyMicLiveUi(
+  mic: HTMLButtonElement | null,
+  phase: CompanionPhase,
+  startLabel: string,
+  opts?: { stickyLabel?: boolean },
+) {
+  if (!mic) return;
+  const sticky = opts?.stickyLabel === true;
+  mic.classList.toggle("is-live", phase === "listening");
+  mic.classList.toggle("is-thinking", phase === "thinking");
+  mic.classList.toggle("is-speaking", phase === "speaking");
+  mic.classList.toggle("is-connecting", phase === "connecting");
+  // Copilot keeps Figma “Mic”; session Talk may show Live / … while active.
+  mic.textContent =
+    sticky || phase === "idle"
+      ? startLabel
+      : phase === "connecting"
+        ? "…"
+        : "Live";
+  mic.setAttribute(
+    "aria-label",
+    phase === "idle"
+      ? sticky
+        ? "Start live voice with Copilot"
+        : `Start ${startLabel.toLowerCase()} live voice`
+      : "End live voice",
+  );
+}
+
+function setCopilotListeningPlaceholder(listening: boolean) {
+  const input = $<HTMLTextAreaElement>("#chat-input");
+  if (!input) return;
+  input.placeholder = listening
+    ? COPILOT_LISTENING_PLACEHOLDER
+    : COPILOT_IDLE_PLACEHOLDER;
+}
+
 function setCompanionPhaseUi(phase: CompanionPhase) {
   const label = $("#session-companion-phase");
-  if (label) label.textContent = COMPANION_PHASE_COPY[phase] ?? phase;
-  const mic = $("#session-chat-mic") as HTMLButtonElement | null;
-  if (mic) {
-    mic.classList.toggle("is-live", phase === "listening");
-    mic.classList.toggle("is-thinking", phase === "thinking");
-    mic.classList.toggle("is-speaking", phase === "speaking");
-    mic.classList.toggle("is-connecting", phase === "connecting");
-    mic.textContent = phase === "idle" ? "Talk" : phase === "connecting" ? "…" : "Live";
-    mic.setAttribute(
-      "aria-label",
-      phase === "idle" ? "Start live companion talk" : "End live companion talk",
-    );
+  if (label) {
+    label.textContent =
+      liveSurface === "session" || phase === "idle"
+        ? (COMPANION_PHASE_COPY[phase] ?? phase)
+        : COMPANION_PHASE_COPY.idle;
   }
-  setSessionListeningUi(phase === "listening" || phase === "connecting");
+  const sessionPhase =
+    liveSurface === "session" || phase === "idle" ? phase : "idle";
+  const copilotPhase =
+    liveSurface === "copilot" || phase === "idle" ? phase : "idle";
+  applyMicLiveUi(
+    $("#session-chat-mic") as HTMLButtonElement | null,
+    sessionPhase,
+    "Talk",
+  );
+  applyMicLiveUi($("#chat-mic") as HTMLButtonElement | null, copilotPhase, "Mic", {
+    stickyLabel: true,
+  });
+  setCopilotListeningPlaceholder(
+    liveSurface === "copilot" &&
+      (copilotPhase === "listening" ||
+        copilotPhase === "connecting" ||
+        copilotPhase === "thinking" ||
+        copilotPhase === "speaking"),
+  );
+  setSessionListeningUi(
+    liveSurface === "session" &&
+      (phase === "listening" || phase === "connecting" || phase === "thinking" || phase === "speaking"),
+  );
 }
 
 function upsertSessionLiveBubble(role: "user" | "assistant", text: string, isFinal: boolean) {
@@ -1427,6 +1636,26 @@ function upsertSessionLiveBubble(role: "user" | "assistant", text: string, isFin
   log.scrollTop = log.scrollHeight;
 }
 
+function upsertCopilotLiveBubble(role: "user" | "assistant", text: string, isFinal: boolean) {
+  const log = $("#chat-log");
+  if (!log) return;
+  $("#chat-empty")?.remove();
+  const last = log.lastElementChild as HTMLElement | null;
+  if (
+    last?.classList.contains("bubble") &&
+    last.classList.contains(role) &&
+    last.dataset.liveSealed !== "true"
+  ) {
+    last.textContent = text;
+    if (isFinal) last.dataset.liveSealed = "true";
+  } else {
+    const bubble = appendChat(role, text);
+    if (bubble) bubble.dataset.liveSealed = isFinal ? "true" : "false";
+  }
+  log.scrollTop = log.scrollHeight;
+  if (isFinal && role === "assistant") hasChatReply = true;
+}
+
 function collectCompanionContext(): CompanionContext {
   const goals = ($("#session-goals")?.textContent ?? "").trim();
   const timer = $("#session-timer")?.textContent ?? "00:00";
@@ -1442,14 +1671,17 @@ function collectCompanionContext(): CompanionContext {
   const paused =
     ($("#session-pause") as HTMLButtonElement | null)?.getAttribute("aria-pressed") ===
     "true";
+  const inSession = Boolean($("#view-session")?.classList.contains("active"));
   return {
     goals: goals || undefined,
-    remaining_mins: remainingMins,
-    duration_mins: currentSessionDurationSecs
-      ? currentSessionDurationSecs / 60
-      : undefined,
-    next_step_secs: nextStepSecs,
-    paused,
+    notes: inSession ? undefined : "Copilot tab live voice (no lock-in session).",
+    remaining_mins: inSession ? remainingMins : undefined,
+    duration_mins:
+      inSession && currentSessionDurationSecs
+        ? currentSessionDurationSecs / 60
+        : undefined,
+    next_step_secs: inSession ? nextStepSecs : undefined,
+    paused: inSession ? paused : false,
   };
 }
 
@@ -1459,25 +1691,68 @@ function teardownCompanionLive() {
     companionLive = null;
   }
   companionBusy = false;
+  liveSurface = null;
   setCompanionPhaseUi("idle");
   void invoke("voice_stop").catch(() => {});
   void invoke("companion_clear").catch(() => {});
 }
 
-async function ensureCompanionLive(): Promise<CompanionLiveSession> {
-  if (companionLive?.active) return companionLive;
+async function ensureCompanionLive(surface: LiveSurface): Promise<CompanionLiveSession> {
+  if (companionLive?.active && liveSurface === surface) return companionLive;
+  if (companionLive?.active) teardownCompanionLive();
+  liveSurface = surface;
   companionLive = new CompanionLiveSession({
     onPhase: (phase) => setCompanionPhaseUi(phase),
-    onUser: (text, isFinal) => upsertSessionLiveBubble("user", text, isFinal),
-    onAssistant: (text, isFinal) =>
-      upsertSessionLiveBubble("assistant", text, isFinal),
+    onUser: (text, isFinal) => {
+      if (liveSurface === "copilot") upsertCopilotLiveBubble("user", text, isFinal);
+      else upsertSessionLiveBubble("user", text, isFinal);
+    },
+    onAssistant: (text, isFinal) => {
+      if (liveSurface === "copilot") upsertCopilotLiveBubble("assistant", text, isFinal);
+      else upsertSessionLiveBubble("assistant", text, isFinal);
+    },
     onError: (message) => {
-      setComposerMicHint(message, "session");
+      setComposerMicHint(message, liveSurface === "copilot" ? "chat" : "session");
+      liveSurface = null;
       setCompanionPhaseUi("idle");
     },
   });
   await companionLive.start(collectCompanionContext());
   return companionLive;
+}
+
+async function toggleCompanionLive(surface: LiveSurface): Promise<void> {
+  if (chatBusy || companionBusy) return;
+  const micId = surface === "copilot" ? "#chat-mic" : "#session-chat-mic";
+  const hintTarget = surface === "copilot" ? "chat" : "session";
+  if (companionLive?.active && liveSurface === surface) {
+    teardownCompanionLive();
+    setComposerMicHint(
+      surface === "copilot"
+        ? COPILOT_IDLE_HINT
+        : "Live voice ended. Tap Talk to start again, or type a turn.",
+      hintTarget,
+    );
+    return;
+  }
+  const mic = $(micId) as HTMLButtonElement | null;
+  if (mic) mic.disabled = true;
+  try {
+    await ensureCompanionLive(surface);
+    setComposerMicHint(
+      surface === "copilot"
+        ? "Live voice open — speak or type. Click the microphone to end."
+        : "Live voice open — talk freely or type a line. Tap Live to end.",
+      hintTarget,
+    );
+    void renderPermissionsStatus();
+  } catch (err) {
+    console.error(err);
+    teardownCompanionLive();
+    setComposerMicHint(chatErrorMessage(err), hintTarget);
+  } finally {
+    if (mic) mic.disabled = false;
+  }
 }
 
 async function sendSessionChat() {
@@ -1810,7 +2085,12 @@ function formatVitals(vitals?: VitalsSnapshot | null): string {
   if (typeof vitals.breathing_rate === "number") bits.push(`RR ${vitals.breathing_rate.toFixed(1)}`);
   if (typeof vitals.stress_index === "number") bits.push(`stress ${Math.round(vitals.stress_index)}`);
   const state = vitals.stressed ? "elevated stress" : "steady";
-  const source = vitals.source === "presage" ? "Presage" : vitals.source === "fallback" ? "vision estimate" : vitals.source || "—";
+  const source =
+    vitals.source === "presage"
+      ? "camera"
+      : vitals.source === "fallback"
+        ? "camera estimate"
+        : vitals.source || "—";
   if (bits.length) return `${bits.join(" · ")} · ${state} (${source})`;
   return vitals.raw_summary || `${state} (${source})`;
 }
@@ -2290,6 +2570,7 @@ function syncMissionTimer(session: Pick<LockInSession, "paused" | "ends_at">) {
 
 async function refreshStatus() {
   const status = await invoke<StatusPayload>("get_status");
+  await applyAccountLocalScope(status);
   renderHome(status);
   if (!isAppUnlocked(status)) {
     show("view-home");
@@ -2343,23 +2624,11 @@ async function bootApp() {
   });
   $("#copilot-start-mission")?.addEventListener("click", () => show("view-lockin"));
 
-  const setComposerMicHint = (message: string, target: "chat" | "session" = "chat") => {
-    if (target === "session") {
-      const hint = $("#session-chat-hint");
-      if (hint) hint.textContent = message;
-      return;
-    }
-    const hint = $("#chat-hint");
-    if (hint) hint.textContent = message;
-  };
-
   const formatVoiceResult = (transcript: VoiceTranscript): string => {
     const text = transcript.text?.trim();
     const note = transcript.note?.trim();
-    const engine = transcript.engine?.trim();
     if (text) {
-      const meta = [engine, note].filter(Boolean).join(" · ");
-      return meta ? `Heard: “${text}” (${meta})` : `Heard: “${text}”`;
+      return note ? `Heard: “${text}” — ${note}` : `Heard: “${text}”`;
     }
     if (note) return `Mic test finished — no speech detected. ${note}`;
     return "Mic test finished — no speech detected. Try speaking clearly for the full 4 seconds.";
@@ -2391,7 +2660,7 @@ async function bootApp() {
       (window as unknown as { webkitSpeechRecognition?: SRCtor }).webkitSpeechRecognition;
     if (!Ctor) {
       return Promise.reject(
-        new Error("Web Speech API unavailable in this webview."),
+        new Error("Speech recognition isn’t available in this window."),
       );
     }
     return new Promise((resolve, reject) => {
@@ -2434,7 +2703,10 @@ async function bootApp() {
         finish(finalText, "Listening stopped.");
       };
       const timer = window.setTimeout(() => {
-        finish(finalText, finalText ? "Web Speech capture finished." : "No speech detected (Web Speech).");
+        finish(
+          finalText,
+          finalText ? "Listening finished." : "No speech detected.",
+        );
       }, Math.max(2, seconds) * 1000);
       signal?.addEventListener("abort", onAbort, { once: true });
       recognition.onresult = (event) => {
@@ -2459,7 +2731,7 @@ async function bootApp() {
       };
       recognition.onend = () => {
         window.clearTimeout(timer);
-        finish(finalText, "Web Speech recognition ended.");
+        finish(finalText, "Listening ended.");
       };
       try {
         recognition.start();
@@ -2500,59 +2772,8 @@ async function bootApp() {
     }
   }
 
-  let chatMicListening = false;
-  const CHAT_INPUT_IDLE_PLACEHOLDER = "Message your copilot…";
-  const CHAT_LISTENING_COPY = "Listening… click mic to stop";
-  $("#chat-mic")?.addEventListener("click", async () => {
-    if (chatBusy || chatMicListening) return;
-    const input = $<HTMLTextAreaElement>("#chat-input");
-    const mic = $("#chat-mic") as HTMLButtonElement | null;
-    const priorValue = input?.value ?? "";
-    chatMicListening = true;
-    if (mic) {
-      mic.disabled = false;
-      mic.textContent = "■";
-      mic.setAttribute("aria-label", "Stop listening");
-    }
-    if (input) {
-      input.value = "";
-      input.placeholder = CHAT_LISTENING_COPY;
-      input.setAttribute("aria-label", CHAT_LISTENING_COPY);
-    }
-    try {
-      const transcript = await listenForTranscript(4);
-      const text = transcript.text?.trim();
-      if (text && input) {
-        input.value = priorValue.trim() ? `${priorValue.trim()} ${text}` : text;
-        input.focus();
-        setComposerMicHint(
-          `Heard: “${text}”. Edit if needed, then send.`,
-        );
-      } else {
-        if (input) input.value = priorValue;
-        setComposerMicHint(
-          transcript.note?.trim()
-            ? `No speech detected. ${transcript.note}`
-            : "No speech detected. Click Mic and speak for about 4 seconds.",
-        );
-      }
-      void renderPermissionsStatus();
-    } catch (err) {
-      console.error(err);
-      if (input) input.value = priorValue;
-      setComposerMicHint(String(err));
-    } finally {
-      chatMicListening = false;
-      if (mic) {
-        mic.disabled = chatBusy;
-        mic.textContent = "Mic";
-        mic.setAttribute("aria-label", "Microphone");
-      }
-      if (input) {
-        input.placeholder = CHAT_INPUT_IDLE_PLACEHOLDER;
-        input.setAttribute("aria-label", "Message Copilot");
-      }
-    }
+  $("#chat-mic")?.addEventListener("click", () => {
+    void toggleCompanionLive("copilot");
   });
 
   $("#chat-form")?.addEventListener("submit", (e) => {
@@ -2852,33 +3073,8 @@ async function bootApp() {
       hint.textContent = "Five-minute next-step timer started. One small step at a time.";
     }
   });
-  $("#session-chat-mic")?.addEventListener("click", async () => {
-    if (chatBusy || companionBusy) return;
-    // Toggle Live companion (demo-style Start/End) — not dictation into the composer.
-    if (companionLive?.active) {
-      teardownCompanionLive();
-      setComposerMicHint(
-        "Live companion ended. Tap Talk to start again, or type a turn.",
-        "session",
-      );
-      return;
-    }
-    const mic = $("#session-chat-mic") as HTMLButtonElement | null;
-    if (mic) mic.disabled = true;
-    try {
-      await ensureCompanionLive();
-      setComposerMicHint(
-        "Live companion open — talk freely or type a line. Tap Live to end.",
-        "session",
-      );
-      void renderPermissionsStatus();
-    } catch (err) {
-      console.error(err);
-      teardownCompanionLive();
-      setComposerMicHint(chatErrorMessage(err), "session");
-    } finally {
-      if (mic) mic.disabled = false;
-    }
+  $("#session-chat-mic")?.addEventListener("click", () => {
+    void toggleCompanionLive("session");
   });
   $("#setting-copilot-audio")?.addEventListener("change", () => {
     void persistCopilotAudioFromToggle();
@@ -2986,9 +3182,9 @@ async function bootApp() {
     if (out) out.textContent = "Speaking…";
     try {
       await invoke("voice_speak", {
-        text: "Waypoint voice invoke test. Coaching audio is online.",
+        text: "Waypoint voice test. Spoken coaching is ready.",
       });
-      if (out) out.textContent = "Speak OK — you should have heard macOS say.";
+      if (out) out.textContent = "Speak OK — you should have heard a short test phrase.";
     } catch (err) {
       if (out) out.textContent = `Speak failed: ${String(err)}`;
     } finally {
@@ -3000,8 +3196,7 @@ async function bootApp() {
     const btn = $("#invoke-voice-listen") as HTMLButtonElement | null;
     if (btn) btn.disabled = true;
     if (out) {
-      out.textContent =
-        "Listening for 4 seconds… (first run may compile the speech helper — speak clearly)";
+      out.textContent = "Listening for 4 seconds… Speak clearly.";
     }
     try {
       const transcript = await listenForTranscript(4);

@@ -279,7 +279,13 @@
                     aria-describedby="chat-hint"
                     placeholder="Message your copilot…"
                   ></textarea>
-                  <button id="chat-mic" type="button" class="copilot-mic" aria-label="Microphone">
+                  <button
+                    id="chat-mic"
+                    type="button"
+                    class="copilot-mic"
+                    aria-label="Start live voice with Copilot"
+                    title="Start / end live voice with Copilot"
+                  >
                     Mic
                   </button>
                   <button id="chat-send" type="submit" class="primary copilot-send" aria-label="Send message">
@@ -288,7 +294,7 @@
                 </div>
               </form>
               <p id="chat-hint" class="composer-hint copilot-hint">
-                Enter to send · Click the microphone to start or stop a voice turn
+                Enter to send · Click the microphone to start or stop a voice turn.
               </p>
             </footer>
             <p class="copilot-responses-foot">
@@ -909,7 +915,7 @@
               <div class="settings-panel" id="settings-connection" role="tabpanel" hidden>
                 <article class="mc-settings-card">
                   <h2 class="settings-heading">Connection status</h2>
-                  <p class="settings-copy tight">Live checks from the Waypoint API — refresh to re-probe.</p>
+                  <p class="settings-copy tight">See whether coach, sign-in, and related services are reachable. Refresh to check again.</p>
                   <ul id="connection-status-list" class="mc-settings-list" aria-live="polite"></ul>
                   <button id="connection-refresh" class="ghost pill" type="button">Refresh status</button>
                 </article>
@@ -933,7 +939,7 @@
                     <li class="mc-perm-row">
                       <div class="mc-perm-copy">
                         <strong>Camera</strong>
-                        <span>Optional — webcam clips for Presage wellness and stress checks.</span>
+                        <span>Optional — short webcam checks for wellness and stress signals.</span>
                       </div>
                       <span id="perm-camera" class="mc-perm-badge" data-state="unknown">Checking…</span>
                     </li>
@@ -947,7 +953,7 @@
                     <li class="mc-perm-row">
                       <div class="mc-perm-copy">
                         <strong>Microphone</strong>
-                        <span>Optional — Copilot dictation and Voice tests (macOS Speech).</span>
+                        <span>Optional — spoken Copilot replies and microphone tests.</span>
                       </div>
                       <span id="perm-microphone" class="mc-perm-badge" data-state="unknown">Checking…</span>
                     </li>
@@ -994,7 +1000,7 @@
               <div class="settings-panel" id="settings-coaching" role="tabpanel" hidden>
                 <article class="mc-settings-card">
                   <h2 class="settings-heading">Voice tests</h2>
-                  <p class="settings-copy tight">Quick tests for local Tauri voice hooks (same commands the coach uses).</p>
+                  <p class="settings-copy tight">Check that spoken coaching and the microphone work on this Mac.</p>
                   <div class="cta-row">
                     <button id="invoke-voice-speak" class="secondary pill" type="button">Test speak</button>
                     <button id="invoke-voice-listen" class="ghost pill" type="button">Test mic (4s)</button>
