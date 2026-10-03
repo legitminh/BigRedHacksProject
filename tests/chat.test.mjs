@@ -239,7 +239,8 @@ test('study suggestion card accepts into lock-in and decline dismisses', async (
     if (command === 'stop_lock_in') return null;
     return defaultInvoke(command, args);
   };
-  document.querySelector('#session-stop')?.click();
+  document.querySelector('#end-session')?.click();
+  await tick();
   await tick();
   window.__TAURI_INTERNALS__.invoke = defaultInvoke;
   document.querySelector('#view-session')?.classList.remove('active');

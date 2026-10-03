@@ -223,6 +223,7 @@ pub fn delete_all_user_data(cfg: &AppConfig) -> Result<Vec<String>, String> {
         ("study session log", log_path(&cfg.data_dir)),
         ("study memory", consolidated_path(&cfg.data_dir)),
         ("Waypoint sign-in", cfg.data_dir.join("waypoint_session.json")),
+        ("Waypoint API tokens", cfg.data_dir.join("waypoint_tokens.json")),
         ("Google tokens", cfg.google_token_path()),
         ("settings", cfg.data_dir.join("settings.json")),
     ];

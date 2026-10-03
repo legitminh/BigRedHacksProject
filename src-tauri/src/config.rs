@@ -12,6 +12,7 @@ struct EmbeddedSecrets {
     local_llm_model: String,
     local_vision_model: String,
     coach_api_token: String,
+    waypoint_api_base: String,
 }
 
 fn parse_toml_secrets(raw: &str) -> EmbeddedSecrets {
@@ -41,6 +42,7 @@ fn parse_toml_secrets(raw: &str) -> EmbeddedSecrets {
             "local_vision_model" => out.local_vision_model = value,
             "coach_api_token" => out.coach_api_token = value,
             "waypoint_api_base" => {
+                out.waypoint_api_base = value.clone();
                 // Convenience: if only API root is set, coach lives at /v1/coach
                 if out.local_llm_base.is_empty() {
                     out.local_llm_base = format!("{}/v1/coach", value.trim_end_matches('/'));
@@ -79,6 +81,8 @@ pub struct AppConfig {
     pub local_vision_model: String,
     /// Bearer token for `/v1/coach/*` (matches backend `COACH_API_TOKEN`).
     pub coach_api_token: Option<String>,
+    /// Waypoint API root, e.g. http://127.0.0.1:8787
+    pub waypoint_api_base: String,
     pub local_llm_enabled: bool,
     pub data_dir: PathBuf,
 }
@@ -164,6 +168,18 @@ impl AppConfig {
             .map(|v| !matches!(v.to_lowercase().as_str(), "0" | "false" | "off" | "no"))
             .unwrap_or(true);
 
+        let waypoint_api_base = env::var("WAYPOINT_API_BASE")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                if baked.waypoint_api_base.is_empty() {
+                    None
+                } else {
+                    Some(baked.waypoint_api_base.clone())
+                }
+            })
+            .unwrap_or_else(|| "http://127.0.0.1:8787".into());
+
         Self {
             gemini_api_key: first_nonempty(&[
                 env::var("GEMINI_API_KEY").ok(),
@@ -186,13 +202,24 @@ impl AppConfig {
             local_llm_model,
             local_vision_model,
             coach_api_token,
+            waypoint_api_base,
             local_llm_enabled,
             data_dir,
         }
     }
 
+    pub fn api_base(&self) -> &str {
+        self.waypoint_api_base.trim_end_matches('/')
+    }
+
     /// Attach Bearer auth when talking to the Waypoint coach proxy.
+    /// Prefers the signed-in user JWT when present; otherwise the baked coach token.
     pub fn coach_auth_header(&self) -> Option<(&str, String)> {
+        if let Some(tokens) = crate::auth::load_tokens(self) {
+            if !tokens.access_token.is_empty() {
+                return Some(("Authorization", format!("Bearer {}", tokens.access_token)));
+            }
+        }
         self.coach_api_token
             .as_ref()
             .filter(|t| !t.is_empty())
@@ -203,7 +230,8 @@ impl AppConfig {
         self.data_dir.join("google_tokens.json")
     }
 
+    /// Google Calendar/Drive connect is available when signed into Waypoint (server-side OAuth).
     pub fn google_oauth_ready(&self) -> bool {
-        self.google_client_id.is_some() && self.google_client_secret.is_some()
+        crate::auth::load_tokens(self).is_some()
     }
 }

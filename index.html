@@ -58,50 +58,26 @@
             </div>
 
             <aside id="home-guest-signin" class="welcome-signin">
-              <form id="welcome-signin-form" class="welcome-signin-card signin-box">
+              <div id="welcome-signin-form" class="welcome-signin-card signin-box">
                 <p class="welcome-signin-kicker"><span aria-hidden="true">✦</span> Welcome aboard</p>
-                <h2 class="welcome-signin-title">Your seat is ready.</h2>
-                <p class="welcome-signin-lead">Sign in to return to your space.</p>
-                <label class="welcome-field">
-                  <span class="welcome-field-label">Email</span>
-                  <input
-                    id="wp-username"
-                    name="username"
-                    type="email"
-                    autocomplete="username"
-                    required
-                    placeholder="you@school.edu"
-                  />
-                </label>
-                <label class="welcome-field">
-                  <span class="welcome-field-label">Password</span>
-                  <input
-                    id="wp-password"
-                    name="password"
-                    type="password"
-                    autocomplete="current-password"
-                    placeholder="Enter your password"
-                  />
-                </label>
+                <h2 class="welcome-signin-title">Sign in to continue.</h2>
+                <p class="welcome-signin-lead">
+                  Waypoint requires Google. One sign-in links your account, Calendar, Drive, and study memory.
+                </p>
                 <p class="signin-error" id="wp-signin-error" hidden></p>
-                <button class="welcome-signin-submit primary wide" type="submit">Sign in →</button>
-                <button type="button" class="welcome-guest-link" id="welcome-continue-guest">
-                  Continue as guest
+                <button
+                  type="button"
+                  class="welcome-signin-submit primary wide"
+                  id="welcome-google-signin"
+                >
+                  Sign in with Google →
                 </button>
                 <p class="welcome-signin-foot">
-                  Just here to focus? Guest mode has everything you need for your first mission.
+                  You’ll approve Google access in your browser, then return here.
                 </p>
-              </form>
+              </div>
             </aside>
           </div>
-          <aside id="start-here" class="start-here" hidden>
-            <p class="start-here-label">First flight</p>
-            <p class="start-here-text">
-              Placeholder login accepts any username. After sign-in, open <strong>Start mission</strong> or
-              <strong>Copilot</strong> from your dashboard.
-            </p>
-            <button type="button" class="ghost start-here-dismiss" id="start-here-dismiss">Got it</button>
-          </aside>
         </div>
 
         <div id="home-first-flight" class="mc-first-flight" hidden>
@@ -920,16 +896,20 @@
               <div class="settings-panel" id="settings-account" role="tabpanel" hidden>
                 <article class="mc-settings-card">
                   <h2 class="settings-heading">Account</h2>
-                  <p class="settings-copy tight">Waypoint sign-in and optional Google for Calendar / Drive in Copilot.</p>
+                  <p class="settings-copy tight">
+                    Signed in with Google. Calendar and Drive stay linked for Copilot.
+                  </p>
                   <div class="account-block">
-                    <p class="account-label">Waypoint</p>
-                    <p id="account-waypoint-user" class="account-value">Not signed in</p>
+                    <p class="account-label">Google account</p>
+                    <p id="account-waypoint-user" class="account-value">—</p>
+                    <p id="account-waypoint-email" class="settings-copy tight"></p>
+                    <div id="account-waypoint-actions" class="cta-row"></div>
                   </div>
                   <div class="account-block">
-                    <p class="account-label">Google (optional)</p>
-                    <p id="account-google-status" class="account-value">Not connected</p>
+                    <p class="account-label">Calendar &amp; Drive</p>
+                    <p id="account-google-status" class="account-value">—</p>
                     <p class="settings-copy tight">
-                      Link Google for deadline context and Drive notes. Missions work without it.
+                      Required for deadlines and Drive notes. Re-link if access was revoked.
                     </p>
                     <div id="account-google-actions" class="cta-row"></div>
                   </div>
@@ -937,25 +917,14 @@
                 <article class="mc-settings-card">
                   <h2 class="settings-heading">Your data</h2>
                   <p class="settings-copy tight">
-                    Permanently erase study memory, session logs, ship progress, chat history, sign-in, and linked Google tokens on this device.
+                    Permanently erase study memory, session logs, ship progress, chat history, and your Google-linked account from this Mac and the cloud.
                   </p>
-                  <div id="delete-data-step" class="cta-row">
+                  <div class="cta-row">
                     <button id="delete-data-start" class="ghost danger pill" type="button">
                       Delete my data…
                     </button>
                   </div>
-                  <div id="delete-data-confirm" class="delete-data-confirm" hidden>
-                    <p class="settings-copy tight">
-                      This cannot be undone. Everything listed above is deleted forever from this Mac.
-                    </p>
-                    <div class="cta-row">
-                      <button id="delete-data-cancel" class="ghost pill" type="button">Cancel</button>
-                      <button id="delete-data-confirm-btn" class="ghost danger pill" type="button">
-                        Delete everything forever
-                      </button>
-                    </div>
-                    <p id="delete-data-result" class="composer-hint" aria-live="polite"></p>
-                  </div>
+                  <p id="delete-data-result" class="composer-hint" aria-live="polite"></p>
                 </article>
               </div>
 
@@ -987,6 +956,34 @@
           <p class="mission-launch__kicker">Mission</p>
           <h2 class="mission-launch__title">Launch</h2>
           <p class="mission-launch__sub">Engines on — stay on course.</p>
+        </div>
+      </div>
+
+      <div
+        id="delete-data-modal"
+        class="delete-data-modal"
+        hidden
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-data-modal-title"
+      >
+        <div class="delete-data-modal__backdrop" data-delete-dismiss></div>
+        <div class="delete-data-modal__card">
+          <p class="delete-data-modal__kicker">Your data</p>
+          <h2 id="delete-data-modal-title" class="delete-data-modal__title">Delete everything?</h2>
+          <p class="delete-data-modal__body">
+            This permanently erases study memory, session logs, ship progress, chat history, and your
+            Google-linked Waypoint account on this Mac and in the cloud. You will be signed out.
+            This cannot be undone.
+          </p>
+          <div class="delete-data-modal__actions">
+            <button id="delete-data-cancel" class="ghost pill" type="button" data-delete-dismiss>
+              Cancel
+            </button>
+            <button id="delete-data-confirm-btn" class="ghost danger pill" type="button">
+              Delete everything forever
+            </button>
+          </div>
         </div>
       </div>
     </div>

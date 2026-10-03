@@ -54,3 +54,68 @@ Verifier appends pass/fail notes after each 10m check.
 - fail: (none)
 - notes: Live 2:38/6:231 Mic+↑ both in cream Composer input; HEAD dd85eb9 `#session-chat-send` inside `.copilot-input-wrap` + shared Copilot in-pill CSS. Live 2:37/5:421 Editable field 544×64 single-row; `#goals` rows=1 + min-height 2.5rem + centered affordance. Preserved Settings five-tab, ✦ Launch wiring, Pause/End, LTR orbit, silent_mode true, #app padding:0. No code edits.
 
+## check: 2026-10-03T15:27:27-04:00
+- reviewed: fp-session-chat-meta-kickers, fp-session-mission-star-style, fp-session-at-launch-seed, fp-welcome-hero-body-plus, fp-welcome-foot-plus, fp-settings-topnav-home-active, fp-summary-pb-banner-flag, fp-summary-flight-logged, fp-active-waypoint-sublabels-uppercase, fp-copilot-listening-composer, fp-summary-objective-helper, fp-summary-note-gated; spot-check ffaa518/4a33e9e/dd85eb9
+- pass: fp-session-chat-meta-kickers, fp-session-mission-star-style, fp-session-at-launch-seed, fp-welcome-hero-body-plus, fp-welcome-foot-plus, fp-settings-topnav-home-active, fp-summary-pb-banner-flag, fp-summary-flight-logged, fp-copilot-listening-composer, fp-summary-objective-helper, fp-summary-note-gated; prior ffaa518/4a33e9e/dd85eb9 still match live
+- fail: fp-active-waypoint-sublabels-uppercase
+- notes: Live 2:38 waypoints Launch/Destination only — reopened uppercase escalate:scrutinous. Settings Home-pill regressed by 63701ab → proof-restored vs live 2:36. 5fdec0d listening composer + summary helper/note-gated match live. Scrutinous opens still accurate. Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true, #app padding:0. No push.
+
+## check: 2026-10-03T15:32:00-04:00
+- reviewed: fp-setup-empty-launch-disabled, fp-setup-objective-listening
+- pass: fp-setup-empty-launch-disabled, fp-setup-objective-listening
+- fail: (none)
+- notes: Live 10:752/10:565 confirm e9a210e — empty muted Launch + lead/label/foot; listening field/foot + Launch muted until transcript; affordance `requestSubmit` when objective present. Preserved Settings five-tab, Pause/End, LTR orbit, silent_mode true. No code edits. No push.
+
+## check: 2026-10-03T15:32:34-04:00
+- reviewed: fp-active-waypoint-sublabels-uppercase
+- pass: fp-active-waypoint-sublabels-uppercase
+- fail: (none)
+- notes: Live 2:38 metadata 6:189=Launch, 6:190=Destination, 6:168=EARTH→KEPLER only; HEAD 44f3b0e removed `.session-flight-waypoint-sub`; route kicker kept. Preserved Pause/End, LTR orbit, Settings five-tab, ✦ Launch, silent_mode true. No code edits; no push.
+
+## check: 2026-10-03T15:41:44-04:00
+- reviewed: fp-ended-early-finished-hero, fp-summary-outcome-note-copy, fp-summary-logged-banner
+- pass: fp-ended-early-finished-hero, fp-summary-outcome-note-copy, fp-summary-logged-banner
+- fail: (none)
+- notes: Live 8:531/8:715 + OCR confirm ca08f47 — Finished upgrades ✓ QUEST COMPLETE / “One mission. Well done.”; not-yet keeps ✦ FLIGHT LOGGED; kicker hidden + PB-remains / time-still-counts notes; `#summary-pb-banner` always-on (“still” / new-longest). Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true. No code edits; no push.
+
+## check: 2026-10-03T15:47:52-04:00
+- reviewed: (no fresh `## done:`) spot-check ca08f47 / e9a210e / 44f3b0e verified; EXTRA SCRUTINOUS on escalate opens
+- pass: (none new — ca08f47 fp-ended-early-finished-hero, fp-summary-outcome-note-copy, fp-summary-logged-banner still match live 8:531/8:715; e9a210e setup + 44f3b0e waypoints remain verified)
+- fail: (none)
+- notes: Zero `## done:` this tick. Live reconfirm ca08f47 code+Figma OK. Rewrote scrutinous opens fp-summary-partly-note-copy (8:692 exact), fp-summary-relaunch-note (8:886–888), fp-session-at-launch-chrome (10:1325), fp-listening-session-ui (2:46); tightened fp-summary-pb-stat-label. Refreshed local 23 PNG from live. Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true, #app padding:0. No code edits; no push.
+
+## check: 2026-10-03T15:50:04-04:00
+- reviewed: fp-summary-partly-note-copy, fp-summary-pb-stat-label, fp-active-signal-on-fill
+- pass: fp-summary-partly-note-copy, fp-summary-pb-stat-label, fp-active-signal-on-fill
+- fail: (none)
+- notes: 5f9b96a matches live — 8:692 partly note exact; 8:683 “personal best”; `.session-signal-pill.is-on` purple fill+white vs 33/34/35. Inbox commit hashes 4f72419→5f9b96a + verified stamps. Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true. No push.
+
+## check: 2026-10-03T15:52:00-04:00
+- reviewed: fp-summary-relaunch-note, fp-summary-relaunch-note-card
+- pass: fp-summary-relaunch-note, fp-summary-relaunch-note-card
+- fail: (none)
+- notes: c5010ec vs live 8:886–888 — Not yet + relaunches>0 uses exact relaunch body + `✦  A NOTE FROM YOUR COPILOT` kicker + `.quest-copilot-note--card`; zero-relaunch 22/23/24 stay plain. Tiny proof CSS to live tokens (#e9ddfd/#c8bfd7/28px/10px/mint #326c78/15px body). Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true. No push.
+
+## check: 2026-10-03T16:00:29-04:00
+- reviewed: fp-quest-complete-badge-mint, fp-first-flight-badge-mint, fp-setup-step-mint
+- pass: fp-quest-complete-badge-mint, fp-first-flight-badge-mint, fp-setup-step-mint
+- fail: (none)
+- notes: fbe9617 vs live — 6:1097 / 7:565 / 8:967 all `var(--color-mint,#326c78)`; HEAD quest `--quest` badge + `.mc-first-flight-badge` + `.mission-setup-step` mint; FLIGHT LOGGED base stays purple. Inbox stamped verified. Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true. No code edits; no push.
+
+## check: 2026-10-03T16:01:56-04:00
+- reviewed: fp-summary-partly-relaunch-note, fp-summary-finished-relaunch-note
+- pass: fp-summary-partly-relaunch-note, fp-summary-finished-relaunch-note
+- fail: (none)
+- notes: 6ee9efc vs live 6:1226/6:1125 — Partly+relaunch and Finished+relaunch+new-PB body strings exact (curly ’ / em-dash —); card chrome via summaryUsesRelaunchNote + `.quest-copilot-note--card` + mint `✦  A NOTE FROM YOUR COPILOT`; zero-relaunch 22/23 and Not-yet 25 untouched. Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true. No code edits; no push.
+
+## check: 2026-10-03T16:06:11-04:00
+- reviewed: fp-summary-partly-note-copy, fp-summary-pb-stat-label, fp-active-signal-on-fill; reconfirm fbe9617 mint (fp-quest-complete-badge-mint, fp-first-flight-badge-mint, fp-setup-step-mint); reconfirm 6ee9efc (fp-summary-partly-relaunch-note, fp-summary-finished-relaunch-note); spot escalate:scrutinous opens
+- pass: fp-summary-partly-note-copy, fp-summary-pb-stat-label, fp-active-signal-on-fill; fbe9617 mint + 6ee9efc relaunch notes remain verified
+- fail: (none)
+- notes: Live 8:692/8:683/10:852 + 6:1097/7:565/8:967 + 6:1226/6:1125 match HEAD 5f9b96a/fbe9617/6ee9efc. Promoted leftover ## done: headers → verified. Scrutinous opens still accurate (incl. fp-session-at-launch-chrome vs live 10:1325) — no rewrite. Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true, #app padding:0. No code edits; no push.
+
+## check: 2026-10-03T16:10:00-04:00
+- reviewed: fp-welcome-signin-kicker-mint, fp-setup-toggle-row-chrome, fp-session-user-turn-align
+- pass: fp-welcome-signin-kicker-mint, fp-setup-toggle-row-chrome, fp-session-user-turn-align
+- fail: (none)
+- notes: dbc97fc vs live — 5:59 vars mint `#326c78` / raised `#e9ddfd` on WELCOME ABOARD; 8:1159/8:1164 Camera+Screen plain transparent rows (no lavender mini-cards); 2:38 YOU·JUST NOW + user body left-aligned (`flex-start`). Inbox stamped verified (commit hash e18583f→dbc97fc). Preserved Settings five-tab, ✦ Launch, Pause/End, LTR orbit, silent_mode true. No code edits; no push.

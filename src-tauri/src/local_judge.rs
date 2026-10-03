@@ -95,7 +95,7 @@ pub async fn status_line(cfg: &AppConfig) -> String {
         *guard = Some((Instant::now(), ok, detail.clone()));
     }
     if ok {
-        format!("Coach ready · {}", local.model)
+        format!("Coach ready · {} · via API", local.model)
     } else {
         format!("Coach unavailable · {detail}")
     }
@@ -115,7 +115,7 @@ async fn probe(app: &AppConfig, cfg: &LocalJudgeConfig) -> (bool, String) {
         Err(_) => {
             return (
                 false,
-                "start Waypoint API on this Mac".into(),
+                "start Waypoint API".into(),
             );
         }
     };

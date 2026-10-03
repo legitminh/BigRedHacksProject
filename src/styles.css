@@ -1353,10 +1353,68 @@ body:has(.view-home.view-home--guest.active) .grain {
   font-size: 0.85rem;
 }
 
-.delete-data-confirm {
-  margin-top: 0.75rem;
+.delete-data-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.delete-data-modal[hidden] {
+  display: none !important;
+}
+
+.delete-data-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(42, 36, 64, 0.35);
+  backdrop-filter: blur(4px);
+}
+
+.delete-data-modal__card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 24rem);
+  padding: 1.75rem 1.5rem 1.5rem;
+  border-radius: 1.25rem;
+  background: var(--mc-bg-card, #fff);
+  border: 1px solid var(--mc-border-default, rgba(42, 36, 64, 0.1));
+  box-shadow: 0 24px 48px rgba(42, 36, 64, 0.16);
   display: grid;
+  gap: 0.75rem;
+}
+
+.delete-data-modal__kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mc-accent-purple, #6b4cff);
+  font-weight: 600;
+}
+
+.delete-data-modal__title {
+  margin: 0;
+  font-size: 1.35rem;
+  color: var(--mc-text-primary, #2a2440);
+}
+
+.delete-data-modal__body {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--mc-text-secondary, #6b6578);
+}
+
+.delete-data-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.65rem;
+  justify-content: flex-end;
+  margin-top: 0.35rem;
 }
 
 .account-block {
@@ -4219,25 +4277,25 @@ body:has(.view-quest-complete.active) .grain {
   border: none;
 }
 
-/* Figma 25 — relaunch ≥1 Copilot summary card */
+/* Figma 25 — relaunch ≥1 Copilot summary card (live 8:886) */
 .quest-copilot-note--card {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  padding: 1.25rem;
-  border-radius: 1rem;
-  background: var(--mc-surface-lavender, #ebe4f8);
-  border: 1px solid rgba(103, 80, 164, 0.16);
+  gap: 10px;
+  padding: 20px;
+  border-radius: 28px;
+  background: #e9ddfd;
+  border: 1px solid #c8bfd7;
   box-shadow: 0 6px 18px rgba(42, 36, 64, 0.04);
 }
 
 .quest-copilot-kicker {
   margin: 0;
-  font-size: 0.68rem;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #43968f;
+  color: #326c78;
 }
 
 .quest-copilot-note:not(.quest-copilot-note--card) .quest-copilot-kicker {
@@ -4252,8 +4310,9 @@ body:has(.view-quest-complete.active) .grain {
 }
 
 .quest-copilot-note--card .quest-copilot-body {
-  font-size: 0.875rem;
-  color: #2a2440;
+  font-size: 15px;
+  line-height: 1.4;
+  color: #282237;
 }
 
 .quest-flight-details {

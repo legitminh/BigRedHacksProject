@@ -53,8 +53,8 @@ pub fn speak(text: &str) -> Result<()> {
 
     #[cfg(target_os = "macos")]
     {
-        stop_speaking();
-        // Default system voice + slightly brisk rate — Samantha premium voices can lag hard.
+        // Wait for killall to finish so we don't SIGKILL the new `say`.
+        stop_speaking_sync();
         Command::new("say")
             .args(["-r", "200", &snippet])
             .stdin(Stdio::null())
@@ -83,18 +83,22 @@ pub fn speak_wait(text: &str) -> Result<()> {
 
     #[cfg(target_os = "macos")]
     {
-        stop_speaking();
-        let status = Command::new("say")
+        stop_speaking_sync();
+        let output = Command::new("say")
             .args(["-r", "200", &snippet])
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
+            .output()
             .map_err(|e| VoiceError::Message(format!("macOS say failed: {e}")))?;
-        if !status.success() {
-            return Err(VoiceError::Message(
-                "macOS say exited with an error. Check system voice settings.".into(),
-            ));
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            let detail = if stderr.is_empty() {
+                format!("exit {}", output.status)
+            } else {
+                stderr
+            };
+            return Err(VoiceError::Message(format!(
+                "macOS say failed ({detail}). Check System Settings → Accessibility → Spoken Content."
+            )));
         }
         return Ok(());
     }
@@ -108,17 +112,24 @@ pub fn speak_wait(text: &str) -> Result<()> {
     }
 }
 
-pub fn stop_speaking() {
+/// Stop any in-flight `say` and wait until killall returns (so a new speak is safe).
+pub fn stop_speaking_sync() {
     #[cfg(target_os = "macos")]
     {
-        // Fire-and-forget SIGKILL — never block the coach loop waiting on killall.
         let _ = Command::new("killall")
             .args(["-9", "say"])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
-            .spawn();
+            .status();
+        // Brief settle — killall can return before the process table updates.
+        std::thread::sleep(std::time::Duration::from_millis(40));
     }
+}
+
+pub fn stop_speaking() {
+    // Coach path: same sync stop so we never race-kill the replacement utterance.
+    stop_speaking_sync();
 }
 
 /// Trait so Grok Voice (or Whisper, etc.) can replace the default later.

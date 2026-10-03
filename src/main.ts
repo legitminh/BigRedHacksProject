@@ -113,8 +113,11 @@ interface VoiceTranscript {
 }
 
 interface StatusPayload {
+  /** Google OAuth completed (JWT stored). Required to use the app. */
   signed_in: boolean;
   username?: string | null;
+  email?: string | null;
+  user_id?: string | null;
   google_connected: boolean;
   gemini_ready: boolean;
   google_oauth_ready: boolean;
@@ -122,6 +125,11 @@ interface StatusPayload {
   local_llm_model?: string;
   local_llm_enabled?: boolean;
   session: LockInSession | null;
+}
+
+/** App is unlocked only after Google sign-in (account + Calendar/Drive). */
+function isAppUnlocked(status: StatusPayload): boolean {
+  return Boolean(status.signed_in && status.google_connected);
 }
 
 interface StudySessionSuggestion {
@@ -409,8 +417,6 @@ function playLaunchCelebration(then: () => void): void {
     then();
   }, LAUNCH_CELEBRATION_MS);
 }
-const START_HERE_KEY = "waypoint-start-here-dismissed";
-
 function navInitials(username?: string | null): string {
   const who = username?.trim() || "You";
   const parts = who.split(/\s+/).filter(Boolean);
@@ -420,7 +426,13 @@ function navInitials(username?: string | null): string {
   return who.slice(0, 2).toUpperCase();
 }
 
+let appUnlocked = false;
+
 function show(view: ViewId) {
+  // Gate: nothing past the welcome screen until Google sign-in + link completes.
+  if (!appUnlocked && view !== "view-home") {
+    view = "view-home";
+  }
   document.querySelectorAll(".view").forEach((el) => el.classList.remove("active"));
   $(`#${view}`)?.classList.add("active");
   if (view === "view-chat") {
@@ -532,35 +544,29 @@ function setMissionLaunchButton(loading: boolean) {
   syncMissionSetupLaunchUi();
 }
 
-function syncStartHerePanel(signedIn: boolean) {
-  const panel = $("#start-here");
-  if (!panel) return;
-  if (signedIn) {
-    panel.hidden = true;
-    return;
-  }
-  try {
-    panel.hidden = localStorage.getItem(START_HERE_KEY) === "1";
-  } catch {
-    panel.hidden = false;
-  }
-}
+let googleSignInInFlight = false;
 
-async function submitWelcomeSignIn(username: string, password: string) {
-  const form = $("#welcome-signin-form");
+async function submitWelcomeGoogle() {
+  if (googleSignInInFlight) return;
+  googleSignInInFlight = true;
   const err = $("#wp-signin-error");
-  const btn = form?.querySelector("button[type=submit]") as HTMLButtonElement | null;
+  const btn = $("#welcome-google-signin") as HTMLButtonElement | null;
   if (err) {
     err.hidden = true;
     err.textContent = "";
   }
   if (btn) {
     btn.disabled = true;
-    btn.textContent = "Signing in…";
+    btn.textContent = "Waiting for Google…";
   }
   try {
-    await invoke("sign_in_waypoint", { username, password });
+    await invoke("sign_in_waypoint_google");
     await refreshStatus();
+    if (!appUnlocked) {
+      throw new Error(
+        "Google signed in, but Calendar/Drive were not linked. Try Sign in with Google again and accept all permissions.",
+      );
+    }
   } catch (e) {
     if (err) {
       err.hidden = false;
@@ -570,22 +576,23 @@ async function submitWelcomeSignIn(username: string, password: string) {
     }
     if (btn) {
       btn.disabled = false;
-      btn.textContent = "Sign in →";
+      btn.textContent = "Sign in with Google →";
     }
+  } finally {
+    if (!appUnlocked) googleSignInInFlight = false;
   }
 }
 
 function wireWelcomeSignIn() {
-  const form = $("#welcome-signin-form");
-  form?.addEventListener("submit", (event) => {
+  const btn = $("#welcome-google-signin") as HTMLButtonElement | null;
+  if (!btn || btn.dataset.wired === "1") return;
+  btn.dataset.wired = "1";
+  // onclick (not addEventListener) so Vite HMR / double-init cannot stack handlers.
+  btn.onclick = (event) => {
     event.preventDefault();
-    const username = ($("#wp-username") as HTMLInputElement | null)?.value ?? "";
-    const password = ($("#wp-password") as HTMLInputElement | null)?.value ?? "";
-    void submitWelcomeSignIn(username, password);
-  });
-  $("#welcome-continue-guest")?.addEventListener("click", () => {
-    void submitWelcomeSignIn("Guest", "");
-  });
+    event.stopPropagation();
+    void submitWelcomeGoogle();
+  };
 }
 
 function renderGuestNav() {
@@ -620,13 +627,14 @@ function renderHomeNav(status: StatusPayload) {
   const header = document.querySelector(".welcome-nav");
   if (!nav) return;
   nav.innerHTML = "";
+  const unlocked = isAppUnlocked(status);
   if (center) {
     center.innerHTML = "";
-    center.toggleAttribute("hidden", !status.signed_in);
+    center.toggleAttribute("hidden", !unlocked);
   }
-  header?.classList.toggle("welcome-nav--signed-in", status.signed_in);
+  header?.classList.toggle("welcome-nav--signed-in", unlocked);
   header?.classList.remove("welcome-nav--guest");
-  if (!status.signed_in) return;
+  if (!unlocked) return;
 
   header?.classList.add("settings-top-bar");
   header?.classList.remove("mc-nav");
@@ -681,17 +689,25 @@ function renderHomeNav(status: StatusPayload) {
 }
 
 function renderHome(status: StatusPayload) {
+  const unlocked = isAppUnlocked(status);
+  appUnlocked = unlocked;
+
   const home = $("#view-home");
-  home?.classList.toggle("view-home--signed-in", status.signed_in);
-  home?.classList.toggle("view-home--guest", !status.signed_in);
+  home?.classList.toggle("view-home--signed-in", unlocked);
+  home?.classList.toggle("view-home--guest", !unlocked);
 
-  $("#home-guest")?.toggleAttribute("hidden", status.signed_in);
+  $("#home-guest")?.toggleAttribute("hidden", unlocked);
 
-  if (!status.signed_in) {
+  if (!unlocked) {
     $("#home-first-flight")?.toggleAttribute("hidden", true);
     $("#home-dashboard")?.toggleAttribute("hidden", true);
     renderGuestNav();
-    syncStartHerePanel(status.signed_in);
+    // Keep user on the Google sign-in screen.
+    if (!$("#view-home")?.classList.contains("active")) {
+      show("view-home");
+    }
+    const btn = $("#welcome-google-signin") as HTMLButtonElement | null;
+    if (btn && !btn.disabled) btn.textContent = "Sign in with Google →";
     return;
   }
 
@@ -701,7 +717,6 @@ function renderHome(status: StatusPayload) {
 
   renderHomeNav(status);
   renderNavAvatar(status);
-  syncStartHerePanel(status.signed_in);
 
   if (showFirstFlightHome) {
     refreshAllShipViews();
@@ -739,72 +754,73 @@ function renderAccountSettings(status: StatusPayload) {
   const userEl = $("#account-waypoint-user");
   if (userEl) {
     userEl.textContent = status.signed_in
-      ? status.username || "Signed in"
+      ? status.username || status.email || "Signed in with Google"
       : "Not signed in";
+  }
+  const emailEl = $("#account-waypoint-email");
+  if (emailEl) {
+    emailEl.textContent = status.email && status.email !== status.username ? status.email : "";
+  }
+
+  const accountActions = $("#account-waypoint-actions");
+  if (accountActions) {
+    accountActions.innerHTML = "";
+    if (status.signed_in) {
+      const signOut = document.createElement("button");
+      signOut.className = "ghost pill";
+      signOut.type = "button";
+      signOut.textContent = "Sign out";
+      signOut.addEventListener("click", async () => {
+        signOut.disabled = true;
+        try {
+          await invoke("sign_out_waypoint");
+          await refreshStatus();
+        } catch (e) {
+          alert(String(e));
+          signOut.disabled = false;
+        }
+      });
+      accountActions.appendChild(signOut);
+    }
   }
 
   const googleStatus = $("#account-google-status");
   if (googleStatus) {
     googleStatus.textContent = status.google_connected
-      ? "Connected"
-      : status.google_oauth_ready
-        ? "Not connected"
-        : "Not configured";
+      ? "Linked"
+      : status.signed_in
+        ? "Not linked — re-sign in with Google"
+        : "Sign in required";
   }
 
   const actions = $("#account-google-actions");
   if (!actions) return;
   actions.innerHTML = "";
 
-  if (status.google_connected) {
-    const disconnect = document.createElement("button");
-    disconnect.className = "ghost";
-    disconnect.type = "button";
-    disconnect.textContent = "Disconnect Google";
-    disconnect.addEventListener("click", async () => {
-      disconnect.disabled = true;
+  if (!status.signed_in) return;
+
+  if (!status.google_connected) {
+    const connect = document.createElement("button");
+    connect.className = "secondary pill";
+    connect.type = "button";
+    connect.textContent = "Link Calendar & Drive";
+    connect.addEventListener("click", async () => {
+      const label = connect.textContent || "Link Calendar & Drive";
+      connect.textContent = "Waiting for Google…";
+      connect.disabled = true;
       try {
-        await invoke("disconnect_google");
+        await invoke("connect_google");
         await refreshStatus();
       } catch (e) {
+        console.error("connect_google failed:", e);
         alert(String(e));
-        disconnect.disabled = false;
+      } finally {
+        connect.textContent = label;
+        connect.disabled = false;
       }
     });
-    actions.appendChild(disconnect);
-    return;
+    actions.appendChild(connect);
   }
-
-  const connect = document.createElement("button");
-  connect.className = "secondary";
-  connect.type = "button";
-  connect.textContent = status.google_oauth_ready
-    ? "Connect Google"
-    : "Google not configured";
-  connect.disabled = !status.google_oauth_ready;
-  connect.addEventListener("click", async () => {
-    if (connect.disabled) return;
-    const label = connect.textContent || "Connect Google";
-    connect.textContent = "Waiting for Google…";
-    connect.disabled = true;
-    try {
-      const job = invoke("connect_google");
-      const cancel = new Promise<never>((_, reject) => {
-        window.setTimeout(() => {
-          reject(new Error("Google connect timed out or was closed. Try again from Settings."));
-        }, 90_000);
-      });
-      await Promise.race([job, cancel]);
-    } catch (e) {
-      console.error("connect_google failed:", e);
-      alert(String(e));
-    } finally {
-      connect.textContent = label;
-      connect.disabled = false;
-      await refreshStatus();
-    }
-  });
-  actions.appendChild(connect);
 }
 
 function setPermissionBadge(
@@ -913,9 +929,9 @@ async function renderConnectionStatus(status: StatusPayload) {
 
   const googleDetail = status.google_connected
     ? "Calendar and Drive linked for Copilot"
-    : status.google_oauth_ready
-      ? "Optional — connect for Calendar / Drive context"
-      : "OAuth client not configured in this build";
+    : status.signed_in
+      ? "Required — re-link Calendar and Drive"
+      : "Required — sign in with Google on the welcome screen";
 
   let geminiDetail = status.gemini_ready
     ? "API key present — verifying live…"
@@ -949,12 +965,12 @@ async function renderConnectionStatus(status: StatusPayload) {
       status.presage_ready ? "Webcam stress API key present" : "Optional — add Presage key for HR checks",
       status.presage_ready,
     ),
-    connectionRow("Local LLM", localLine, localOk),
+    connectionRow("Lock-in coach", localLine, localOk),
     connectionRow(
       "Waypoint account",
       status.signed_in
-        ? `Signed in as ${status.username || "you"}`
-        : "Sign in on home for synced Mission Control",
+        ? `Signed in as ${status.email || status.username || "you"}`
+        : "Sign in with Google to unlock the app",
       status.signed_in,
     ),
   ].join("");
@@ -1652,6 +1668,10 @@ function renderSession(session: LockInSession) {
 }
 
 async function openSettings() {
+  if (!appUnlocked) {
+    show("view-home");
+    return;
+  }
   show("view-settings");
   selectSettingsTab("lockin");
   try {
@@ -1914,6 +1934,10 @@ function syncMissionTimer(session: Pick<LockInSession, "paused" | "ends_at">) {
 async function refreshStatus() {
   const status = await invoke<StatusPayload>("get_status");
   renderHome(status);
+  if (!isAppUnlocked(status)) {
+    show("view-home");
+    return status;
+  }
   if ($("#view-settings")?.classList.contains("active")) {
     await renderMissionControlSettings(status);
   }
@@ -1926,7 +1950,7 @@ async function refreshStatus() {
   return status;
 }
 
-window.addEventListener("DOMContentLoaded", async () => {
+async function bootApp() {
   wireWelcomeSignIn();
 
   document.querySelectorAll("[data-back]").forEach((btn) => {
@@ -2540,18 +2564,18 @@ window.addEventListener("DOMContentLoaded", async () => {
   $("#permissions-refresh")?.addEventListener("click", () => {
     void renderPermissionsStatus();
   });
-  const deleteStep = $("#delete-data-step");
-  const deleteConfirm = $("#delete-data-confirm");
+  const deleteModal = $("#delete-data-modal");
   const deleteResult = $("#delete-data-result");
-  $("#delete-data-start")?.addEventListener("click", () => {
-    if (deleteStep) deleteStep.hidden = true;
-    if (deleteConfirm) deleteConfirm.hidden = false;
+  const closeDeleteModal = () => {
+    if (deleteModal) deleteModal.hidden = true;
+  };
+  const openDeleteModal = () => {
     if (deleteResult) deleteResult.textContent = "";
-  });
-  $("#delete-data-cancel")?.addEventListener("click", () => {
-    if (deleteConfirm) deleteConfirm.hidden = true;
-    if (deleteStep) deleteStep.hidden = false;
-    if (deleteResult) deleteResult.textContent = "";
+    if (deleteModal) deleteModal.hidden = false;
+  };
+  $("#delete-data-start")?.addEventListener("click", () => openDeleteModal());
+  deleteModal?.querySelectorAll("[data-delete-dismiss]").forEach((el) => {
+    el.addEventListener("click", () => closeDeleteModal());
   });
   $("#delete-data-confirm-btn")?.addEventListener("click", async () => {
     const btn = $("#delete-data-confirm-btn") as HTMLButtonElement | null;
@@ -2569,14 +2593,24 @@ window.addEventListener("DOMContentLoaded", async () => {
           // ignore
         }
       }
+      try {
+        localStorage.clear();
+      } catch {
+        // ignore
+      }
+      const chatLog = $("#chat-log");
+      if (chatLog) chatLog.innerHTML = "";
+      closeDeleteModal();
+      appUnlocked = false;
+      await refreshStatus();
+      refreshAllShipViews();
+      show("view-home");
       if (deleteResult) {
         deleteResult.textContent =
           result.removed.length > 0
-            ? `Deleted: ${result.removed.join(", ")}.`
-            : "Local data cleared.";
+            ? `Deleted and signed out. Removed: ${result.removed.join(", ")}.`
+            : "Deleted and signed out.";
       }
-      await refreshStatus();
-      refreshAllShipViews();
     } catch (err) {
       if (deleteResult) deleteResult.textContent = `Delete failed: ${String(err)}`;
     } finally {
@@ -2633,16 +2667,15 @@ window.addEventListener("DOMContentLoaded", async () => {
     showSummaryWithCelebration(event.payload);
   });
 
-  $("#start-here-dismiss")?.addEventListener("click", () => {
-    try {
-      localStorage.setItem(START_HERE_KEY, "1");
-    } catch {
-      // ignore private mode
-    }
-    const panel = $("#start-here");
-    if (panel) panel.hidden = true;
-  });
-
   initShipUI();
   await refreshStatus();
-});
+}
+
+// Module scripts often run after DOMContentLoaded — only boot once either way.
+if (document.readyState === "loading") {
+  window.addEventListener("DOMContentLoaded", () => {
+    void bootApp();
+  }, { once: true });
+} else {
+  void bootApp();
+}

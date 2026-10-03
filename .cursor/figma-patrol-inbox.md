@@ -1131,7 +1131,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     auth isn’t real yet; do not drop guest path.
 - escalate: scrutinous
 
-## done: fp-welcome-signin-kicker-mint
+## verified: fp-welcome-signin-kicker-mint
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · kicker `5:59`/`5:60`
 - deviation: |
@@ -1143,8 +1143,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Set `.welcome-signin-kicker` color to `#326c78` and raised fill `#e9ddfd`; leave form
     wiring / Google path alone (see `fp-welcome-signin-form`).
 - escalate: none
-- commit: e18583f
+- commit: dbc97fc
 - change: `.welcome-signin-kicker` mint `#326c78` on raised `#e9ddfd` fill.
+- verified: 2026-10-03T16:10:00-04:00
 
 ## open: fp-session-latest-response-card
 - screen: active
@@ -1162,7 +1163,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     AT LAUNCH / Pause/End wiring.
 - escalate: scrutinous
 
-## done: fp-setup-toggle-row-chrome
+## verified: fp-setup-toggle-row-chrome
 - screen: setup
 - ref: `.cursor/figma-refs/28-setup-screen-shared.png` · `05-mission-setup.png` · live
     `8:1096` / `2:37` · rows `8:1159`/`8:1164`
@@ -1175,10 +1176,11 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Flatten `.mission-toggle-row` to transparent/no-border list rows; keep toggle wiring and
     intentional objective ✦ = Launch. Distinct from open screen-permission modal.
 - escalate: none
-- commit: e18583f
+- commit: dbc97fc
 - change: Flattened `.mission-toggle-row` to transparent/no-border list rows.
+- verified: 2026-10-03T16:10:00-04:00
 
-## done: fp-session-user-turn-align
+## verified: fp-session-user-turn-align
 - screen: active
 - ref: `.cursor/figma-refs/06-mission-active.png` · `29-secondary-timer-replaced.png` ·
     live `2:38` / `8:1198` · YOU meta `6:222` / `8:1318`
@@ -1191,5 +1193,6 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Left-align `.session-chat-turn--user` (remove flex-end); keep transparent user text style
     and existing chat wiring. Complements `fp-session-latest-response-card`.
 - escalate: none
-- commit: e18583f
+- commit: dbc97fc
 - change: `.session-chat-turn--user` left-aligned (`flex-start`).
+- verified: 2026-10-03T16:10:00-04:00
