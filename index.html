@@ -510,8 +510,14 @@
                     pathLength="100"
                   />
                 </svg>
-                <span class="session-flight-waypoint session-flight-waypoint--launch">Launch</span>
-                <span class="session-flight-waypoint session-flight-waypoint--dest">Destination</span>
+                <span class="session-flight-waypoint session-flight-waypoint--launch">
+                  Launch
+                  <span class="session-flight-waypoint-sub">Earth</span>
+                </span>
+                <span class="session-flight-waypoint session-flight-waypoint--dest">
+                  Destination
+                  <span class="session-flight-waypoint-sub">Kepler</span>
+                </span>
                 <div id="session-orbit-ship-wrap" class="session-flight-ship-wrap" aria-hidden="true">
                   <span id="session-orbit-ship" class="session-orbit-ship">
                     <img
@@ -533,8 +539,7 @@
                   id="session-pause"
                   type="button"
                   class="primary session-control-pill"
-                  disabled
-                  aria-disabled="true"
+                  aria-pressed="false"
                 >
                   Pause
                 </button>
@@ -542,7 +547,9 @@
                   End mission
                 </button>
               </div>
-              <p class="session-pause-note">Pause isn&apos;t wired yet — use End mission to stop early.</p>
+              <p class="session-pause-note visually-hidden">
+                Pause toggles a break state when available; use End mission to stop early.
+              </p>
               <p id="session-flight-minutes" class="session-flight-minutes">0 of 45 flight minutes earned</p>
               <p class="session-flight-minutes-hint">Time in session, excluding breaks and resets.</p>
             </article>
@@ -699,7 +706,7 @@
                       <span>Speak responses and, when needed, one gentle check-in.</span>
                     </div>
                     <label class="mc-switch">
-                      <input id="setting-copilot-audio" type="checkbox" checked />
+                      <input id="setting-copilot-audio" type="checkbox" />
                       <span class="mc-switch-track" aria-hidden="true"></span>
                       <span class="visually-hidden">Copilot audio</span>
                     </label>
@@ -710,7 +717,7 @@
                       <span>Optional. Camera cues can suggest a gentle check-in.</span>
                     </div>
                     <label class="mc-switch">
-                      <input id="setting-camera-signals" type="checkbox" checked />
+                      <input id="setting-camera-signals" type="checkbox" />
                       <span class="mc-switch-track" aria-hidden="true"></span>
                       <span class="visually-hidden">Camera signals</span>
                     </label>
@@ -721,7 +728,7 @@
                       <span>Optional. Check visible activity against your stated objective.</span>
                     </div>
                     <label class="mc-switch">
-                      <input id="setting-screen-sharing" type="checkbox" checked />
+                      <input id="setting-screen-sharing" type="checkbox" />
                       <span class="mc-switch-track" aria-hidden="true"></span>
                       <span class="visually-hidden">Screen sharing</span>
                     </label>
@@ -732,7 +739,7 @@
                       <span>Keep the ship still and show progress through the route and timer.</span>
                     </div>
                     <label class="mc-switch">
-                      <input id="setting-reduce-motion" type="checkbox" checked />
+                      <input id="setting-reduce-motion" type="checkbox" />
                       <span class="mc-switch-track" aria-hidden="true"></span>
                       <span class="visually-hidden">Reduce motion</span>
                     </label>

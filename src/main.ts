@@ -56,7 +56,7 @@ function syncSilentModeInputs(silentMode: boolean) {
 }
 
 function applyReduceMotionPref() {
-  const on = readBoolPref(PREF_REDUCE_MOTION, true);
+  const on = readBoolPref(PREF_REDUCE_MOTION, false);
   document.documentElement.classList.toggle("wp-reduce-motion", on);
   const input = $("#setting-reduce-motion") as HTMLInputElement | null;
   if (input) input.checked = on;
@@ -65,8 +65,8 @@ function applyReduceMotionPref() {
 function syncSessionPreferenceToggles() {
   const camera = $("#setting-camera-signals") as HTMLInputElement | null;
   const screen = $("#setting-screen-sharing") as HTMLInputElement | null;
-  if (camera) camera.checked = readBoolPref(PREF_CAMERA_SIGNALS, true);
-  if (screen) screen.checked = readBoolPref(PREF_SCREEN_SHARING, true);
+  if (camera) camera.checked = readBoolPref(PREF_CAMERA_SIGNALS, false);
+  if (screen) screen.checked = readBoolPref(PREF_SCREEN_SHARING, false);
   applyReduceMotionPref();
 }
 
@@ -1528,6 +1528,15 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   $("#session-mute-voice")?.addEventListener("click", () => {
     void toggleSessionMute();
+  });
+
+  $("#session-pause")?.addEventListener("click", () => {
+    const btn = $("#session-pause") as HTMLButtonElement | null;
+    if (!btn) return;
+    const paused = btn.getAttribute("aria-pressed") === "true";
+    const next = !paused;
+    btn.setAttribute("aria-pressed", next ? "true" : "false");
+    btn.textContent = next ? "Resume" : "Pause";
   });
 
   $("#end-session")?.addEventListener("click", async () => {

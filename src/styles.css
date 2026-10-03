@@ -3445,12 +3445,25 @@ body:has(.view-session.active) .grain {
 
 .session-flight-waypoint {
   position: absolute;
-  bottom: 14%;
+  bottom: 10%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.12rem;
   font-size: 0.62rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.72);
+  line-height: 1.15;
+  text-align: center;
+}
+
+.session-flight-waypoint-sub {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .session-flight-waypoint--launch {
