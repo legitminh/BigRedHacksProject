@@ -3148,7 +3148,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Set `.welcome-signin-foot` to 13px / `#645d73` / line-height 1.4 with
     live guest sentence; keep guest + Google wiring per form open.
 - escalate: scrutinous
-- commit: PENDING
+- commit: a947816
 - change: |
     `.welcome-signin-foot` → 13px / `#645d73` / line-height 1.4 (live
     `5:77`). Kept Google-approval foot copy (product requires Google;
@@ -3171,7 +3171,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When remounting Sign in →: solid `#6750a4` / Medium 14 / 438×52 pill;
     keep invoke `sign_in_waypoint_google` if email auth isn’t real yet.
 - escalate: scrutinous
-- commit: PENDING
+- commit: a947816
 - change: |
     `.welcome-signin-submit` → solid `#6750a4`, white Medium 14px /
     weight 500, no gradient, `box-shadow: none` (live `5:71`). Label
@@ -3198,7 +3198,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     keep Not now · Continue + camera copy. Preserve Settings five-tab;
     do not block Launch.
 - escalate: scrutinous
-- commit: PENDING
+- commit: a947816
 - change: |
     `.mc-perm-modal__card` → `padding: 32px` / `gap: 22px` (match
     timer-replace rhythm, live `7:415`). Surface/title tokens preserved;
