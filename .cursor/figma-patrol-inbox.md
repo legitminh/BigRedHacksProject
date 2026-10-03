@@ -3249,31 +3249,17 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     form path left open (`fp-welcome-signin-form`); guest Quiet + foot/CTA
     tokens preserved.
 
-## open: fp-permission-handoff-live-copy
+## done: fp-permission-handoff-live-copy
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   title `7:418` · body `7:419` · foot `7:427`
-- expected: |
-    Tick24 live `get_screenshot` + metadata on `2:49`: handoff title
-    “Share an optional input?” (`7:418`); body “Your browser will ask for
-    camera or screen access…” (`7:419`); footer “Design reference: the next
-    step is the browser’s native permission prompt.” (`7:427`). Badge
-    PERMISSION HANDOFF; Not now · Continue. Stack gap/pad after `a947816`
-    still match (~22 / 32–33).
-- actual: |
-    App `#permission-handoff-title` / body / foot still use prior camera-
-    specific strings (“Allow camera signals?” / macOS·Presage body /
-    “Nothing is recorded…”) from verified `fp-permission-handoff-camera-copy`
-    (`b7ea57b`). Live Figma moved off that camera-only copy.
-- deviation: |
-    Tick24 live handoff copy shift vs app (and vs stale camera-copy
-    verified). Distinct from choice-surface / art / title-size / stack-gap
-    done; under-covered YOUR CHOICE + handoff.
-- fix_hint: |
-    Sync handoff title/body/foot to live `7:418`/`7:419`/`7:427` generic
-    browser camera-or-screen wording; keep Not now · Continue wiring.
-    Preserve Settings five-tab; do not block Launch.
-- escalate: scrutinous
+- commit: af0dc1d
+- change: |
+    Superseded/stale vs tick25 handoff crop (`7:415` /
+    `_verify/tick25-handoff-modal-crop.png`). Title/foot stay camera
+    (“Allow camera signals?” / “Nothing is recorded…”); only body moved
+    under `fp-permission-handoff-body-browser-copy`. Do not apply tick24
+    generic Share-an-optional-input title/foot rewrite.
 
 ## open: fp-connection-lost-panel-stack-gap
 - screen: active
@@ -3296,3 +3282,96 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When mounting lost Latest + Retry above composer, use 20px gaps (match
     relaunch CTA stack); keep Retry tonal + Mic composer. Preserve Pause/End.
 - escalate: scrutinous
+
+## open: fp-relaunch-panel-stack-gap
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  panel `6:653` · crop `_verify/tick25-relaunch-panel-crop.png`
+- expected: |
+    Tick25 metadata on `6:653` (434×560): vertical stack uses **20px**
+    gaps end-to-end — badge `8:414` (y=25) → title `8:416` (y=76) →
+    body `8:417` (y=174) → divider `8:418` (y=238) → Next step `8:419`
+    (y=259) → Relaunch `8:423` (y=373) → Take a break `8:426` (y=445) →
+    foot `8:429` (y=517). Pad 25. Mirror lost Latest→Retry→composer 20px
+    rhythm, but for the compact relaunch card.
+- actual: |
+    No relaunch card yet. Sibling opens lock compact/copy/CTA/field/
+    surface/title — not the 20px card stack. Risk: reuse break-panel
+    tighter gaps (~12–16) when mounting.
+- deviation: |
+    Tick25 — relaunch card stack gap vs live `6:653`. Distinct from
+    `fp-connection-lost-panel-stack-gap` (lost Latest/Retry/composer only)
+    + panel-compact / card-surface; under-covered `2:41`.
+- fix_hint: |
+    When mounting relaunch card, set column gap 20px (or absolute y rhythm)
+    across badge→foot; keep Relaunch filled + Take a break tonal. Preserve
+    Pause/End on normal active; do not change intentional LTR orbit.
+- escalate: scrutinous
+
+## done: fp-welcome-labeled-field-stack
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` ·
+  Email `5:63` · Password `5:67` · crop `_verify/tick25-welcome-card-crop.png`
+- commit: af0dc1d
+- change: |
+    `.welcome-field` → `gap: 10px`, `min-height: 94px`; label
+    `line-height: 20px`; inputs `height`/`min-height: 64px` so tokens
+    match live `5:63`/`5:67` when Email/Password remount. Google-only
+    form path left open (`fp-welcome-signin-form`); card 24px / foot /
+    CTA tokens untouched.
+
+## open: fp-permissions-choice-intro-gap
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  intro `7:393` · kicker `7:394` · title `7:395` · sub `7:396`
+- expected: |
+    Tick25 metadata: YOUR CHOICE page intro (`7:393`, 1000×117) stacks
+    kicker → title → sub with **8px** gaps (title y=25 after 17px kicker;
+    sub y=95 after 62px title). Type/color tokens stay on
+    `fp-permissions-choice-title-size` (purple 12 / Medium 44 / muted 16).
+- actual: |
+    Opens lock interstitial existence + title-size + art — not intro
+    column rhythm. App still has no YOUR CHOICE page under handoff/denied.
+- deviation: |
+    Tick25 — intro vertical gap vs live `7:393`. Distinct from
+    choice-surface / title-size / art / handoff-live-copy; under-covered
+    YOUR CHOICE.
+- fix_hint: |
+    When adding YOUR CHOICE view, set intro column gap ~8px between
+    kicker/title/sub; keep Lock-in nav + handoff/denied over the page.
+    Preserve Settings five-tab; do not block Launch.
+- escalate: scrutinous
+
+## open: fp-connection-lost-panel-height
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  panel `6:1707`
+- expected: |
+    Tick25 metadata: lost Copilot panel (`6:1707`) is **434×678** — full
+    chat column (✦ Your copilot + Reconnecting + history + Latest 113 +
+    Retry + composer), not the compact relaunch/break card height (560 /
+    376). Pad 25; top-aligned with flight dashboard.
+- actual: |
+    Opens cover chrome-keep / history / composer-stays / stack-gap — not
+    panel height vs compact swap. App has no lost UI; mid-flight panel
+    height may not match 678 when Latest+Retry mount.
+- deviation: |
+    Tick25 — lost panel geometry 434×678 vs live `6:1707`. Distinct from
+    `fp-connection-lost-panel-stack-gap` (20px Latest→Retry→composer) +
+    keeps-chat-chrome; under-covered `2:48`.
+- fix_hint: |
+    Keep full `.session-copilot-panel` height (~678) on disconnect; do not
+    collapse to relaunch/break compact card. Mount Latest+Retry with 20px
+    gaps; Preserve Pause/End.
+- escalate: scrutinous
+
+## done: fp-permission-handoff-body-browser-copy
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  modal `7:415` · body · crop `_verify/tick25-handoff-modal-crop.png`
+- commit: af0dc1d
+- change: |
+    `#permission-handoff` body → tick25 crop: “Your browser asks to use
+    your camera. Camera signals may inform a gentle check-in; they never
+    prove you’re distracted.” Title “Allow camera signals?” + foot
+    “Nothing is recorded…” + Not now · Continue unchanged.
