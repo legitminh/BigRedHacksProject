@@ -1733,6 +1733,22 @@ body:has(.view-session.active) .atmosphere {
   filter: drop-shadow(0 0 10px rgba(224, 122, 106, 0.5));
 }
 
+.session-orbit[data-state="idle"] .session-orbit-progress {
+  stroke: rgba(199, 210, 254, 0.85);
+  filter: drop-shadow(0 0 8px rgba(199, 210, 254, 0.35));
+}
+
+.view-session:has(.session-orbit[data-state="idle"]) .session-orbit-planet,
+.session-orbit[data-state="idle"] .session-orbit-planet {
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.55), transparent 42%),
+    radial-gradient(circle at 65% 70%, rgba(199, 210, 254, 0.35), transparent 55%),
+    radial-gradient(circle at 50% 50%, #c4b5fd 0%, #6d28d9 68%, #312e81 100%);
+  box-shadow:
+    0 0 36px rgba(199, 210, 254, 0.35),
+    inset 0 -8px 24px rgba(0, 0, 0, 0.25);
+}
+
 .session-orbit-planet {
   position: absolute;
   left: 50%;
