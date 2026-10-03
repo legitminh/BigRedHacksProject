@@ -13,12 +13,7 @@ Compare running UI / source to **live Figma** (fallback: `.cursor/figma-refs`). 
 Fix up to 3 open items (prefer non-escalated smallest first; allow one medium if Copilot-related). One commit. Mark `## done:` with `- commit:` and `- change:`. No push.
 - Features must remain wired (nav, chat send, mic, launch, pause/end) — visual match without dead controls.
 
-### 3) Figma compliance (every 20m)
-For each recent `## done:` (and any `open` with `escalate: scrutinous`), verify against **live Figma** first.
-- Pass → `## verified: id`
-- Fail → revert header to `## open: id`, set `- reopened: true`, `- escalate: scrutinous`, note what still mismatches.
-
-### 4) EXTRA SCRUTINOUS FIGMA PATROLER (on escalate + Copilot priority)
+### 3) EXTRA SCRUTINOUS FIGMA PATROLER (on escalate + Copilot priority)
 Pedantic expected vs actual vs live Figma; rewrite `deviation`/`fix_hint`; may add more opens. Does not fix — leaves work for fixer.
 - Copilot screen is always escalate-priority until parent marks a UX-pain phase.
 
@@ -27,4 +22,6 @@ When parent requests: (A) UX painpoint scout → inbox; (B) UX fixer — may dev
 
 ## Wakes
 - 10m: `AGENT_LOOP_TICK_figma_patrol`
-- 20m: `AGENT_LOOP_TICK_figma_compliance`
+
+## Stopped
+- Figma compliance loop / `.cursor/figma-compliance-log.md` — removed at user request. Do not re-arm or append a compliance log.

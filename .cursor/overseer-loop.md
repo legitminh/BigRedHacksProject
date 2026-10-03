@@ -20,7 +20,8 @@ Each tick:
 - Do **not** push, force-push, or amend unless the user asked.
 - Do **not** re-enable cancelled loops (e.g. UX friction).
 - Do **not** burn Gemini vision / add screenshot spam loops.
-- Respect Figma patrol cadence (10m/20m) — don’t spawn a full second Figma army every tick.
+- Respect Figma patrol cadence (10m) — don’t spawn a full second Figma army every tick.
+- Do **not** re-arm Figma compliance or append `.cursor/figma-compliance-log.md` (removed).
 - Max **3** spawned agents per tick; prefer one strong agent over many overlapping ones.
 - Avoid secrets in logs or chat.
 - If the user is mid-task in the parent chat on the same files, prefer a non-conflicting area or noop.
