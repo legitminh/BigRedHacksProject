@@ -29,7 +29,7 @@ thiserror = "2"
 anyhow = "1"
 parking_lot = "0.12"
 image = "0.25"
-xcap = "0.0.14"
+xcap = "0.9"
 nokhwa = { version = "0.10", features = ["input-native"] }
 axum = "0.8"
 oauth2 = { version = "4", features = ["reqwest"] }

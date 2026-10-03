@@ -5,7 +5,7 @@ pub fn grab_primary_jpeg() -> Result<Vec<u8>, String> {
     let monitors = Monitor::all().map_err(|e| format!("monitor list: {e}"))?;
     let monitor = monitors
         .into_iter()
-        .find(|m| m.is_primary())
+        .find(|m| m.is_primary().unwrap_or(false))
         .or_else(|| Monitor::all().ok().and_then(|mut m| m.pop()))
         .ok_or_else(|| "no monitors found".to_string())?;
 
