@@ -815,7 +815,6 @@ function renderChatEmptyState() {
   empty.id = "chat-empty";
   empty.className = "copilot-empty-card";
   empty.innerHTML = `
-    <p class="copilot-card-kicker"><span aria-hidden="true">✦</span> COPILOT</p>
     <h3 class="copilot-empty-heading">What are you working on today?</h3>
     <p class="copilot-empty-copy">
       Tell me what feels tricky, and we’ll find one manageable place to start.

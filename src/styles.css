@@ -252,7 +252,9 @@ body {
   position: relative;
   z-index: 2;
   height: 100vh;
-  padding: 1.5rem;
+  /* No outer padding — a padded #app left a lavender atmosphere “frame”
+     around every screen. Views own their own content inset instead. */
+  padding: 0;
 }
 
 .view {
@@ -270,7 +272,8 @@ body {
   justify-content: flex-start;
   gap: 1.25rem;
   overflow: auto;
-  padding-bottom: 1rem;
+  padding: 1rem clamp(1rem, 2.5vw, 1.5rem) 1rem;
+  box-sizing: border-box;
 }
 
 .view-home::before {
@@ -336,6 +339,7 @@ body:has(.view-home.view-home--guest.active) .grain {
 
 .view-home.view-home--guest {
   gap: clamp(1rem, 2.5vw, 1.75rem);
+  padding: 0;
 }
 
 .view-home.view-home--guest::before {
@@ -1480,7 +1484,8 @@ body:has(.view-home.view-home--guest.active) .grain {
 
 .view-mc-settings {
   overflow: auto;
-  padding-bottom: 2rem;
+  padding: 1rem clamp(1rem, 2.5vw, 1.5rem) 2rem;
+  box-sizing: border-box;
   width: 100%;
   max-width: none;
   position: relative;
@@ -2165,14 +2170,16 @@ button:active {
 .view-copilot {
   position: relative;
   overflow: auto;
-  gap: 1.25rem;
+  gap: 1.35rem;
   max-width: none;
   width: 100%;
-  padding-bottom: 0.5rem;
+  box-sizing: border-box;
+  /* Content inset only — background stays edge-to-edge (no outer frame). */
+  padding: 1.5rem clamp(1.25rem, 3vw, 1.75rem) 1rem;
 }
 
 .view-copilot.active {
-  background: linear-gradient(180deg, var(--mc-bg-page) 0%, var(--mc-bg-page-alt) 100%);
+  background: linear-gradient(180deg, #f7f2ff 0%, var(--mc-bg-page-alt) 100%);
 }
 
 .copilot-constellation {
@@ -2186,7 +2193,28 @@ button:active {
   opacity: 0.55;
 }
 
-.view-copilot > :not(.copilot-constellation) {
+.copilot-deco-plus {
+  position: absolute;
+  z-index: 0;
+  color: rgba(103, 80, 164, 0.28);
+  font-size: 1.1rem;
+  font-weight: 300;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+.copilot-deco-plus--bl {
+  left: clamp(1rem, 3vw, 2.5rem);
+  bottom: clamp(1.5rem, 4vh, 3rem);
+}
+
+.copilot-deco-plus--br {
+  right: clamp(1rem, 3vw, 2.5rem);
+  bottom: clamp(1.5rem, 4vh, 3rem);
+}
+
+.view-copilot > :not(.copilot-constellation):not(.copilot-deco-plus) {
   position: relative;
   z-index: 1;
 }
@@ -2197,18 +2225,23 @@ button:active {
   align-items: center;
   gap: 1rem 1.5rem;
   flex-shrink: 0;
+  padding: 0.7rem 1.25rem;
+  border-radius: var(--radius-pill);
+  background: var(--mc-bg-card);
+  border: 1px solid var(--mc-border-subtle);
+  box-shadow: var(--mc-shadow-soft);
 }
 
 .copilot-nav-brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.55rem;
   margin: 0;
   padding: 0;
   border: none;
   background: transparent;
   font-family: var(--font-display);
-  font-size: 1.15rem;
+  font-size: 1.35rem;
   font-weight: 600;
   color: var(--mc-text-primary);
   letter-spacing: -0.02em;
@@ -2217,14 +2250,14 @@ button:active {
 
 .copilot-nav-star {
   color: var(--mc-accent-purple);
-  font-size: 1rem;
+  font-size: 1.15rem;
 }
 
 .copilot-nav-links {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
+  gap: 0.55rem;
   flex-wrap: wrap;
 }
 
@@ -2237,12 +2270,14 @@ button:active {
 }
 
 .copilot-nav-link {
-  padding: 0.45rem 0.95rem;
+  min-height: 2.75rem;
+  min-width: 5.5rem;
+  padding: 0.55rem 1.15rem;
   border-radius: var(--radius-pill);
   border: none;
   background: transparent;
-  color: var(--mc-text-secondary);
-  font-size: 0.92rem;
+  color: var(--mc-text-primary);
+  font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
 }
@@ -2253,21 +2288,21 @@ button:active {
 }
 
 .copilot-nav-link.is-active {
-  background: var(--mc-surface-lavender);
+  background: #e9ddfd;
   color: var(--mc-text-primary);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .copilot-nav-avatar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.15rem;
-  height: 2.15rem;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 50%;
   background: var(--mc-accent-cyan);
   color: #fff;
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.04em;
 }
@@ -2280,22 +2315,23 @@ button:active {
 
 .copilot-shell {
   display: grid;
-  grid-template-columns: minmax(14rem, 17.5rem) minmax(0, 1fr);
-  gap: clamp(1rem, 2.5vw, 2rem);
+  grid-template-columns: minmax(15rem, 19.375rem) minmax(0, 1fr);
+  gap: clamp(1.25rem, 3vw, 3rem);
   flex: 1;
   min-height: 0;
   align-items: start;
+  padding-inline: clamp(0.5rem, 2vw, 2.5rem);
 }
 
 .copilot-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  padding: 1.35rem 1.25rem 1rem;
-  border-radius: var(--radius-xl);
-  background: var(--mc-surface-lavender);
-  border: 1px solid var(--mc-border-default);
-  min-height: 22rem;
+  gap: 1.15rem;
+  padding: 1.5rem;
+  border-radius: 1.75rem;
+  background: #e9ddfd;
+  border: none;
+  min-height: 28rem;
 }
 
 .copilot-kicker {
@@ -2309,35 +2345,44 @@ button:active {
 
 .copilot-sidebar-title {
   margin: 0;
-  font-size: 1.35rem;
-  font-weight: 700;
-  line-height: 1.25;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.35;
   color: var(--mc-text-primary);
   letter-spacing: -0.02em;
 }
 
 .copilot-sidebar-body {
   margin: 0;
-  font-size: 0.88rem;
-  line-height: 1.5;
+  font-size: 0.94rem;
+  line-height: 1.45;
   color: var(--mc-text-muted);
 }
 
+.copilot-sidebar-divider {
+  width: 100%;
+  height: 1px;
+  margin: 0;
+  border: none;
+  background: var(--mc-border-default);
+}
+
 .copilot-sidebar-cta {
-  margin-top: 0.35rem;
+  margin-top: 0;
   align-self: flex-start;
-  padding: 0.75rem 1.25rem;
-  font-size: 0.92rem;
+  padding: 0.8rem 1.35rem;
+  font-size: 0.95rem;
+  border-radius: var(--radius-pill);
 }
 
 .copilot-sidebar-status {
-  margin: 0.15rem 0 0;
-  font-size: 0.82rem;
+  margin: 0;
+  font-size: 0.75rem;
   color: var(--mc-text-muted);
 }
 
 .copilot-sidebar-planet {
-  width: min(100%, 10rem);
+  width: min(100%, 13.75rem);
   margin: auto auto 0;
   display: block;
 }
@@ -2347,94 +2392,93 @@ button:active {
   flex-direction: column;
   min-height: 0;
   flex: 1;
-  gap: 0.85rem;
+  gap: 1.25rem;
 }
 
 .copilot-intro {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
 }
 
 .copilot-page-title {
-  margin: 0 0 0.35rem;
-  font-size: clamp(1.65rem, 3vw, 2.15rem);
-  font-weight: 700;
+  margin: 0;
+  font-size: clamp(1.85rem, 3.2vw, 2.375rem);
+  font-weight: 600;
   letter-spacing: -0.03em;
   color: var(--mc-text-primary);
-  line-height: 1.15;
+  line-height: 1.3;
 }
 
 .copilot-page-sub {
   margin: 0;
   font-size: 1rem;
+  line-height: 1.4;
   color: var(--mc-text-muted);
 }
 
 .copilot-panel {
-  flex: 1;
-  min-height: 8rem;
+  flex: 0 1 auto;
+  min-height: 0;
   max-height: min(42vh, 22rem);
   display: flex;
   flex-direction: column;
   padding: 0;
-  border-radius: var(--radius-lg);
+  border-radius: 1.75rem;
   border: 1px solid var(--mc-border-default);
   background: var(--mc-bg-card);
-  box-shadow: var(--mc-shadow-soft);
+  box-shadow: none;
   overflow: hidden;
 }
 
+.copilot-panel:has(#chat-empty) {
+  max-height: none;
+}
+
 .copilot-log.chat-log {
-  padding: 1.15rem 1.35rem;
+  padding: 1.5rem;
 }
 
 .copilot-empty-card {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  gap: 0.85rem;
   text-align: left;
-  max-width: 36rem;
+  max-width: 49rem;
 }
 
 .copilot-card-kicker {
-  margin: 0 0 0.85rem;
-  padding: 0.35rem 0.75rem;
-  font-size: 0.65rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--mc-accent-cyan-dim);
-  background: var(--mc-surface-lavender);
-  border: 1px solid rgba(107, 76, 255, 0.15);
-  border-radius: var(--radius-pill);
+  display: none;
 }
 
 .copilot-empty-heading {
-  margin: 0 0 0.5rem;
-  font-size: clamp(1.25rem, 2.5vw, 1.65rem);
-  font-weight: 700;
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 500;
   color: var(--mc-text-primary);
-  line-height: 1.25;
-  letter-spacing: -0.02em;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
 }
 
 .copilot-empty-copy {
   margin: 0;
-  font-size: 0.95rem;
-  line-height: 1.55;
+  font-size: 1rem;
+  line-height: 1.4;
   color: var(--mc-text-muted);
-  max-width: 32rem;
+  max-width: 49rem;
 }
 
 .copilot-prompts-row {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.65rem;
   flex-wrap: wrap;
 }
 
 .copilot-shortcuts.study-actions {
-  gap: 0.5rem;
+  gap: 0.65rem;
   margin: 0;
   flex: 1;
   min-width: 0;
@@ -2443,46 +2487,53 @@ button:active {
 .copilot-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  background: var(--mc-surface-lavender);
-  border: 1px solid rgba(107, 76, 255, 0.18);
+  justify-content: center;
+  min-height: 2.75rem;
+  background: #e9ddfd;
+  border: none;
   color: var(--mc-text-primary);
-  padding: 0.55rem 1rem;
+  padding: 0.7rem 1.35rem;
   border-radius: var(--radius-pill);
-  font-size: 0.88rem;
-  font-weight: 600;
-  transition: border-color 0.2s ease, background 0.2s ease;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: background 0.2s ease;
 }
 
 .copilot-chip-plus {
-  display: inline;
-  margin-left: 0.1rem;
-  color: var(--mc-text-primary);
-  font-size: 1em;
-  font-weight: 400;
-  line-height: 1;
+  display: none;
 }
 
 .copilot-chip:hover:not(:disabled) {
-  border-color: var(--mc-border-strong);
-  background: var(--mc-bg-page-alt);
+  background: #ddd0f5;
 }
 
 .copilot-astronaut {
-  width: clamp(5.5rem, 14vw, 8.5rem);
-  flex-shrink: 0;
-  pointer-events: none;
-  user-select: none;
+  display: none;
 }
 
 .copilot-composer {
-  margin-top: 0.15rem;
+  margin-top: auto;
   flex-shrink: 0;
+  padding-top: 0.5rem;
 }
 
 .view-copilot .copilot-form {
   align-items: center;
-  gap: 0.65rem;
+  gap: 0;
+  width: 100%;
+}
+
+.view-copilot .copilot-input-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  width: 100%;
+  padding: 0.65rem 0.75rem 0.65rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid var(--mc-border-default);
+  background: var(--mc-bg-card);
 }
 
 .copilot-input-wrap {
@@ -2506,11 +2557,17 @@ button:active {
   background: transparent;
   resize: none;
   color: var(--mc-text-primary);
+  font-size: 0.95rem;
 }
 
 .view-copilot .chat-form textarea:focus {
   box-shadow: none;
   border-color: transparent;
+}
+
+.view-copilot .copilot-input-wrap:focus-within {
+  border-color: var(--mc-accent-purple-bright);
+  box-shadow: 0 0 0 3px var(--mc-accent-purple-glow);
 }
 
 .copilot-input-wrap:focus-within {
@@ -2530,14 +2587,34 @@ button:active {
   letter-spacing: 0.04em;
 }
 
+.view-copilot .copilot-mic {
+  width: 3.25rem;
+  height: 3.25rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #e9ddfd;
+  color: var(--mc-text-primary);
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .copilot-mic:hover:not(:disabled) {
   background: rgba(107, 76, 255, 0.2);
 }
 
+.view-copilot .copilot-mic:hover:not(:disabled) {
+  background: #ddd0f5;
+}
+
 .view-copilot .copilot-send.primary {
   flex-shrink: 0;
-  width: 2.85rem;
-  height: 2.85rem;
+  width: 3.25rem;
+  height: 3.25rem;
   padding: 0;
   border-radius: 50%;
   display: inline-flex;
@@ -2546,13 +2623,14 @@ button:active {
   font-size: 1.25rem;
   line-height: 1;
   background: var(--mc-accent-purple);
-  box-shadow: var(--mc-shadow-glow-purple);
+  box-shadow: none;
 }
 
 .view-copilot .copilot-hint {
   color: var(--mc-text-muted);
   font-size: 0.72rem;
   line-height: 1.45;
+  margin-top: 0.55rem;
 }
 
 .view-copilot .bubble.user {
@@ -2587,14 +2665,11 @@ button:active {
 @media (max-width: 860px) {
   .copilot-shell {
     grid-template-columns: 1fr;
+    padding-inline: 0;
   }
 
   .copilot-sidebar {
     min-height: 0;
-  }
-
-  .copilot-astronaut {
-    display: none;
   }
 
   .copilot-nav {
@@ -2726,6 +2801,8 @@ body:has(.view-mission-setup.active) .grain {
 .view-mission-setup {
   overflow-y: auto;
   color: #2a2440;
+  padding: 1rem clamp(1rem, 2.5vw, 1.5rem) 0;
+  box-sizing: border-box;
 }
 
 .mission-setup-head {
@@ -3971,7 +4048,8 @@ body:has(.view-quest-complete.active) .grain {
   min-height: 0;
   overflow-y: auto;
   color: var(--mc-text-primary);
-  padding-bottom: 0.5rem;
+  padding: 1rem clamp(1rem, 2.5vw, 1.5rem) 0.5rem;
+  box-sizing: border-box;
 }
 
 .quest-complete-stage {

@@ -217,6 +217,8 @@
           alt=""
           aria-hidden="true"
         />
+        <span class="copilot-deco-plus copilot-deco-plus--bl" aria-hidden="true">+</span>
+        <span class="copilot-deco-plus copilot-deco-plus--br" aria-hidden="true">+</span>
 
         <header class="copilot-nav">
           <button type="button" class="copilot-nav-brand" data-copilot-nav="home">
@@ -236,15 +238,15 @@
 
         <div class="copilot-shell">
           <aside class="copilot-sidebar">
-            <p class="copilot-kicker"><span aria-hidden="true">✦</span> YOUR COPILOT</p>
             <h2 class="copilot-sidebar-title">A sounding board for your next step.</h2>
             <p class="copilot-sidebar-body">
-              Ask freely, talk through a roadblock, or get ready to focus.
+              Ask a question, talk through a roadblock, or get ready to focus.
             </p>
+            <hr class="copilot-sidebar-divider" />
             <button type="button" class="copilot-sidebar-cta primary" id="copilot-start-mission">
               Start a mission
             </button>
-            <p class="copilot-sidebar-status" id="copilot-mission-status">No mission running.</p>
+            <p class="copilot-sidebar-status" id="copilot-mission-status">No mission running</p>
             <img
               class="copilot-sidebar-planet"
               src="/src/assets/figma/planet-ringed.svg"
@@ -270,7 +272,6 @@
                 aria-relevant="additions text"
               >
                 <div id="chat-empty" class="copilot-empty-card">
-                  <p class="copilot-card-kicker"><span aria-hidden="true">✦</span> COPILOT</p>
                   <h3 class="copilot-empty-heading">What are you working on today?</h3>
                   <p class="copilot-empty-copy">
                     Tell me what feels tricky, and we’ll find one manageable place to start.
@@ -289,15 +290,8 @@
                 </button>
                 <button class="copilot-chip copilot-chip--next" type="button" data-study="plan">
                   Find a next step
-                  <span class="copilot-chip-plus" aria-hidden="true">+</span>
                 </button>
               </div>
-              <img
-                class="copilot-astronaut"
-                src="/src/assets/figma/astronaut.svg"
-                alt=""
-                aria-hidden="true"
-              />
             </div>
 
             <footer class="copilot-composer">
@@ -313,10 +307,10 @@
                   <button id="chat-mic" type="button" class="copilot-mic" aria-label="Microphone">
                     Mic
                   </button>
+                  <button id="chat-send" type="submit" class="primary copilot-send" aria-label="Send message">
+                    <span aria-hidden="true">↑</span>
+                  </button>
                 </div>
-                <button id="chat-send" type="submit" class="primary copilot-send" aria-label="Send message">
-                  <span aria-hidden="true">↑</span>
-                </button>
               </form>
               <p id="chat-hint" class="composer-hint copilot-hint">
                 Enter to send · Click the microphone to start or stop a voice turn<br />
