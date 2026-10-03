@@ -1406,7 +1406,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When paused: prefix progress label + break-card badge with “Ⅱ  ”; set
     `.session-timer-caption` to “REMAINING · TIMER PAUSED”. Keep Resume/End.
 - escalate: scrutinous
-- commit: a0902bb
+- commit: b7de340
 - change: |
     Progress pill → “Ⅱ  On a break”; `#session-timer-caption` → “REMAINING · TIMER PAUSED”
     while paused (restored on resume). Break-card badge deferred — no panel shell yet
@@ -1429,7 +1429,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When `session.paused` (break): hide `#session-next-step` and
     `#session-copilot-suggest`; restore on Resume. Keep Pause/End wiring.
 - escalate: scrutinous
-- commit: a0902bb
+- commit: b7de340
 - change: |
     `#view-session.is-session-break` (via `syncPauseControls`) hides
     `#session-next-step` + `#session-copilot-suggest`; cleared on resume.
