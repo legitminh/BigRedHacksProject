@@ -1025,7 +1025,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: `.quest-copilot-note--card` lavender chrome (20px pad, border, gap) when Not yet + relaunches>0; proof-tuned to live 8:886 tokens (#e9ddfd / #c8bfd7 / 28px / 10px gap / mint kicker).
 - verified: 2026-10-03T15:52:00-04:00
 
-## open: fp-summary-partly-relaunch-note
+## done: fp-summary-partly-relaunch-note
 - screen: summary
 - ref: `.cursor/figma-refs/13-flight-logged.png` · live `2:45` · note `6:1224`/`6:1226`
 - deviation: |
@@ -1041,8 +1041,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When partly + relaunches>0, use live 13 sentence + `--card` + teal kicker; keep zero-relaunch
     partly as plain 23. Do not reopen verified 25 not-yet strings.
 - escalate: scrutinous
+- commit: 674f5f7
+- change: Partly + relaunches>0 uses live 13 sentence + card/kicker; zero-relaunch partly stays plain 23.
 
-## open: fp-summary-finished-relaunch-note
+## done: fp-summary-finished-relaunch-note
 - screen: summary
 - ref: `.cursor/figma-refs/12-quest-complete.png` · live `2:44` · note `6:1123`/`6:1125`
 - deviation: |
@@ -1057,8 +1059,10 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Specialize Finished+relaunches>0 (optionally when `pb.isNew`) to live 12 sentence + card
     chrome; leave zero-relaunch Finished plain. Complements open partly-relaunch; leave 25 alone.
 - escalate: scrutinous
+- commit: 674f5f7
+- change: Finished + relaunches>0 + new PB uses live 12 sentence + card/kicker; zero-relaunch Finished stays plain 22.
 
-## done: fp-quest-complete-badge-mint
+## verified: fp-quest-complete-badge-mint
 - screen: summary
 - ref: `.cursor/figma-refs/12-quest-complete.png` · live `2:44` · badge `6:1097`
 - deviation: |
@@ -1071,10 +1075,11 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When badge is QUEST COMPLETE (`.mission-celebration--quest` / sync path), set badge text
     color to `#326c78`; keep FLIGHT LOGGED on purple/amber. No copy/wiring changes.
 - escalate: none
-- commit: 80e1edc
+- commit: fbe9617
 - change: `.mission-celebration--quest .quest-complete-badge` uses mint `#326c78`; FLIGHT LOGGED stays purple.
+- verified: 2026-10-03T15:59:00-04:00
 
-## done: fp-first-flight-badge-mint
+## verified: fp-first-flight-badge-mint
 - screen: home
 - ref: `.cursor/figma-refs/19-first-flight.png` · live `2:51` · badge `7:565`
 - deviation: |
@@ -1086,10 +1091,11 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Set `.mc-first-flight-badge` color to `#326c78`; keep CTA/copy/wiring. Distinct from verified
     plain kicker `fp-first-flight-kicker-plain`.
 - escalate: none
-- commit: 80e1edc
+- commit: fbe9617
 - change: `.mc-first-flight-badge` label color set to mint `#326c78`.
+- verified: 2026-10-03T15:59:00-04:00
 
-## done: fp-setup-step-mint
+## verified: fp-setup-step-mint
 - screen: setup
 - ref: `.cursor/figma-refs/26-setup-camera-allowed.png` · `05-mission-setup.png` · live `8:919` /
   `2:37` · step `8:967`
@@ -1101,5 +1107,6 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Change `.mission-setup-step` color to `#326c78` (match welcome/first-flight mint pills).
     Leave toggles / Launch / intentional objective ✦ wiring alone.
 - escalate: none
-- commit: 80e1edc
+- commit: fbe9617
 - change: `.mission-setup-step` color set to mint `#326c78`.
+- verified: 2026-10-03T15:59:00-04:00

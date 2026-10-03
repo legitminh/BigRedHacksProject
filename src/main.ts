@@ -234,12 +234,18 @@ function relaunchPhrase(relaunches: number): string {
   return relaunches === 1 ? "once" : `${relaunches} times`;
 }
 
-/** Figma 25: lavender card + teal kicker when Not yet + at least one relaunch. */
+/**
+ * Figma 13/12/25: lavender card + teal kicker when relaunches>0 for
+ * Partly / Finished(+new PB) / Not yet.
+ */
 function summaryUsesRelaunchNote(
   relaunches: number,
   outcome: ObjectiveOutcome | null,
+  pbIsNew = false,
 ): boolean {
-  return relaunches > 0 && outcome === "not-yet";
+  if (relaunches <= 0 || !outcome) return false;
+  if (outcome === "not-yet" || outcome === "partly") return true;
+  return outcome === "finished" && pbIsNew;
 }
 
 function buildCopilotNote(
@@ -252,17 +258,26 @@ function buildCopilotNote(
   const goalLine = summary.goals.trim().split("\n")[0]?.trim();
   const unit = flightMinutes === 1 ? "minute" : "minutes";
   const best = personalBestMinutes(flightMinutes, pb);
+  const relaunch = relaunchPhrase(relaunches);
   if (outcome === "finished") {
     const finishedWhat = goalLine
       ? goalLine.replace(/^(finish|complete)\s+/i, "").trim() || goalLine
       : "your objective";
+    // Figma 12 — Finished + relaunch≥1 + new PB (live 6:1125)
+    if (summaryUsesRelaunchNote(relaunches, outcome, pb.isNew)) {
+      return `You logged ${flightMinutes} flight ${unit}, relaunched ${relaunch}, and said you finished ${finishedWhat}. That’s ${pb.delta} minutes beyond your previous longest flight.`;
+    }
     return `You logged ${flightMinutes} flight ${unit} and said you finished ${finishedWhat}. Your personal best remains ${best} minutes.`;
   }
   if (outcome === "partly") {
+    // Figma 13 — Partly + relaunch≥1 (live 6:1226)
+    if (summaryUsesRelaunchNote(relaunches, outcome)) {
+      return `You logged ${flightMinutes} flight ${unit} and relaunched ${relaunch}. You said there’s more to do—and your time still counts. Pick up with one small step next time.`;
+    }
     return `You logged ${flightMinutes} flight ${unit} and said you partly finished. Your time counts. Choose one small next step when you return.`;
   }
   if (summaryUsesRelaunchNote(relaunches, outcome)) {
-    return `You logged ${flightMinutes} flight ${unit} and relaunched ${relaunchPhrase(relaunches)}. You said your objective is not finished yet. Your time still counts; pick one small step for your next flight.`;
+    return `You logged ${flightMinutes} flight ${unit} and relaunched ${relaunch}. You said your objective is not finished yet. Your time still counts; pick one small step for your next flight.`;
   }
   return `You logged ${flightMinutes} flight ${unit} and said your objective is not finished yet. Your time still counts, and your personal best remains ${best} minutes.`;
 }
@@ -281,7 +296,13 @@ function syncSummaryCopilotNoteChrome(
   const note = document.querySelector<HTMLElement>(".quest-copilot-note");
   const kicker = document.querySelector<HTMLElement>(".quest-copilot-kicker");
   const helper = document.querySelector<HTMLElement>(".quest-objective-helper");
-  const asCard = visible && summaryUsesRelaunchNote(relaunches, outcome);
+  const asCard =
+    visible &&
+    summaryUsesRelaunchNote(
+      relaunches,
+      outcome,
+      lastSummaryPersonalBest?.isNew ?? false,
+    );
   if (note) {
     note.hidden = !visible;
     note.classList.toggle("quest-copilot-note--card", asCard);
