@@ -687,12 +687,16 @@
             <div class="quest-objective-section">
               <h2 class="quest-objective-heading">Did you finish your objective?</h2>
               <div class="quest-objective-choices" role="group" aria-label="Objective completion">
-                <button type="button" class="quest-objective-btn is-selected" data-objective="finished">Finished</button>
+                <button type="button" class="quest-objective-btn" data-objective="finished">Finished</button>
                 <button type="button" class="quest-objective-btn" data-objective="partly">Partly</button>
                 <button type="button" class="quest-objective-btn" data-objective="not-yet">Not yet</button>
               </div>
+              <p class="quest-objective-helper">
+                Your answer helps your copilot reflect on this flight. Only you decide whether the quest
+                is complete.
+              </p>
             </div>
-            <div class="quest-copilot-note">
+            <div class="quest-copilot-note" hidden>
               <p class="quest-copilot-kicker">✦ A note from your copilot</p>
               <p id="summary-closing" class="quest-copilot-body"></p>
             </div>

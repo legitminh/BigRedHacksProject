@@ -186,7 +186,7 @@ let lastSummaryPersonalBest: { previous: number; isNew: boolean; delta: number }
 let lastSummaryRelaunches = 0;
 
 type ObjectiveOutcome = "finished" | "partly" | "not-yet";
-let lastSummaryObjective: ObjectiveOutcome = "finished";
+let lastSummaryObjective: ObjectiveOutcome | null = null;
 
 const LONGEST_FLIGHT_KEY = "waypoint-longest-flight-min";
 const RELAUNCH_FLAG_KEY = "waypoint-summary-from-relaunch";
@@ -241,12 +241,22 @@ function buildCopilotNote(
 
 function resetObjectiveButtons(): void {
   document.querySelectorAll<HTMLButtonElement>(".quest-objective-btn").forEach((btn) => {
-    btn.classList.toggle("is-selected", btn.dataset.objective === "finished");
+    btn.classList.remove("is-selected");
   });
 }
 
+function setSummaryNoteVisible(visible: boolean): void {
+  const note = document.querySelector<HTMLElement>(".quest-copilot-note");
+  const helper = document.querySelector<HTMLElement>(".quest-objective-helper");
+  if (note) note.hidden = !visible;
+  if (helper) helper.hidden = visible;
+}
+
 function refreshSummaryCopilotNote(): void {
-  if (!lastSessionSummary || !lastSummaryPersonalBest) return;
+  if (!lastSessionSummary || !lastSummaryPersonalBest || !lastSummaryObjective) {
+    setSummaryNoteVisible(false);
+    return;
+  }
   const closing = $("#summary-closing");
   if (!closing) return;
   closing.textContent = buildCopilotNote(
@@ -256,6 +266,7 @@ function refreshSummaryCopilotNote(): void {
     lastSummaryPersonalBest,
     lastSummaryObjective,
   );
+  setSummaryNoteVisible(true);
 }
 
 function updateSummaryCelebration(
@@ -301,8 +312,9 @@ function showSummaryWithCelebration(summary: SessionSummary, endedEarly = false)
   const firstFlight = onMissionCompleted(summary, summary.duration_secs);
   lastSummaryPersonalBest = recordLongestFlight(flightMinutesFromSecs(summary.duration_secs));
   lastSummaryRelaunches = consumeRelaunchFlag();
-  lastSummaryObjective = "finished";
+  lastSummaryObjective = null;
   resetObjectiveButtons();
+  setSummaryNoteVisible(false);
   renderSummary(summary);
   updateSummaryCelebration(summary, firstFlight, endedEarly);
   show("view-summary");
@@ -1465,7 +1477,19 @@ function renderSummary(summary: SessionSummary) {
   const checks = summary.screen_checks ?? 0;
   const onTaskValue = checks === 0 ? "—" : `${Math.round(summary.on_task_ratio * 100)}%`;
 
-  closing.textContent = buildCopilotNote(summary, flightMinutes, relaunches, pb, lastSummaryObjective);
+  if (lastSummaryObjective) {
+    closing.textContent = buildCopilotNote(
+      summary,
+      flightMinutes,
+      relaunches,
+      pb,
+      lastSummaryObjective,
+    );
+    setSummaryNoteVisible(true);
+  } else {
+    closing.textContent = "";
+    setSummaryNoteVisible(false);
+  }
 
   const pbStatValue =
     pb.isNew && pb.delta > 0 ? `+${pb.delta} min` : `${Math.max(flightMinutes, pb.previous)} min`;
@@ -1771,26 +1795,35 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
 
   let chatMicListening = false;
+  const CHAT_INPUT_IDLE_PLACEHOLDER = "Message your copilot...";
+  const CHAT_LISTENING_COPY = "Listening… click mic to stop";
   $("#chat-mic")?.addEventListener("click", async () => {
     if (chatBusy || chatMicListening) return;
     const input = $<HTMLTextAreaElement>("#chat-input");
     const mic = $("#chat-mic") as HTMLButtonElement | null;
+    const priorValue = input?.value ?? "";
     chatMicListening = true;
     if (mic) {
-      mic.disabled = true;
-      mic.textContent = "…";
+      mic.disabled = false;
+      mic.textContent = "■";
+      mic.setAttribute("aria-label", "Stop listening");
     }
-    setComposerMicHint("Listening for 4 seconds… speak now.");
+    if (input) {
+      input.value = "";
+      input.placeholder = CHAT_LISTENING_COPY;
+      input.setAttribute("aria-label", CHAT_LISTENING_COPY);
+    }
     try {
       const transcript = await listenForTranscript(4);
       const text = transcript.text?.trim();
       if (text && input) {
-        input.value = input.value.trim() ? `${input.value.trim()} ${text}` : text;
+        input.value = priorValue.trim() ? `${priorValue.trim()} ${text}` : text;
         input.focus();
         setComposerMicHint(
           `Heard: “${text}”. Edit if needed, then send.`,
         );
       } else {
+        if (input) input.value = priorValue;
         setComposerMicHint(
           transcript.note?.trim()
             ? `No speech detected. ${transcript.note}`
@@ -1800,12 +1833,18 @@ window.addEventListener("DOMContentLoaded", async () => {
       void renderPermissionsStatus();
     } catch (err) {
       console.error(err);
+      if (input) input.value = priorValue;
       setComposerMicHint(String(err));
     } finally {
       chatMicListening = false;
       if (mic) {
         mic.disabled = chatBusy;
         mic.textContent = "Mic";
+        mic.setAttribute("aria-label", "Microphone");
+      }
+      if (input) {
+        input.placeholder = CHAT_INPUT_IDLE_PLACEHOLDER;
+        input.setAttribute("aria-label", "Message Copilot");
       }
     }
   });

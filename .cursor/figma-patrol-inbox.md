@@ -217,14 +217,23 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: none
 - note: Skipped this tick — user requested objective ✦ remain Launch; do not revert.
 
-## done: fp-active-waypoint-sublabels-uppercase
+## open: fp-active-waypoint-sublabels-uppercase
 - screen: active
-- ref: `.cursor/figma-refs/06-mission-active.png`
-- deviation: Waypoint subs render title case “Earth” / “Kepler”; Figma 06 shows all-caps “EARTH” / “KEPLER” under Launch/Destination. `.session-flight-waypoint-sub` has letter-spacing but no `text-transform: uppercase`.
-- fix_hint: Add `text-transform: uppercase` on `.session-flight-waypoint-sub` (or change HTML copy).
-- escalate: none
+- ref: `.cursor/figma-refs/06-mission-active.png` · live `2:38` · nodes `6:189`/`6:190`
+- deviation: |
+    EXPECTED (live Figma 06 flight scene): waypoint captions are only “Launch” (`6:189`) and
+    “Destination” (`6:190`). Route kicker alone carries “EARTH → KEPLER” (`6:168`). No EARTH/KEPLER
+    sublabels under the waypoints.
+    ACTUAL (`#session-orbit`): `.session-flight-waypoint-sub` still mounts “Earth”/“Kepler”
+    (CSS-uppercased via 232e40d). Live frame no longer has those subs — uppercase fix is moot /
+    adds extra labels vs Figma.
+- fix_hint: |
+    Remove `.session-flight-waypoint-sub` spans (and related CSS) so Launch/Destination stand alone;
+    keep `.session-flight-route` “EARTH → KEPLER”. Do not change Pause/End or LTR orbit.
+- escalate: scrutinous
+- reopened: true
 - commit: 232e40d
-- change: Added `text-transform: uppercase` on `.session-flight-waypoint-sub`.
+- change: Added `text-transform: uppercase` on `.session-flight-waypoint-sub` — insufficient vs live (subs should not exist).
 
 ## open: fp-end-confirm-figma-modal
 - screen: active
@@ -240,23 +249,25 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - fix_hint: When a check-in fires, swap/overlay the session copilot panel with the Figma quick-check-in card; wire buttons to existing coach responses.
 - escalate: none
 
-## done: fp-session-chat-meta-kickers
+## verified: fp-session-chat-meta-kickers
 - screen: active
-- ref: `.cursor/figma-refs/06-mission-active.png`
+- ref: `.cursor/figma-refs/06-mission-active.png` · live `2:38` · `6:219`/`6:222`
 - deviation: Session chat rows are plain `.bubble` nodes; Figma 06 prefixes each turn with uppercase meta kickers (“AT LAUNCH”, “YOU · JUST NOW”) above the message body.
 - fix_hint: Extend `appendSessionChat` (and AT LAUNCH seed) to render a meta kicker line + body per Figma.
 - escalate: none
 - commit: 232e40d
 - change: `appendSessionChat` wraps turns with `.session-chat-meta` kickers (YOU · JUST NOW / COPILOT · JUST NOW; optional AT LAUNCH override).
+- verified: 2026-10-03T15:27:27-04:00
 
-## done: fp-session-mission-star-style
+## verified: fp-session-mission-star-style
 - screen: active
-- ref: `.cursor/figma-refs/06-mission-active.png`
+- ref: `.cursor/figma-refs/06-mission-active.png` · live `2:38`
 - deviation: `.session-mission-star` is a purple filled gradient square with a ✦ glyph; Figma 06 uses a dark rounded square with a white outline star.
 - fix_hint: Restyle `.session-mission-star` to dark navy fill + outline star (SVG or border glyph) matching the ref.
 - escalate: none
 - commit: 232e40d
 - change: Dark `#282237` rounded square + lavender outline-star SVG from Figma 06 path.
+- verified: 2026-10-03T15:27:27-04:00
 
 ## verified: fp-copilot-chip-plus
 - screen: copilot
@@ -363,32 +374,38 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: Dropped ✦ / `mc-kicker--star` from first-flight hero kicker; plain “YOUR FIRST MISSION”.
 - verified: 2026-10-03T14:32:29-04:00
 
-## done: fp-session-at-launch-seed
+## verified: fp-session-at-launch-seed
 - screen: active
-- ref: `.cursor/figma-refs/06-mission-active.png`
+- ref: `.cursor/figma-refs/06-mission-active.png` · live `2:38` · `6:219`/`6:220`
 - deviation: Session copilot log empty state is muted helper copy; Figma seeds an “AT LAUNCH” system message stating the mission objective and time limit before any user chat.
 - fix_hint: Seed an AT LAUNCH row in `#session-chat-log` when a mission starts (reuse goal + duration); keep empty helper for pre-start if needed.
 - escalate: none
 - commit: 7edce57
 - change: Seed `#session-chat-log` with AT LAUNCH system row (goal + duration) once per mission via `ensureSessionAtLaunchSeed`.
+- verified: 2026-10-03T15:27:27-04:00
 
-## done: fp-welcome-hero-body-plus
+## verified: fp-welcome-hero-body-plus
 - screen: welcome
-- ref: `.cursor/figma-refs/01-welcome.png`
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · `5:39`
 - deviation: Hero body ends with a purple `✦` (`.welcome-hero-star`); Figma ends the same sentence with a trailing “+” after “one step forward.”
 - fix_hint: Replace the inline star span with a “+” (or match Figma asset) and tune color/size to the ref.
 - escalate: none
 - commit: 52749cd
 - change: Replaced welcome hero body ✦ with trailing `+` (`.welcome-hero-plus`).
+- verified: 2026-10-03T15:27:27-04:00
 
-## done: fp-settings-topnav-home-active
+## verified: fp-settings-topnav-home-active
 - screen: settings
-- ref: `.cursor/figma-refs/04-settings.png`
+- ref: `.cursor/figma-refs/04-settings.png` · live `2:36`
 - deviation: On Settings, top nav leaves Home/Copilot/Lock in as plain links and marks “Settings” via `.settings-nav-current`; Figma shows Home on the lavender active pill (Settings is plain text on the right).
 - fix_hint: Apply `settings-nav-link--active` to Home when `#view-settings` is active; render Settings as a normal trailing link, not the active pill.
 - escalate: none
 - commit: f4264a1
 - change: Settings top nav marks Home with `settings-nav-link--active`; trailing Settings is plain `.settings-nav-link` (no current pill).
+- note: |
+    Regressed by 63701ab (“Settings marks Settings active”). Compliance proof-restored Home active /
+    Settings plain to match live 2:36 (2026-10-03T15:27). Five-tab aside unchanged.
+- verified: 2026-10-03T15:27:27-04:00
 
 ## verified: fp-settings-aside-figma-shortcuts
 - screen: settings
@@ -401,23 +418,25 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: Kept five-tab Settings rail; do not revert.
 - verified: 2026-10-03T14:32:29-04:00
 
-## done: fp-summary-pb-banner-flag
+## verified: fp-summary-pb-banner-flag
 - screen: summary
-- ref: `.cursor/figma-refs/12-quest-complete.png`
+- ref: `.cursor/figma-refs/12-quest-complete.png` · live `2:44`/`2:45` · `6:1110`/`6:1212`
 - deviation: “New longest flight! …” banner (`#summary-pb-banner`) is text-only from `renderSummary()`; Figma shows a small flag icon ahead of that line in `.quest-complete-pb-banner`.
 - fix_hint: Insert the same flag SVG used on home longest-flight (or a Figma asset) inside the banner markup before the dynamic text.
 - escalate: none
 - commit: f4264a1
 - change: `#summary-pb-banner` prepends home longest-flight flag SVG before “New longest flight! …” text.
+- verified: 2026-10-03T15:27:27-04:00
 
-## done: fp-welcome-foot-plus
+## verified: fp-welcome-foot-plus
 - screen: welcome
-- ref: `.cursor/figma-refs/01-welcome.png`
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · `5:57`
 - deviation: Below the hero card, Figma shows “YOUR NEXT CHAPTER STARTS HERE” with a small “+” under the line; `.welcome-hero-foot` is plain text with no trailing/under “+”.
 - fix_hint: Add a decorative “+” under or after `.welcome-hero-foot` matching the ref spacing.
 - escalate: none
 - commit: f4264a1
 - change: Decorative purple `+` under `.welcome-hero-foot` via `.welcome-hero-foot-plus`.
+- verified: 2026-10-03T15:27:27-04:00
 
 ## verified: fp-summary-ctas-in-card
 - screen: summary
@@ -498,9 +517,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     If a next-step timer is active with remaining time, show an MC-styled modal matching Figma 15 before calling `startNextStepTimer(300)`; Keep current dismisses.
 - escalate: none
 
-## done: fp-summary-flight-logged
+## verified: fp-summary-flight-logged
 - screen: summary
-- ref: `.cursor/figma-refs/13---Flight-logged.svg` · also `21---Ended-early---reflection.svg`
+- ref: `.cursor/figma-refs/13-flight-logged.png` · live `2:45` · also quest `2:44`
 - deviation: |
     EXPECTED (Figma 13/21): non–quest-complete / ended-early celebration uses badge “✦ FLIGHT LOGGED” and title “Every flight moves you forward.” (quest-complete keeps ✓ QUEST COMPLETE / “One mission. Well done.”).
     ACTUAL: `updateSummaryCelebration` only branches first-flight vs quest-complete — every non-first summary shows “✓ QUEST COMPLETE” / “One mission. Well done.” with no flight-logged variant.
@@ -509,6 +528,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: none
 - commit: 7edce57
 - change: Early End uses ✦ FLIGHT LOGGED / “Every flight moves you forward.”; timer-complete keeps QUEST COMPLETE; first-flight unchanged.
+- verified: 2026-10-03T15:27:27-04:00
 
 ## verified: fp-copilot-live-match
 - screen: copilot
@@ -614,9 +634,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - change: Leading clock SVG in `.session-next-step-pill` before kicker; timer wiring unchanged.
 - verified: 2026-10-03T15:15:00-04:00
 
-## done: fp-setup-objective-compact
+## verified: fp-setup-objective-compact
 - screen: setup
-- ref: `.cursor/figma-refs/05-mission-setup.png` · live `2:37`
+- ref: `.cursor/figma-refs/05-mission-setup.png` · live `2:37` · node `5:421` (Editable field 544×64)
 - deviation: |
     EXPECTED (live 05): objective control reads as a single-line compact field (~one text row) with
     the trailing affordance vertically centered on that row.
@@ -626,8 +646,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Drop to `rows="1"` (or 2) and lower min-height so the field matches the compact Figma row; keep
     resize/overflow usable for longer goals.
 - escalate: scrutinous
-- commit: 7c05f42
+- commit: dd85eb9
 - change: `#goals` rows=1; min-height 2.5rem + tighter padding; resize/overflow kept for longer goals.
+- verified: 2026-10-03T15:19:56-04:00
 
 ## open: fp-break-live-panel-copy
 - screen: active
@@ -689,9 +710,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `#view-lockin`; View settings → Permissions tab. Do not block Launch.
 - escalate: scrutinous
 
-## done: fp-session-composer-in-pill
+## verified: fp-session-composer-in-pill
 - screen: active
-- ref: `.cursor/figma-refs/06-mission-active.png` · `14-listening.png` · live `2:38` / `2:46`
+- ref: `.cursor/figma-refs/06-mission-active.png` · `14-listening.png` · live `2:38` · node `6:231`
 - deviation: |
     EXPECTED (live 06/14 composer): Mic + Send sit inside one cream input pill (same pattern as
     fixed Copilot 03 — both circular controls in `.copilot-input-wrap`).
@@ -701,8 +722,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Move `#session-chat-send` into `.copilot-input-wrap` beside the mic; reuse `.view-copilot`
     in-pill composer CSS for `.session-copilot-composer` / `#view-session`. Keep send/mic wiring.
 - escalate: none
-- commit: 7c05f42
+- commit: dd85eb9
 - change: Moved `#session-chat-send` into cream `.copilot-input-wrap` with Mic; reused Copilot in-pill CSS for session composer.
+- verified: 2026-10-03T15:19:56-04:00
 
 ## open: fp-relaunch-preserved-banner
 - screen: active
@@ -718,4 +740,86 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When resuming from relaunch, mount a `.session-relaunch-banner` under the mission card with
     live copy; optional next-step subline from coach/suggest. Keep Pause/End wiring.
 - escalate: scrutinous
+
+## open: fp-setup-empty-launch-disabled
+- screen: setup
+- ref: `.cursor/figma-refs/32-objective-empty-disabled.png` · live `10:752`
+- deviation: |
+    EXPECTED (live 32 Objective empty — disabled): lead “One clear objective. A little room to
+    focus.”; objective label without “(optional)”; with empty objective, Launch is a muted grey
+    text CTA (not a filled purple button); foot “Type or speak an objective to enable launch.
+    Both optional inputs are off.”
+    ACTUAL (`#view-lockin`): lead allows blank (“…or leave it blank…”); label has “(optional)”;
+    `#lockin-start` is always an enabled filled `.mission-launch` purple button; foot stays
+    “You can fly with both inputs off…”.
+- fix_hint: |
+    Gate `#lockin-start` on non-empty `#goals` (disabled + text-only/muted style when empty);
+    swap lead/foot/label to live 32 copy when empty; restore filled Launch + permission foot
+    when objective present (live 05/26). Keep objective ✦ Launch wiring; do not reopen as Copilot.
+- escalate: scrutinous
+
+## open: fp-setup-objective-listening
+- screen: setup
+- ref: `.cursor/figma-refs/30-objective-listening.png` · live `10:565`
+- deviation: |
+    EXPECTED (live 30 Objective — listening): objective field shows “Listening… tell me your
+    objective.”; foot “Click the microphone again to stop. Your transcript appears here for you
+    to edit.”; Launch stays muted until transcript lands.
+    ACTUAL: no setup listening state — `#goals` has no listening placeholder/overlay; foot never
+    changes; affordance only `requestSubmit()`s Launch (no dictate path). Distinct from open
+    `fp-listening-session-ui` (session 14).
+- fix_hint: |
+    Add a setup dictate path that flips field + `.mission-setup-foot` to live 30 copy while
+    listening, then writes transcript into `#goals`. Keep product ✦ = Launch on click if that
+    stays intentional (e.g. separate long-press / secondary mic), or document the dictate entry.
+- escalate: scrutinous
+
+## done: fp-copilot-listening-composer
+- screen: copilot
+- ref: `.cursor/figma-refs/31-copilot-listening.png` · live `10:667`
+- deviation: |
+    EXPECTED (live 31 Copilot — listening): cream composer shows “Listening… click mic to stop”
+    in the input; mic remains a stoppable control beside Send (in-pill).
+    ACTUAL (`#chat-mic`): mic text → “…” and disables; hint becomes “Listening for 4 seconds…”;
+    `#chat-input` placeholder/value never shows listening copy. Distinct from
+    `fp-listening-session-ui`. Do not reopen verified live-03 chrome (kickers/astronaut/chip+);
+    listening variant frame may still carry older chrome — match composer listening only.
+- fix_hint: |
+    While `chatMicListening` on Copilot: set `#chat-input` listening copy, keep mic enabled as
+    stop (■) if cancel is wired, restore idle placeholder on end. Keep send/mic invokes.
+- escalate: scrutinous
+- commit: 5fdec0d
+- change: Copilot mic listening sets `#chat-input` placeholder to “Listening… click mic to stop”, mic shows ■ (stays enabled); idle placeholder/label restored on end; stable hint unchanged.
+
+## done: fp-summary-objective-helper
+- screen: summary
+- ref: `.cursor/figma-refs/07-mission-recap.png` · `21-ended-early-reflection.png` · live `2:39` / `8:439`
+- deviation: |
+    EXPECTED (live 07/21 pre-answer summary): under Finished / Partly / Not yet, helper line
+    “Your answer helps your copilot reflect on this flight. Only you decide whether the quest
+    is complete.”
+    ACTUAL (`.quest-objective-section`): choices only — no helper copy under the pills.
+- fix_hint: |
+    Add a muted helper paragraph under `.quest-objective-choices` with the live sentence; hide
+    or keep when copilot note appears (see `fp-summary-note-gated`).
+- escalate: none
+- commit: 5fdec0d
+- change: Added `.quest-objective-helper` under choices with live copy; hidden once copilot note appears.
+
+## done: fp-summary-note-gated
+- screen: summary
+- ref: `.cursor/figma-refs/07-mission-recap.png` · `13-flight-logged.png` · live `2:39` / `2:45`
+- deviation: |
+    EXPECTED: pre-answer (07 Mission recap / 21 reflection) has NO “✦ A NOTE FROM YOUR COPILOT”
+    block — only objective choices + helper, then CTAs. After an answer (13 Flight logged with
+    Partly selected), the note card appears between choices and CTAs.
+    ACTUAL: `.quest-copilot-note` / `#summary-closing` always rendered on `#view-summary`
+    (defaults objective to Finished and builds a note immediately).
+- fix_hint: |
+    Hide `.quest-copilot-note` until the user picks Finished/Partly/Not yet (or treat initial
+    state as unanswered); then show note via existing `refreshSummaryCopilotNote`. Keep
+    flight-logged vs quest-complete badge branching.
+- escalate: scrutinous
+- commit: 5fdec0d
+- change: Summary starts unanswered (no pill selected); `.quest-copilot-note` hidden until Finished/Partly/Not yet; then `refreshSummaryCopilotNote` reveals it.
 
