@@ -70,7 +70,7 @@ test('chat keeps turns in order, renders replies, supports study actions and cle
   document.querySelector('#new-chat').click();
   await tick();
   assert.ok(calls.some(c => c.command === 'clear_chat'));
-  assert.equal(document.querySelector('#chat-log').children.length, 0);
+  assert.ok(document.querySelector('#chat-empty'));
 });
 
 test('renders LaTeX delimiters while leaving code and currency alone', () => {

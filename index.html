@@ -28,11 +28,13 @@
 
       <section id="view-chat" class="view">
         <header class="panel-head">
-          <button class="back" data-back type="button">←</button>
+          <button class="back" data-back type="button" aria-label="Back to home">←</button>
           <p class="brand-inline">Waypoint</p>
           <button id="new-chat" class="ghost chat-reset" type="button">New chat</button>
         </header>
-        <div id="chat-log" class="chat-log" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text"></div>
+        <div id="chat-log" class="chat-log" role="log" aria-label="Conversation" aria-live="polite" aria-relevant="additions text">
+          <div id="chat-empty" class="bubble assistant chat-empty">Ask a question below, try the study shortcuts, or connect Google in Settings for Calendar and Drive — optional.</div>
+        </div>
         <div class="study-actions" role="group" aria-label="Study shortcuts">
           <button class="ghost" type="button" data-study="explain">Explain simply</button>
           <button class="ghost" type="button" data-study="quiz">Quiz me</button>
@@ -47,7 +49,7 @@
 
       <section id="view-lockin" class="view">
         <header class="panel-head">
-          <button class="back" data-back type="button">←</button>
+          <button class="back" data-back type="button" aria-label="Back to home">←</button>
           <p class="brand-inline">Waypoint</p>
         </header>
         <form id="lockin-form" class="lockin-form">
@@ -89,7 +91,7 @@
 
       <section id="view-summary" class="view">
         <header class="panel-head">
-          <button class="back" data-back type="button">←</button>
+          <button class="back" data-back type="button" aria-label="Back to home">←</button>
           <p class="brand-inline">Waypoint</p>
         </header>
         <div id="summary-body" class="summary-body"></div>
@@ -97,7 +99,7 @@
 
       <section id="view-settings" class="view">
         <header class="panel-head">
-          <button class="back" data-back type="button">←</button>
+          <button class="back" data-back type="button" aria-label="Back to home">←</button>
           <p class="brand-inline">Settings</p>
         </header>
         <div class="settings-tabs" role="tablist" aria-label="Settings sections">

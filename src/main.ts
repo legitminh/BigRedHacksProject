@@ -23,6 +23,8 @@ interface StatusPayload {
   gemini_ready: boolean;
   google_oauth_ready: boolean;
   presage_ready: boolean;
+  local_llm_model?: string;
+  local_llm_enabled?: boolean;
   session: LockInSession | null;
 }
 
@@ -243,9 +245,21 @@ function renderAccountSettings(status: StatusPayload) {
   actions.appendChild(connect);
 }
 
+function renderChatEmptyState() {
+  const log = $("#chat-log");
+  if (!log || log.querySelector("#chat-empty")) return;
+  const bubble = document.createElement("div");
+  bubble.id = "chat-empty";
+  bubble.className = "bubble assistant chat-empty";
+  bubble.textContent =
+    "Ask a question below, try the study shortcuts, or connect Google in Settings for Calendar and Drive — optional.";
+  log.appendChild(bubble);
+}
+
 function appendChat(role: "user" | "assistant", content: string) {
   const log = $("#chat-log");
   if (!log) return;
+  $("#chat-empty")?.remove();
   const bubble = document.createElement("div");
   bubble.className = `bubble ${role}`;
   bubble.textContent = content;
@@ -419,22 +433,38 @@ function startTimer(endsAt: string) {
   timerHandle = window.setInterval(tick, 1000);
 }
 
-function renderLockinHints(status: StatusPayload) {
+async function renderLockinHints(status: StatusPayload) {
   const hint = $("#lockin-wellness");
   if (!hint) return;
-  if (status.presage_ready) {
-    hint.textContent = "Presage key detected — wellness checks will use your webcam during the session.";
-  } else {
-    hint.textContent = "No Presage key yet — screen coaching still works; add presage_api_key in secrets.toml for stress readings.";
+  const bits: string[] = [];
+  if (status.local_llm_enabled !== false) {
+    try {
+      const local = await invoke<string>("local_llm_status");
+      bits.push(local);
+    } catch {
+      bits.push(`Local model: ${status.local_llm_model || "qwen2.5:0.5b"} (checking…)`);
+    }
   }
+  if (status.presage_ready) {
+    bits.push("Presage ready for webcam wellness.");
+  } else {
+    bits.push("No Presage key — wellness optional.");
+  }
+  hint.textContent = bits.join(" · ");
 }
 
 async function refreshStatus() {
   const status = await invoke<StatusPayload>("get_status");
   renderHome(status);
-  renderLockinHints(status);
+  await renderLockinHints(status);
   if ($("#view-settings")?.classList.contains("active")) {
     renderAccountSettings(status);
+  }
+  const session = status.session;
+  if (session?.active) {
+    renderSession(session);
+    startTimer(session.ends_at);
+    show("view-session");
   }
   return status;
 }
@@ -480,6 +510,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     try {
       await invoke("clear_chat");
       $("#chat-log")?.replaceChildren();
+      renderChatEmptyState();
       const input = $<HTMLTextAreaElement>("#chat-input");
       if (input) {
         input.value = "";

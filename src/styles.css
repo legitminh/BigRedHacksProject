@@ -368,6 +368,11 @@ button:active {
   border-left: 2px solid var(--amber);
 }
 
+.bubble.assistant.chat-empty {
+  color: var(--muted);
+  border-left-color: var(--mist);
+}
+
 .chat-form {
   display: flex;
   gap: 0.6rem;
