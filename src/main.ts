@@ -260,11 +260,8 @@ function updateSummaryCelebration(summary: SessionSummary, firstFlight: boolean)
   const goalLine = summary.goals.trim().split("\n")[0]?.trim() || summary.goals.trim();
   if (firstFlight) {
     if (badge) badge.textContent = "✦  FIRST FLIGHT";
-    if (title) title.textContent = "Every journey starts somewhere.";
-    if (sub) {
-      sub.textContent =
-        goalLine || "Complete your first flight to set a personal best.";
-    }
+    if (title) title.textContent = "One mission. Well done.";
+    if (sub) sub.textContent = goalLine || "Your first personal best is on the board.";
   } else {
     if (badge) badge.textContent = "✓  QUEST COMPLETE";
     if (title) title.textContent = "One mission. Well done.";
@@ -1062,16 +1059,6 @@ async function toggleSessionMute() {
   }
 }
 
-function formatFlightDuration(secs: number): string {
-  const total = Math.max(0, Math.round(secs));
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  if (h > 0 && m > 0) return `${h}h ${m}m`;
-  if (h > 0) return `${h}h`;
-  if (m > 0) return `${m}m`;
-  return `${total}s`;
-}
-
 function renderSummary(summary: SessionSummary) {
   lastSummaryGoals = summary.goals;
   lastSessionSummary = summary;
@@ -1094,15 +1081,15 @@ function renderSummary(summary: SessionSummary) {
   const pbStatLabel = pb.isNew && pb.delta > 0 ? "new personal best" : "longest flight";
 
   stats.innerHTML = `
-    <article class="flight-log-stat flight-log-stat--hero">
+    <article class="quest-stat">
       <p class="flight-log-stat-value">${flightMinutes}</p>
       <p class="flight-log-stat-label">flight minutes</p>
     </article>
-    <article class="flight-log-stat flight-log-stat--hero">
+    <article class="quest-stat">
       <p class="flight-log-stat-value">${relaunches}</p>
       <p class="flight-log-stat-label">relaunch</p>
     </article>
-    <article class="flight-log-stat flight-log-stat--hero flight-log-stat--cream">
+    <article class="quest-stat quest-stat--best">
       <p class="flight-log-stat-value">${escapeHtml(pbStatValue)}</p>
       <p class="flight-log-stat-label">${escapeHtml(pbStatLabel)}</p>
     </article>
@@ -1232,10 +1219,21 @@ window.addEventListener("DOMContentLoaded", async () => {
   });
 
   $("#summary-lockin-again")?.addEventListener("click", () => {
+    sessionStorage.setItem(RELAUNCH_FLAG_KEY, "1");
     show("view-lockin");
     restoreLockinFromLastSession();
   });
   $("#summary-go-home")?.addEventListener("click", () => show("view-home"));
+
+  document.querySelectorAll<HTMLButtonElement>(".quest-objective-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll(".quest-objective-btn").forEach((btn) => btn.classList.remove("is-selected"));
+      button.classList.add("is-selected");
+      const outcome = button.dataset.objective as ObjectiveOutcome | undefined;
+      if (outcome) lastSummaryObjective = outcome;
+      refreshSummaryCopilotNote();
+    });
+  });
   $("#home-first-flight-cta")?.addEventListener("click", () => show("view-lockin"));
 
   $("#view-chat")?.querySelectorAll<HTMLButtonElement>("[data-copilot-nav]").forEach((button) => {

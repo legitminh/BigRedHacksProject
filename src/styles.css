@@ -3771,8 +3771,20 @@ body:has(.view-quest-complete.active) .grain {
   margin: 0;
   font-size: 1.35rem;
   font-weight: 700;
-  color: var(--foam);
+  color: var(--mc-text-primary);
   line-height: 1.1;
+}
+
+.quest-complete-stats .flight-log-stat-value {
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  font-weight: 600;
+}
+
+.quest-complete-stats .flight-log-stat-label {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.82rem;
+  color: var(--mc-text-muted);
 }
 
 .flight-log-stat-label {
@@ -3895,8 +3907,15 @@ body:has(.view-quest-complete.active) .grain {
   color: var(--foam);
 }
 
-.view-flight-log .summary-body {
+.view-flight-log .summary-body,
+.view-quest-complete .summary-body {
   max-width: none;
+  color: var(--mc-text-secondary);
+}
+
+.view-quest-complete.active .flight-log-scroll .summary-body {
+  flex: none;
+  overflow: visible;
 }
 
 .mission-celebration {
@@ -4023,7 +4042,8 @@ body:has(.view-quest-complete.active) .grain {
   line-height: 1.1;
 }
 
-.view-quest-complete .mission-celebration__title {
+.view-quest-complete .mission-celebration__title,
+.view-quest-complete .quest-complete-title {
   font-size: clamp(1.75rem, 4.2vw, 2.35rem);
   font-weight: 600;
   letter-spacing: -0.03em;
@@ -4038,7 +4058,8 @@ body:has(.view-quest-complete.active) .grain {
   line-height: 1.4;
 }
 
-.view-quest-complete .mission-celebration__sub {
+.view-quest-complete .mission-celebration__sub,
+.view-quest-complete .quest-complete-objective {
   font-size: 1.05rem;
   color: var(--mc-text-secondary);
   line-height: 1.45;
