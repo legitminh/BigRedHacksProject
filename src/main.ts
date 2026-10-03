@@ -70,20 +70,24 @@ function syncSessionPreferenceToggles() {
   applyReduceMotionPref();
 }
 
-function renderSettingsAvatar(status: StatusPayload) {
-  const el = $("#settings-avatar");
-  if (!el) return;
+function renderNavAvatar(status: StatusPayload) {
   const name = status.username?.trim();
-  if (!name) {
-    el.textContent = "—";
-    return;
+  const initials = !name
+    ? "—"
+    : (() => {
+        const parts = name.split(/\s+/).filter(Boolean);
+        return parts.length >= 2
+          ? `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase()
+          : name.slice(0, 2).toUpperCase();
+      })();
+  for (const id of ["settings-avatar", "session-avatar"]) {
+    const el = $(`#${id}`);
+    if (el) el.textContent = initials;
   }
-  const parts = name.split(/\s+/).filter(Boolean);
-  const initials =
-    parts.length >= 2
-      ? `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase()
-      : name.slice(0, 2).toUpperCase();
-  el.textContent = initials;
+}
+
+function renderSettingsAvatar(status: StatusPayload) {
+  renderNavAvatar(status);
 }
 
 interface SystemPermissions {
@@ -322,6 +326,11 @@ function show(view: ViewId) {
       .catch(() => {});
     requestAnimationFrame(() => {
       ($("#goals") as HTMLTextAreaElement | null)?.focus();
+    });
+  }
+  if (view === "view-session") {
+    requestAnimationFrame(() => {
+      ($("#session-chat-input") as HTMLTextAreaElement | null)?.focus();
     });
   }
 }
@@ -770,8 +779,11 @@ const CHAT_FAIL_MSG =
 
 function setChatControlsBusy(busy: boolean) {
   $("#chat-log")?.setAttribute("aria-busy", busy ? "true" : "false");
+  $("#session-chat-log")?.setAttribute("aria-busy", busy ? "true" : "false");
   document
-    .querySelectorAll<HTMLButtonElement>("#chat-send, #chat-mic, [data-study], #new-chat")
+    .querySelectorAll<HTMLButtonElement>(
+      "#chat-send, #chat-mic, #session-chat-send, #session-chat-mic, [data-study], #new-chat",
+    )
     .forEach((button) => {
       button.disabled = busy;
     });
@@ -818,22 +830,35 @@ async function retryChatAssistant(userMessage: string, bubble: HTMLElement) {
   }
 }
 
-async function sendChat() {
-  const input = $<HTMLTextAreaElement>("#chat-input");
-  if (chatBusy || !input?.value.trim()) return;
-  const message = input.value;
-  input.value = "";
-  appendChat("user", message);
-  const pending = appendChat("assistant", "Thinking…");
+function appendSessionChat(role: "user" | "assistant", content: string) {
+  const log = $("#session-chat-log");
+  if (!log) return;
+  $("#session-chat-empty")?.remove();
+  const bubble = document.createElement("div");
+  bubble.className = `bubble ${role}`;
+  bubble.textContent = content;
+  log.appendChild(bubble);
+  log.scrollTop = log.scrollHeight;
+  return bubble;
+}
+
+async function dispatchChatMessage(
+  message: string,
+  appendUser: (text: string) => HTMLElement | undefined,
+  appendAssistant: (text: string) => HTMLElement | undefined,
+  focusInput?: HTMLTextAreaElement | null,
+) {
+  if (chatBusy || !message.trim()) return;
+  appendUser(message);
+  const pending = appendAssistant("Thinking…");
   chatBusy = true;
   setChatControlsBusy(true);
   try {
-    const reply = await retryChat(message,
-      original => invoke<ChatMessage>("chat_send", { message: original }),
-      () => {
-        if (pending) pending.textContent = "Sorry, there’s a slight delay. Still working on your reply…";
-      },
-    );
+    const reply = await retryChat(message, (original) =>
+      invoke<ChatMessage>("chat_send", { message: original }),
+    () => {
+      if (pending) pending.textContent = "Sorry, there’s a slight delay. Still working on your reply…";
+    });
     if (pending) renderMarkdown(pending, reply.content);
     hasChatReply = true;
   } catch {
@@ -843,8 +868,39 @@ async function sendChat() {
     setChatControlsBusy(false);
     const log = $("#chat-log");
     if (log) log.scrollTop = log.scrollHeight;
-    if ($("#view-chat")?.classList.contains("active")) input.focus();
+    const sessionLog = $("#session-chat-log");
+    if (sessionLog) sessionLog.scrollTop = sessionLog.scrollHeight;
+    if (focusInput && $("#view-session")?.classList.contains("active")) focusInput.focus();
+    else if ($("#view-chat")?.classList.contains("active")) {
+      ($("#chat-input") as HTMLTextAreaElement | null)?.focus();
+    }
   }
+}
+
+async function sendChat() {
+  const input = $<HTMLTextAreaElement>("#chat-input");
+  if (!input?.value.trim()) return;
+  const message = input.value;
+  input.value = "";
+  await dispatchChatMessage(
+    message,
+    (text) => appendChat("user", text),
+    (text) => appendChat("assistant", text),
+    input,
+  );
+}
+
+async function sendSessionChat() {
+  const input = $<HTMLTextAreaElement>("#session-chat-input");
+  if (!input?.value.trim()) return;
+  const message = input.value;
+  input.value = "";
+  await dispatchChatMessage(
+    message,
+    (text) => appendSessionChat("user", text),
+    (text) => appendSessionChat("assistant", text),
+    input,
+  );
 }
 
 function formatRemaining(endsAt: string): string {
@@ -943,6 +999,33 @@ function renderSessionCoachLog(prompts: CoachPrompt[]) {
   log.scrollTop = log.scrollHeight;
 }
 
+function syncSessionSignalPills() {
+  const cameraOn = ($("#lockin-camera") as HTMLInputElement | null)?.checked ?? false;
+  const screenOn = ($("#lockin-screen") as HTMLInputElement | null)?.checked ?? false;
+  const camera = $("#session-pill-camera");
+  const screen = $("#session-pill-screen");
+  if (camera) {
+    camera.textContent = cameraOn ? "Camera on" : "Camera off";
+    camera.classList.toggle("is-on", cameraOn);
+  }
+  if (screen) {
+    screen.textContent = screenOn ? "Screen on" : "Screen off";
+    screen.classList.toggle("is-on", screenOn);
+  }
+}
+
+function updateSessionProgressPill(label: string, finishing = false) {
+  const pill = $("#session-progress-pill");
+  const text = $("#session-progress-label");
+  if (!pill || !text) return;
+  pill.classList.toggle("is-finishing", finishing);
+  text.textContent = finishing
+    ? "Finishing up…"
+    : label === "distracted"
+      ? "Needs focus"
+      : "Mission in progress";
+}
+
 function renderSession(session: LockInSession) {
   currentSessionDurationSecs = session.duration_secs;
   currentOnTaskTicks = session.on_task_ticks ?? 0;
@@ -954,15 +1037,16 @@ function renderSession(session: LockInSession) {
   if (timer) timer.textContent = formatRemaining(session.ends_at);
   if (status) {
     const label = statusLabel(session.status);
-    status.textContent = label.replace(/_/g, " ");
-    status.className = `status-chip session-status session-status--inline ${label}`;
+    status.textContent = `Coach status: ${label.replace(/_/g, " ")}`;
     applySessionOrbitState(label);
+    updateSessionProgressPill(label);
   }
   if (goals) {
-    goals.textContent = session.goals ? `Current mission: ${session.goals}` : "";
-    goals.hidden = !session.goals;
+    goals.textContent = session.goals || "Your mission";
+    goals.hidden = false;
   }
   if (note) note.textContent = session.watching_note || "Watching your screen";
+  syncSessionSignalPills();
   renderVitals(session.vitals);
   renderSessionCoachLog(session.prompts);
   onMissionStarted(session.duration_secs);
@@ -971,6 +1055,9 @@ function renderSession(session: LockInSession) {
   updateSessionFlight(session.ends_at, session.duration_secs);
   updateFlightMinutesLine(session.ends_at, session.duration_secs);
   void syncSessionMuteButton();
+  void invoke<StatusPayload>("get_status")
+    .then(renderNavAvatar)
+    .catch(() => {});
 }
 
 async function openSettings() {
@@ -1039,9 +1126,10 @@ async function syncSessionMuteButton() {
   if (!btn) return;
   try {
     const settings = await invoke<UserSettings>("get_settings");
-    const on = Boolean(settings.silent_mode);
-    btn.textContent = on ? "Unmute voice" : "Mute voice";
-    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    const silent = Boolean(settings.silent_mode);
+    btn.textContent = silent ? "Audio off" : "Audio on";
+    btn.setAttribute("aria-pressed", silent ? "true" : "false");
+    btn.classList.toggle("is-on", !silent);
   } catch {
     // ignore — session UI still usable
   }
@@ -1162,9 +1250,9 @@ function startTimer(endsAt: string) {
     if (ms <= 0) {
       const statusEl = $("#session-status");
       if (statusEl) {
-        statusEl.textContent = "Finishing up…";
-        statusEl.className = "status-chip session-status finishing";
+        statusEl.textContent = "Coach status: finishing";
       }
+      updateSessionProgressPill("finishing", true);
       if (timerHandle) {
         window.clearInterval(timerHandle);
         timerHandle = undefined;
@@ -1453,6 +1541,45 @@ window.addEventListener("DOMContentLoaded", async () => {
       else if (dest === "lockin") show("view-lockin");
       else show("view-home");
     });
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-session-nav]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const dest = button.dataset.sessionNav;
+      if (dest === "copilot") show("view-chat");
+      else if (dest === "settings") void openSettings();
+      else show("view-home");
+    });
+  });
+  $("#goals-copilot-affordance")?.addEventListener("click", () => show("view-chat"));
+  $("#session-chat-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    void sendSessionChat();
+  });
+  $("#session-chat-mic")?.addEventListener("click", async () => {
+    if (chatBusy || chatMicListening) return;
+    const input = $<HTMLTextAreaElement>("#session-chat-input");
+    const mic = $("#session-chat-mic") as HTMLButtonElement | null;
+    chatMicListening = true;
+    if (mic) {
+      mic.disabled = true;
+      mic.textContent = "…";
+    }
+    try {
+      const transcript = await invoke<VoiceTranscript>("voice_listen_test", { seconds: 4 });
+      const text = transcript.text?.trim();
+      if (text && input) {
+        input.value = input.value.trim() ? `${input.value.trim()} ${text}` : text;
+        input.focus();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      chatMicListening = false;
+      if (mic) {
+        mic.disabled = false;
+        mic.textContent = "Mic";
+      }
+    }
   });
   $("#settings-lock-in")?.addEventListener("click", () => show("view-lockin"));
   $("#setting-copilot-audio")?.addEventListener("change", () => {
