@@ -1,0 +1,50 @@
+[package]
+name = "waypoint"
+version = "0.1.0"
+description = "Waypoint — Rust study navigation coach"
+authors = ["Big Red Hacks"]
+edition = "2021"
+
+[lib]
+name = "waypoint_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip", "stream"] }
+tokio = { version = "1", features = ["full"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+base64 = "0.22"
+url = "2"
+urlencoding = "2"
+dotenvy = "0.15"
+thiserror = "2"
+anyhow = "1"
+parking_lot = "0.12"
+image = "0.25"
+xcap = "0.0.14"
+nokhwa = { version = "0.10", features = ["input-native"] }
+axum = "0.8"
+oauth2 = { version = "4", features = ["reqwest"] }
+open = "5"
+dirs = "6"
+flate2 = "1"
+bytes = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+rand = "0.9"
+mime_guess = "2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

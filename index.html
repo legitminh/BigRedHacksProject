@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Waypoint</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+  <body>
+    <div class="atmosphere" aria-hidden="true"></div>
+    <div class="grain" aria-hidden="true"></div>
+
+    <div id="app">
+      <!-- HOME -->
+      <section id="view-home" class="view view-home active">
+        <header class="topbar">
+          <button id="btn-google" class="ghost" type="button">Connect Google</button>
+          <span id="connection-pills" class="pills"></span>
+        </header>
+        <div class="hero">
+          <p class="brand">Waypoint</p>
+          <h1 class="tagline">Find your next move through school noise.</h1>
+          <p class="lede">
+            Talk through deadlines and Drive notes, then lock in while screen and camera coaching keep you honest.
+          </p>
+          <div class="cta-row">
+            <button id="goto-chat" class="primary" type="button">Ask Waypoint</button>
+            <button id="goto-lockin" class="secondary" type="button">Start lock-in</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- CHAT -->
+      <section id="view-chat" class="view">
+        <header class="panel-head">
+          <button class="back" data-back type="button">←</button>
+          <div>
+            <p class="brand-inline">Waypoint</p>
+            <h2>School navigator</h2>
+          </div>
+          <button id="clear-chat" class="ghost" type="button">Clear</button>
+        </header>
+        <div id="chat-log" class="chat-log" aria-live="polite"></div>
+        <form id="chat-form" class="chat-form">
+          <input
+            id="chat-input"
+            type="text"
+            placeholder="What’s due, what should I do next, where are my notes…"
+            autocomplete="off"
+          />
+          <button type="submit" class="primary">Send</button>
+        </form>
+      </section>
+
+      <!-- LOCK-IN SETUP -->
+      <section id="view-lockin" class="view">
+        <header class="panel-head">
+          <button class="back" data-back type="button">←</button>
+          <div>
+            <p class="brand-inline">Waypoint</p>
+            <h2>Lock-in session</h2>
+          </div>
+        </header>
+        <form id="lockin-form" class="lockin-form">
+          <label>
+            How long?
+            <div class="duration-row">
+              <input id="duration" type="number" min="1" max="180" value="45" />
+              <span>minutes</span>
+            </div>
+          </label>
+          <label>
+            What are you locking in on?
+            <textarea
+              id="goals"
+              rows="5"
+              placeholder="e.g. Finish Calc PSet 3 Q1–3, review lecture 8 notes from Drive"
+            ></textarea>
+          </label>
+          <p class="hint">
+            Waypoint watches your screen and webcam, uses Presage for stress/focus signals, and nudges you in text when you drift (phone ≠ calculator).
+          </p>
+          <button type="submit" class="primary wide">Lock in</button>
+        </form>
+      </section>
+
+      <!-- SESSION HUD -->
+      <section id="view-session" class="view view-session">
+        <header class="session-head">
+          <p class="brand-inline">Waypoint</p>
+          <button id="end-session" class="ghost danger" type="button">End</button>
+        </header>
+        <div class="timer-wrap">
+          <p id="session-timer" class="timer">45:00</p>
+          <p id="session-status" class="status-chip">warming up</p>
+          <p id="session-modality" class="modality"></p>
+        </div>
+        <p id="session-goals" class="session-goals"></p>
+        <div id="vitals" class="vitals"></div>
+        <div id="prompt-feed" class="prompt-feed" aria-live="polite"></div>
+      </section>
+
+      <!-- SUMMARY -->
+      <section id="view-summary" class="view">
+        <header class="panel-head">
+          <button class="back" data-back type="button">←</button>
+          <div>
+            <p class="brand-inline">Waypoint</p>
+            <h2>Session map</h2>
+          </div>
+        </header>
+        <div id="summary-body" class="summary-body"></div>
+      </section>
+    </div>
+  </body>
+</html>
