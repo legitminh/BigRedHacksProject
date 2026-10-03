@@ -217,7 +217,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: none
 - note: Skipped this tick — user requested objective ✦ remain Launch; do not revert.
 
-## open: fp-active-waypoint-sublabels-uppercase
+## done: fp-active-waypoint-sublabels-uppercase
 - screen: active
 - ref: `.cursor/figma-refs/06-mission-active.png` · live `2:38` · nodes `6:189`/`6:190`
 - deviation: |
@@ -232,8 +232,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     keep `.session-flight-route` “EARTH → KEPLER”. Do not change Pause/End or LTR orbit.
 - escalate: scrutinous
 - reopened: true
-- commit: 232e40d
-- change: Added `text-transform: uppercase` on `.session-flight-waypoint-sub` — insufficient vs live (subs should not exist).
+- commit: 1bef8ec
+- change: Removed `.session-flight-waypoint-sub` Earth/Kepler spans + CSS; Launch/Destination only; route kicker “EARTH → KEPLER” kept.
+
 
 ## open: fp-end-confirm-figma-modal
 - screen: active
@@ -741,7 +742,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     live copy; optional next-step subline from coach/suggest. Keep Pause/End wiring.
 - escalate: scrutinous
 
-## open: fp-setup-empty-launch-disabled
+## done: fp-setup-empty-launch-disabled
 - screen: setup
 - ref: `.cursor/figma-refs/32-objective-empty-disabled.png` · live `10:752`
 - deviation: |
@@ -758,7 +759,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     when objective present (live 05/26). Keep objective ✦ Launch wiring; do not reopen as Copilot.
 - escalate: scrutinous
 
-## open: fp-setup-objective-listening
+## done: fp-setup-objective-listening
 - screen: setup
 - ref: `.cursor/figma-refs/30-objective-listening.png` · live `10:565`
 - deviation: |
@@ -774,7 +775,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     stays intentional (e.g. separate long-press / secondary mic), or document the dictate entry.
 - escalate: scrutinous
 
-## done: fp-copilot-listening-composer
+## verified: fp-copilot-listening-composer
 - screen: copilot
 - ref: `.cursor/figma-refs/31-copilot-listening.png` · live `10:667`
 - deviation: |
@@ -790,8 +791,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: scrutinous
 - commit: 5fdec0d
 - change: Copilot mic listening sets `#chat-input` placeholder to “Listening… click mic to stop”, mic shows ■ (stays enabled); idle placeholder/label restored on end; stable hint unchanged.
+- verified: 2026-10-03T15:27:27-04:00
 
-## done: fp-summary-objective-helper
+## verified: fp-summary-objective-helper
 - screen: summary
 - ref: `.cursor/figma-refs/07-mission-recap.png` · `21-ended-early-reflection.png` · live `2:39` / `8:439`
 - deviation: |
@@ -805,8 +807,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: none
 - commit: 5fdec0d
 - change: Added `.quest-objective-helper` under choices with live copy; hidden once copilot note appears.
+- verified: 2026-10-03T15:27:27-04:00
 
-## done: fp-summary-note-gated
+## verified: fp-summary-note-gated
 - screen: summary
 - ref: `.cursor/figma-refs/07-mission-recap.png` · `13-flight-logged.png` · live `2:39` / `2:45`
 - deviation: |
@@ -822,4 +825,5 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: scrutinous
 - commit: 5fdec0d
 - change: Summary starts unanswered (no pill selected); `.quest-copilot-note` hidden until Finished/Partly/Not yet; then `refreshSummaryCopilotNote` reveals it.
+- verified: 2026-10-03T15:27:27-04:00
 
