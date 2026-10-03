@@ -2633,7 +2633,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Set `.welcome-signin-card` to `#fffbff` / `#c8bfd7` / ~28px radius /
     ~510px max-width + 37px pad; keep Google/guest wiring per form opens.
 - escalate: scrutinous
-- commit: PENDING
+- commit: 69037e0
 - change: `.welcome-signin-card` → `#fffbff` / `#c8bfd7` / 28px radius / 37px pad / `min(100%, 510px)`; kicker/fields/guest/Sign in wiring unchanged.
 
 ## open: fp-relaunch-title-scale
@@ -2713,5 +2713,5 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `#fffbff` / `#c8bfd7` / 28px / ~33px pad; keep Not now · Continue.
     Preserve Settings five-tab; do not block Launch.
 - escalate: scrutinous
-- commit: PENDING
+- commit: 69037e0
 - change: Base `.mc-perm-modal__card` → 580px / `#fffbff` / `#c8bfd7` / 28px / 33px pad (handoff + denied + end-session); Continue/Not now CTAs unchanged.
