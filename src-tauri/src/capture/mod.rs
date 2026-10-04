@@ -1,4 +1,5 @@
 pub mod camera;
+pub mod camera_live;
 pub mod frontmost;
 pub mod ocr;
 pub mod screen;

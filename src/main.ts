@@ -307,6 +307,13 @@ interface SessionSummary {
   notes_pending?: boolean;
 }
 
+/** `stop_lock_in` result — `ended` clears mission-running UI even when `summary` is null. */
+interface StopLockInResult {
+  ended: boolean;
+  summary: SessionSummary | null;
+  already_ended: boolean;
+}
+
 interface SessionNoteReady {
   session_id: string;
   kind: string;
@@ -676,6 +683,10 @@ function show(view: ViewId) {
   // A mission is already running — never open a second launch form; resume it instead.
   if (view === "view-lockin" && isMissionRunning()) {
     view = "view-session";
+  }
+  // After End Session, never reopen a zombie "still running" session view.
+  if (view === "view-session" && !isMissionRunning()) {
+    view = "view-home";
   }
   if (view === "view-home") resetRelaunchCount();
   document.querySelectorAll(".view").forEach((el) => el.classList.remove("active"));
@@ -1751,8 +1762,7 @@ async function startLockInFromSuggestion(
     renderVitals(null, session.camera_enabled);
     await playLaunchCelebration(() => {
       dismissBreakSuggestion();
-      renderSession(session);
-      syncMissionTimer(session);
+      adoptMissionSession(session);
       show("view-session");
     });
   } finally {
@@ -3481,12 +3491,148 @@ function applyCameraPresenceUi(vitals?: VitalsSnapshot | null) {
   }
 }
 
+/** Sustained checking / JPEG-skip / uncertain before escalating watch-note copy. */
+const CAMERA_ACCOUNTABILITY_ESCALATE_MS = 45_000;
+
+type CameraAccountabilityUiState = "healthy" | "checking" | "failed" | "unknown";
+
+type SessionSignalSnap = Pick<
+  LockInSession,
+  "screen_enabled" | "camera_enabled" | "camera_ready" | "watching_note" | "vitals"
+>;
+
+/** Last mission snap for pill/note honesty between session-update and vitals-update. */
+let lastSessionSignalSnap: SessionSignalSnap | null = null;
+let cameraAccountabilityUnclearSince: number | null = null;
+let cameraAccountabilityEscalateTimer: number | undefined;
+
+/**
+ * Parse server watching_note (+ optional vitals.raw_summary) for camera accountability health.
+ * Healthy = present / away / obstructed with a real presence read — not perpetual checking.
+ */
+export function classifyCameraAccountabilityUi(
+  watchingNote?: string | null,
+  vitals?: VitalsSnapshot | null,
+): CameraAccountabilityUiState {
+  const note = (watchingNote || "").trim();
+  const raw = (vitals?.raw_summary || "").trim();
+  const blob = `${note}\n${raw}`;
+
+  // Explicit transport / mime failures — accountability cannot run.
+  if (
+    /JPEG observe skips Presage/i.test(blob) ||
+    /leave\/stress detection requires video/i.test(blob) ||
+    /camera accountability unavailable/i.test(blob)
+  ) {
+    return "failed";
+  }
+
+  // Real presence outcomes from API watching_note (incl. obstructed = working).
+  if (
+    /Camera accountability\s*[·•]\s*present/i.test(note) ||
+    /Camera accountability\s*[·•]\s*away from desk/i.test(note) ||
+    /Camera accountability\s*[·•]\s*camera unclear/i.test(note)
+  ) {
+    return "healthy";
+  }
+
+  if (
+    /presence=present\b/i.test(raw) ||
+    /presence=left_frame\b/i.test(raw) ||
+    /presence=camera_obstructed\b/i.test(raw)
+  ) {
+    return "healthy";
+  }
+
+  if (
+    /Camera accountability\s*[·•]\s*checking/i.test(note) ||
+    /presence=uncertain\b/i.test(raw) ||
+    /\bPresence uncertain\b/i.test(note)
+  ) {
+    return "checking";
+  }
+
+  return "unknown";
+}
+
+/** User-facing watch note once accountability is stuck or broken. */
+export function cameraAccountabilityHonestNote(
+  state: CameraAccountabilityUiState,
+  escalated: boolean,
+): string | null {
+  if (state === "failed" || (state === "checking" && escalated)) {
+    return "Camera accountability unavailable";
+  }
+  if (state === "checking") return "Accountability checking…";
+  return null;
+}
+
+function clearCameraAccountabilityUnclearTimer() {
+  if (cameraAccountabilityEscalateTimer != null) {
+    window.clearTimeout(cameraAccountabilityEscalateTimer);
+    cameraAccountabilityEscalateTimer = undefined;
+  }
+}
+
+function resetCameraAccountabilityUiTracking() {
+  cameraAccountabilityUnclearSince = null;
+  clearCameraAccountabilityUnclearTimer();
+}
+
+function scheduleCameraAccountabilityEscalate() {
+  clearCameraAccountabilityUnclearTimer();
+  if (cameraAccountabilityUnclearSince == null) return;
+  const left = CAMERA_ACCOUNTABILITY_ESCALATE_MS - (Date.now() - cameraAccountabilityUnclearSince);
+  if (left <= 0) return;
+  cameraAccountabilityEscalateTimer = window.setTimeout(() => {
+    cameraAccountabilityEscalateTimer = undefined;
+    if (!lastSessionSignalSnap) return;
+    syncSessionSignalPills(lastSessionSignalSnap);
+    renderWatchingNote(
+      lastSessionSignalSnap.watching_note || "Watching your screen",
+      lastSessionSignalSnap.camera_enabled,
+    );
+  }, left);
+}
+
+/** Strip prior camera-accountability clauses, then append honest copy when stuck/failed. */
+function applyHonestCameraAccountabilityNote(
+  cleaned: string,
+  honest: string | null,
+): string {
+  if (!honest) return cleaned;
+  let base = cleaned
+    .replace(/\s*[·•]\s*Camera accountability\b[^·•]*/gi, "")
+    .replace(/^Camera accountability\b[^·•]*/gi, "")
+    .replace(/\s*[·•]\s*JPEG observe skips Presage[^·•]*/gi, "")
+    .replace(/\s*[·•]\s*leave\/stress detection requires[^·•]*/gi, "")
+    .replace(/\s*[·•]\s*camera accountability unavailable/gi, "")
+    .replace(/\s*[·•]\s*Accountability checking…/gi, "")
+    .replace(/^Accountability checking…$/i, "")
+    .replace(/\s*[·•]\s*Presence uncertain/gi, "")
+    .trim()
+    .replace(/^[·•]\s*/, "")
+    .replace(/\s*[·•]\s*$/, "")
+    .trim();
+  if (!base) return honest;
+  if (base.toLowerCase() === honest.toLowerCase()) return honest;
+  return `${base} · ${honest}`;
+}
+
 function renderVitals(vitals?: VitalsSnapshot | null, cameraEnabled?: boolean) {
   const enabled = cameraEnabled ?? sessionCameraEnabled;
   const line = $("#vitals-line");
   const panel = $("#session-vitals");
   if (line) line.textContent = formatVitals(vitals, enabled);
   if (panel) panel.classList.toggle("stressed", Boolean(enabled !== false && vitals?.stressed));
+  if (lastSessionSignalSnap && vitals) {
+    lastSessionSignalSnap = { ...lastSessionSignalSnap, vitals };
+    syncSessionSignalPills(lastSessionSignalSnap);
+    renderWatchingNote(
+      lastSessionSignalSnap.watching_note || "Watching your screen",
+      lastSessionSignalSnap.camera_enabled,
+    );
+  }
   if (enabled === false) return;
   applyCameraPresenceUi(vitals);
   // Presage / camera stressed flag — same Accept/Decline card as coach suggest_break.
@@ -3514,6 +3660,18 @@ function renderWatchingNote(note?: string | null, cameraEnabled?: boolean) {
         ? `${cleaned} · camera accountability off`
         : "Camera accountability off";
     }
+  } else if (enabled && lastSessionSignalSnap?.camera_ready) {
+    // Honest camera accountability when observe is stuck checking / JPEG-skip / unavailable.
+    const state = classifyCameraAccountabilityUi(cleaned, lastSessionSignalSnap.vitals);
+    const escalated =
+      state === "failed" ||
+      (state === "checking" &&
+        cameraAccountabilityUnclearSince != null &&
+        Date.now() - cameraAccountabilityUnclearSince >= CAMERA_ACCOUNTABILITY_ESCALATE_MS);
+    cleaned = applyHonestCameraAccountabilityNote(
+      cleaned,
+      cameraAccountabilityHonestNote(state, escalated),
+    );
   }
   el.textContent = cleaned;
   const show = Boolean(cleaned);
@@ -3544,31 +3702,60 @@ function renderSessionCoachLog(prompts: CoachPrompt[]) {
 /**
  * Status-only pills (not buttons). Mirror what this mission actually launched with;
  * before a session exists, fall back to the saved prefs.
- * "Camera on" only when observe can run (`camera_enabled` + `camera_ready`).
+ * "Camera on" only when observe can run and accountability looks healthy
+ * (present / away / obstructed) — not perpetual checking / JPEG-skip.
  */
-function syncSessionSignalPills(
-  session?: Pick<
-    LockInSession,
-    "screen_enabled" | "camera_enabled" | "camera_ready"
-  > | null,
-) {
-  const optedIn = session?.camera_enabled ?? cameraPreferenceEnabled();
-  const ready = session ? Boolean(session.camera_ready) : optedIn;
+function syncSessionSignalPills(session?: SessionSignalSnap | null) {
+  if (session) {
+    lastSessionSignalSnap = {
+      screen_enabled: session.screen_enabled,
+      camera_enabled: session.camera_enabled,
+      camera_ready: session.camera_ready,
+      watching_note: session.watching_note ?? lastSessionSignalSnap?.watching_note,
+      vitals: session.vitals ?? lastSessionSignalSnap?.vitals,
+    };
+  }
+  const snap = session ?? lastSessionSignalSnap;
+  const optedIn = snap?.camera_enabled ?? cameraPreferenceEnabled();
+  const ready = snap ? Boolean(snap.camera_ready) : optedIn;
   // Unsigned / Guest never run observe — don't claim "Camera on".
   // Opted-in but not ready (TCC / probe fail) must not lie with "Camera on".
-  const cameraOn = Boolean(cloudSignedIn && optedIn && ready);
-  const screenOn = session?.screen_enabled ?? screenSharingEnabled();
+  const observeReady = Boolean(cloudSignedIn && optedIn && ready);
+  const screenOn = snap?.screen_enabled ?? screenSharingEnabled();
   const camera = $("#session-pill-camera");
   const screen = $("#session-pill-screen");
+
+  let cameraUnclear = false;
+  if (observeReady && snap) {
+    const state = classifyCameraAccountabilityUi(snap.watching_note, snap.vitals);
+    if (state === "checking" || state === "failed") {
+      cameraUnclear = true;
+      if (cameraAccountabilityUnclearSince == null) {
+        cameraAccountabilityUnclearSince = Date.now();
+      }
+      if (state === "checking") scheduleCameraAccountabilityEscalate();
+      else clearCameraAccountabilityUnclearTimer();
+    } else if (state === "healthy") {
+      resetCameraAccountabilityUiTracking();
+    }
+    // unknown (pre-first observe): keep "Camera on" — no fake failure yet.
+  } else {
+    resetCameraAccountabilityUiTracking();
+  }
+
   if (camera) {
+    const cameraOn = observeReady && !cameraUnclear;
     camera.textContent = !cloudSignedIn
       ? "Camera unavailable"
       : !optedIn
         ? "Camera off"
-        : cameraOn
-          ? "Camera on"
-          : "Camera unavailable";
+        : cameraUnclear
+          ? "Camera unclear"
+          : observeReady
+            ? "Camera on"
+            : "Camera unavailable";
     camera.classList.toggle("is-on", cameraOn);
+    camera.classList.toggle("is-unclear", cameraUnclear);
   }
   if (screen) {
     screen.textContent = screenOn ? "Screen on" : "Screen off";
@@ -3681,17 +3868,18 @@ function renderSession(session: LockInSession) {
     goals.textContent = session.goals || "Your mission";
     goals.hidden = false;
   }
-  renderWatchingNote(
-    session.watching_note || "Watching your screen",
-    session.camera_enabled,
-  );
   if (!session.paused && breakTimerActive) {
     // Mission resumed elsewhere (break window / Rust) — clear local pomodoro flag.
     setBreakTimerActive(false);
   }
   syncPauseControls(Boolean(session.paused));
   if (session.paused) dismissBreakSuggestion();
+  // Pills first so accountability unclear timer / snap are ready for watch-note honesty.
   syncSessionSignalPills(session);
+  renderWatchingNote(
+    session.watching_note || "Watching your screen",
+    session.camera_enabled,
+  );
   renderVitals(session.vitals, session.camera_enabled);
   renderSessionCoachLog(session.prompts);
   ensureSessionAtLaunchSeed(session);
@@ -4378,10 +4566,44 @@ let currentEndsAt: string | null = null;
 let currentSessionDurationSecs = 0;
 /** Camera accountability consent for the active mission (drives honest vitals/watch copy). */
 let sessionCameraEnabled: boolean | undefined;
+/**
+ * Accept coach `session-update` events only while a mission we started is live.
+ * Cleared on End / natural finish so in-flight emits cannot rehydrate the timer
+ * and leave the mission-running banner stuck after `stop_lock_in`.
+ */
+let acceptSessionUpdates = false;
 
 /** True from launch until End / timer finish (including while on a break). */
-function isMissionRunning(): boolean {
-  return currentEndsAt != null;
+export function isMissionRunning(): boolean {
+  return acceptSessionUpdates && currentEndsAt != null;
+}
+
+/** Clear FE running chrome; pair with Rust `ended: true` / `lock-in-stopped`. */
+export function clearMissionRunningState(): void {
+  acceptSessionUpdates = false;
+  stopTimer();
+  setSessionEndingUi(false);
+  setSessionCheckinUi(false);
+  dismissBreakSuggestion();
+  breakSuggestionCooldownUntil = 0;
+  updateMissionBanner();
+}
+
+/**
+ * Apply a live session snapshot from Rust. Ignores post-end / inactive updates so the
+ * summary screen cannot keep a zombie mission-running banner.
+ */
+export function applySessionUpdate(session: LockInSession): void {
+  if (!acceptSessionUpdates || !session?.active) return;
+  renderSession(session);
+  syncMissionTimer(session);
+}
+
+/** Adopt a live lock-in from start_lock_in / get_status — enables session-update intake. */
+export function adoptMissionSession(session: LockInSession): void {
+  acceptSessionUpdates = true;
+  renderSession(session);
+  syncMissionTimer(session);
 }
 
 /**
@@ -4407,7 +4629,10 @@ function updateMissionBanner(): void {
       <span class="mission-running-text"></span>
       <button type="button" class="primary pill mission-running-return">Return to mission</button>
     `;
-    bar.querySelector("button")?.addEventListener("click", () => show("view-session"));
+    bar.querySelector("button")?.addEventListener("click", () => {
+      // show() also guards, but send ended missions straight home (not a zombie session).
+      show(isMissionRunning() ? "view-session" : "view-home");
+    });
     document.body.appendChild(bar);
   }
   bar.hidden = false;
@@ -4430,13 +4655,11 @@ async function endActivityBeforeAccountChange(): Promise<void> {
     // ignore
   }
   try {
-    await invoke("stop_lock_in");
+    await invoke<StopLockInResult>("stop_lock_in");
   } catch {
     // ignore — no active session or already stopped
   }
-  stopTimer();
-  setSessionCheckinUi(false);
-  setSessionEndingUi(false);
+  clearMissionRunningState();
 }
 
 function stopTimer() {
@@ -4447,6 +4670,8 @@ function stopTimer() {
   currentEndsAt = null;
   currentSessionDurationSecs = 0;
   sessionCameraEnabled = undefined;
+  lastSessionSignalSnap = null;
+  resetCameraAccountabilityUiTracking();
   missionTimerFrozenDisplay = null;
   pausedElapsedSecs = null;
   setBreakTimerActive(false);
@@ -4455,6 +4680,7 @@ function stopTimer() {
 }
 
 function startTimer(endsAt: string) {
+  if (!acceptSessionUpdates) return;
   if (timerHandle) {
     window.clearInterval(timerHandle);
     timerHandle = undefined;
@@ -4462,7 +4688,7 @@ function startTimer(endsAt: string) {
   currentEndsAt = endsAt;
   missionTimerFrozenDisplay = null;
   const tick = () => {
-    if (!currentEndsAt || missionTimerFrozenDisplay != null) return;
+    if (!acceptSessionUpdates || !currentEndsAt || missionTimerFrozenDisplay != null) return;
     const el = $("#session-timer");
     const ms = new Date(currentEndsAt).getTime() - Date.now();
     if (el) el.textContent = formatRemaining(currentEndsAt);
@@ -4494,6 +4720,7 @@ function startTimer(endsAt: string) {
  * Must not thrash-restart on every session-update (coach emits ~1Hz).
  */
 function syncMissionTimer(session: Pick<LockInSession, "paused" | "ends_at" | "duration_secs">) {
+  if (!acceptSessionUpdates) return;
   if (session.paused) {
     if (timerHandle) {
       window.clearInterval(timerHandle);
@@ -4541,8 +4768,7 @@ async function refreshStatus() {
   if (session?.active) {
     // Already flying and the user stepped away (banner showing)? Don't yank them back.
     const wasRunning = isMissionRunning();
-    renderSession(session);
-    syncMissionTimer(session);
+    adoptMissionSession(session);
     if (wasRunning) updateMissionBanner();
     else show("view-session");
   }
@@ -4915,8 +5141,7 @@ async function bootApp() {
       renderVitals(null, session.camera_enabled);
       await playLaunchCelebration(() => {
         dismissBreakSuggestion();
-        renderSession(session);
-        syncMissionTimer(session);
+        adoptMissionSession(session);
         show("view-session");
       });
     } catch (err) {
@@ -5002,13 +5227,21 @@ async function bootApp() {
     if (pauseBtn) pauseBtn.disabled = true;
     try {
       teardownCompanionLive();
-      stopTimer();
-      const summary = await invoke<SessionSummary | null>("stop_lock_in");
+      // Drop running chrome before await so late session-update cannot revive the banner.
+      clearMissionRunningState();
+      const result = await invoke<StopLockInResult>("stop_lock_in");
+      // Second clear defeats any update that landed during the await.
+      clearMissionRunningState();
       syncPauseControls(false);
-      setSessionCheckinUi(false);
-      if (summary) {
-        showSummaryWithCelebration(summary, true);
+      if (result?.summary) {
+        showSummaryWithCelebration(result.summary, true);
+      } else if (
+        result?.already_ended &&
+        $("#view-summary")?.classList.contains("active")
+      ) {
+        // Natural finish already showed the debrief — stay put.
       } else {
+        // Idempotent second end / no summary — never leave a zombie running session.
         show("view-home");
       }
     } catch (err) {
@@ -5222,8 +5455,11 @@ async function bootApp() {
   });
 
   await listen<LockInSession>("session-update", (event) => {
-    renderSession(event.payload);
-    syncMissionTimer(event.payload);
+    applySessionUpdate(event.payload);
+  });
+  // Early End chrome clear (summary still comes from stop_lock_in invoke).
+  await listen<StopLockInResult>("lock-in-stopped", () => {
+    clearMissionRunningState();
   });
   await listen<VitalsSnapshot>("vitals-update", (event) => renderVitals(event.payload));
   await listen<CoachPrompt>("overlay-prompt", (event) => {
@@ -5257,11 +5493,9 @@ async function bootApp() {
   });
   await listen<SessionSummary>("session-ended", (event) => {
     teardownCompanionLive();
-    stopTimer();
-    setSessionCheckinUi(false);
+    clearMissionRunningState();
     dismissBreakSuggestion();
     breakSuggestionCooldownUntil = 0;
-    setSessionEndingUi(false);
     showSummaryWithCelebration(event.payload);
   });
   await listen<SessionNoteReady>("session-note", (event) => {

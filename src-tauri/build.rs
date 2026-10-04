@@ -118,9 +118,11 @@ fn main() {
     println!("cargo:rerun-if-changed=Info.plist");
     println!("cargo:rerun-if-changed=tools/ocr_vision.swift");
     println!("cargo:rerun-if-changed=tools/encode_clip.swift");
+    println!("cargo:rerun-if-changed=tools/face_detect.swift");
 
     compile_ocr_helper(&manifest);
     compile_encode_clip_helper(&manifest);
+    compile_face_detect_helper(&manifest);
 
     // Autogenerate allow-*/deny-* for every custom command so Tauri enforces
     // per-window ACL (empty app manifest previously skipped checks for local webviews).
@@ -252,6 +254,47 @@ fn compile_encode_clip_helper(manifest: &PathBuf) {
         }
         Err(e) => {
             println!("cargo:warning=swiftc not available ({e}) — encode_clip disabled");
+        }
+    }
+}
+
+fn compile_face_detect_helper(manifest: &PathBuf) {
+    let swift = manifest.join("tools/face_detect.swift");
+    let bin_dir = manifest.join("bin");
+    let _ = fs::create_dir_all(&bin_dir);
+    let out = bin_dir.join("waypoint-face-detect");
+
+    if !swift.exists() {
+        eprintln!(
+            "cargo:warning=face_detect.swift missing at {}",
+            swift.display()
+        );
+        return;
+    }
+    if cfg!(not(target_os = "macos")) {
+        return;
+    }
+    let status = Command::new("swiftc")
+        .args([
+            "-O",
+            "-framework",
+            "Vision",
+            "-framework",
+            "AppKit",
+            "-o",
+            out.to_str().unwrap_or("waypoint-face-detect"),
+            swift.to_str().unwrap_or("face_detect.swift"),
+        ])
+        .status();
+    match status {
+        Ok(s) if s.success() => {}
+        Ok(s) => {
+            println!(
+                "cargo:warning=swiftc face_detect failed ({s}) — local presence disabled until rebuild"
+            );
+        }
+        Err(e) => {
+            println!("cargo:warning=swiftc not available ({e}) — face_detect disabled");
         }
     }
 }

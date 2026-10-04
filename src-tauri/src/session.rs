@@ -222,6 +222,19 @@ impl LockInSession {
         }
     }
 
+    /// Atomically take a live session out of the slot, fold any open pause, and mark it
+    /// inactive. Returns `None` when there is no session (idempotent second end).
+    pub fn take_finished(
+        slot: &mut Option<Self>,
+        open_pause: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> Option<Self> {
+        let mut session = slot.take()?;
+        session.finalize_open_pause(open_pause);
+        session.active = false;
+        session.paused = false;
+        Some(session)
+    }
+
     pub fn summarize(&self) -> SessionSummary {
         // Never treat "no screen checks" as a perfect score.
         let ratio = if self.total_ticks == 0 {
@@ -374,6 +387,35 @@ mod tests {
             session.screen_log.last().map(String::as_str),
             Some("line 49")
         );
+    }
+
+    #[test]
+    fn take_finished_clears_slot_and_is_idempotent() {
+        let mut slot = Some(test_session());
+        let first = LockInSession::take_finished(&mut slot, None).expect("session");
+        assert!(slot.is_none());
+        assert!(!first.active);
+        assert!(!first.paused);
+        let summary = first.summarize();
+        assert!(!summary.session_id.is_empty());
+        assert!(LockInSession::take_finished(&mut slot, None).is_none());
+    }
+
+    #[test]
+    fn take_finished_folds_open_pause() {
+        let mut session = test_session();
+        let now = chrono::Utc::now();
+        session.ends_at = (now + chrono::Duration::minutes(5)).to_rfc3339();
+        session.paused = true;
+        let mut slot = Some(session);
+        let pause_started = Some(now - chrono::Duration::minutes(3));
+        let finished =
+            LockInSession::take_finished(&mut slot, pause_started).expect("session");
+        assert!(slot.is_none());
+        assert!(!finished.active && !finished.paused);
+        assert!(finished.paused_accum_secs >= 180);
+        let summary = finished.summarize();
+        assert!(summary.duration_secs < 25 * 60);
     }
 
     #[test]

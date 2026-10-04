@@ -732,6 +732,7 @@ fn is_verbatim_coach_kind(kind: &str) -> bool {
             | "on_task"
             | "left_desk"
             | "left_desk_pause"
+            | "look_back"
             | "welcome_back"
             | "camera_obstructed"
             | "camera"
@@ -794,6 +795,7 @@ fn is_status_kind_token(s: &str) -> bool {
             | "camera"
             | "left_desk"
             | "left_desk_pause"
+            | "look_back"
             | "welcome_back"
             | "camera_obstructed"
     )
@@ -901,6 +903,12 @@ fn fallback_templates(kind: &str, distraction: &str, goals: &str, nag_n: u32) ->
         "welcome_back" => vec![
             "Welcome back — good to see you. Let's pick the work back up.".into(),
             "Welcome back. Stay with the work.".into(),
+        ],
+        // VIDEOINPUT head_turned / looking_away — face still here, never left_desk.
+        "look_back" => vec![
+            "You're looking away. Turn back to the work.".into(),
+            "Eyes back on your work — look at the screen.".into(),
+            "Eyes on the work — put the phone down if you're on it.".into(),
         ],
         "camera_obstructed" | "camera" => vec![
             "I can’t see you clearly. Check the camera or lighting.".into(),
@@ -1228,6 +1236,10 @@ mod tests {
             (
                 "welcome_back",
                 "Welcome back — good to see you. Let's pick the work back up.",
+            ),
+            (
+                "look_back",
+                "You're looking away. Turn back to the work.",
             ),
             (
                 "camera_obstructed",

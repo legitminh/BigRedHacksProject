@@ -4,13 +4,19 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 
-// Vite `*.svg?url` imports are not understood by Node's test runner.
+// Vite `*.svg?url` / `*.png?url` imports are not understood by Node's test runner.
 registerHooks({
   resolve(specifier, context, nextResolve) {
     if (/\.svg(\?|$)/.test(specifier)) {
       return {
         shortCircuit: true,
         url: 'data:text/javascript,export default "data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27/%3E";',
+      };
+    }
+    if (/\.png(\?|$)/.test(specifier)) {
+      return {
+        shortCircuit: true,
+        url: 'data:text/javascript,export default "";',
       };
     }
     return nextResolve(specifier, context);
@@ -236,7 +242,9 @@ test('study suggestion card accepts into lock-in and decline dismisses', async (
   // End mission so timers/view state do not leak into later tests.
   window.__TAURI_INTERNALS__.invoke = async (command, args) => {
     calls.push({ command, args });
-    if (command === 'stop_lock_in') return null;
+    if (command === 'stop_lock_in') {
+      return { ended: true, summary: null, already_ended: true };
+    }
     return defaultInvoke(command, args);
   };
   document.querySelector('#end-session')?.click();

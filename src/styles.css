@@ -3766,6 +3766,13 @@ body:has(.view-mission-setup.active) .grain {
   border-color: var(--mc-accent-purple);
 }
 
+/* Camera opted-in + ready, but accountability stuck checking / unavailable. */
+.session-signal-pill.is-unclear {
+  color: #5c4a1f;
+  background: rgba(226, 163, 90, 0.22);
+  border-color: rgba(226, 163, 90, 0.55);
+}
+
 .session-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);

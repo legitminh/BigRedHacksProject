@@ -2,6 +2,7 @@ mod api;
 mod auth;
 mod break_timer;
 mod camera_observe;
+mod camera_presence_live;
 mod capture;
 mod concept_map;
 mod coach;
@@ -211,6 +212,13 @@ async fn get_status(state: State<'_, AppState>) -> Result<StatusPayload, String>
     } else {
         false
     };
+    // Only expose a live mission — never a half-cleared `active=false` leftover.
+    let session = state
+        .session
+        .lock()
+        .as_ref()
+        .filter(|s| s.active)
+        .cloned();
     Ok(StatusPayload {
         signed_in,
         guest_mode,
@@ -224,7 +232,7 @@ async fn get_status(state: State<'_, AppState>) -> Result<StatusPayload, String>
         presage_ready,
         local_llm_model: cfg.local_llm_model.clone(),
         local_llm_enabled: cfg.local_llm_enabled,
-        session: state.session.lock().clone(),
+        session,
     })
 }
 
@@ -774,7 +782,11 @@ async fn chat_send(state: State<'_, AppState>, message: String) -> Result<ChatMe
         }
     }
 
-    let lock_in_active = state.session.lock().is_some();
+    let lock_in_active = state
+        .session
+        .lock()
+        .as_ref()
+        .is_some_and(|s| s.active);
     let recent_suggestion = history
         .iter()
         .rev()
@@ -1425,11 +1437,25 @@ pub(crate) fn persist_session_summary(app: &tauri::AppHandle, summary: &SessionS
     });
 }
 
+/// Result of `stop_lock_in`. Always clears running state on the Rust side; FE should
+/// treat `ended: true` as authoritative for the mission-running banner / timer.
+#[derive(Clone, Serialize)]
+struct StopLockInResult {
+    /// Always true after a successful invoke (command is idempotent).
+    ended: bool,
+    /// Present when this call owned the end (first end). `null` on double-end.
+    summary: Option<SessionSummary>,
+    /// True when there was already no live session (second End / race with natural finish).
+    already_ended: bool,
+}
+
 #[tauri::command]
 async fn stop_lock_in(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
-) -> Result<Option<SessionSummary>, String> {
+) -> Result<StopLockInResult, String> {
+    use tauri::Emitter;
+    // Stop loops first — must not half-set session.active (see coach::stop_coach).
     coach::stop_coach(&app);
     // Snapshot before clear — this command used to drop companion turns before summarize.
     let utterances = companion::user_utterances(&state);
@@ -1439,21 +1465,24 @@ async fn stop_lock_in(
     let open_pause = state.pause_started.lock().take();
     let summary = {
         let mut guard = state.session.lock();
-        let summary = guard.as_mut().map(|s| {
-            s.finalize_open_pause(open_pause);
-            s.active = false;
-            s.paused = false;
-            let mut summary = s.summarize();
-            summary.notes_pending = maybe_spawn_session_note(&app, s, utterances);
+        LockInSession::take_finished(&mut guard, open_pause).map(|session| {
+            let mut summary = session.summarize();
+            summary.notes_pending = maybe_spawn_session_note(&app, &session, utterances);
             summary
-        });
-        *guard = None;
-        summary
+        })
     };
+    let already_ended = summary.is_none();
     if let Some(ref summary) = summary {
         persist_session_summary(&app, summary);
     }
-    Ok(summary)
+    let result = StopLockInResult {
+        ended: true,
+        summary,
+        already_ended,
+    };
+    // UI chrome clear (banner / timer). Natural expiry still uses `session-ended` for summary.
+    let _ = app.emit("lock-in-stopped", &result);
+    Ok(result)
 }
 
 #[derive(Serialize)]
@@ -1520,7 +1549,12 @@ async fn set_lock_in_paused(
 
 #[tauri::command]
 fn get_session(state: State<'_, AppState>) -> Option<LockInSession> {
-    state.session.lock().clone()
+    state
+        .session
+        .lock()
+        .as_ref()
+        .filter(|s| s.active)
+        .cloned()
 }
 
 #[tauri::command]
