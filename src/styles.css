@@ -926,9 +926,10 @@ body:has(.view-home.view-home--guest.active) .grain {
 
 .welcome-signin-lead {
   margin: 0;
-  font-size: 0.92rem;
-  color: #6b6288;
+  font-size: 16px;
+  font-weight: 400;
   line-height: 1.4;
+  color: #645d73;
 }
 
 /* Live 01 labeled stacks (5:63 / 5:67): 94px = 20 label + 10 gap + 64 field */
@@ -1466,12 +1467,12 @@ body:has(.view-home.view-home--guest.active) .grain {
   backdrop-filter: blur(5px);
 }
 
-/* Live 17 handoff (7:415) + denied/end: 580-wide MC chrome, gap/pad match timer-replace */
+/* Live 17 handoff (7:415) + denied/end: 580-wide MC chrome, pad 33 / gap 22 */
 .mc-perm-modal__card {
   position: relative;
   z-index: 1;
   width: min(100%, 580px);
-  padding: 32px;
+  padding: 33px;
   border-radius: 28px;
   background: #fffbff;
   border: 1px solid #c8bfd7;
