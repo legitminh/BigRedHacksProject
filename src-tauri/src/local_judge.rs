@@ -886,19 +886,19 @@ fn fallback_templates(kind: &str, distraction: &str, goals: &str, nag_n: u32) ->
             format!("Good pullback toward {g}. Ride this focus."),
             format!("You’re on {g} — keep that momentum."),
         ],
-        // Camera accountability from Presage face-lost (VIDEOINPUT) — never "tag isn't goal".
+        // Camera accountability from Presage face-lost (D1) — never "tag isn't goal", never accuse phone.
         "left_desk" => vec![
-            "Camera lost you — phone down or back to the desk.".into(),
-            "Still away from the camera — return when you’re ready.".into(),
-            "Face left the camera. Come back to the work.".into(),
+            "You've stepped away. Come back to the work when you can.".into(),
+            "Still away from the desk — return when you’re ready.".into(),
+            "Camera lost you. Come back to the work.".into(),
         ],
         "left_desk_pause" => vec![
-            "Still away — I’ll pause check-ins until you’re back.".into(),
             "I’ll stay quiet until you’re back at the desk.".into(),
+            "Still away — I’ll pause check-ins until you’re back.".into(),
         ],
         "welcome_back" => vec![
+            "Welcome back — good to see you. Let's pick the work back up.".into(),
             "Welcome back. Stay with the work.".into(),
-            "Good to see you back — let’s keep going.".into(),
         ],
         "camera_obstructed" | "camera" => vec![
             "I can’t see you clearly. Check the camera or lighting.".into(),
@@ -1219,17 +1219,20 @@ mod tests {
         let cases: &[(&str, &str)] = &[
             (
                 "left_desk",
-                "Camera lost you — phone down or back to the desk.",
+                "You've stepped away. Come back to the work when you can.",
             ),
             (
                 "left_desk",
-                "Still away from the camera — return when you're ready.",
+                "Still away from the desk — return when you're ready.",
             ),
             (
                 "left_desk_pause",
-                "Still away — I'll pause check-ins until you're back.",
+                "I'll stay quiet until you're back at the desk.",
             ),
-            ("welcome_back", "Welcome back. Stay with the work."),
+            (
+                "welcome_back",
+                "Welcome back — good to see you. Let's pick the work back up.",
+            ),
             (
                 "camera_obstructed",
                 "I can't see you clearly. Check the camera or lighting.",
