@@ -66,11 +66,10 @@ impl Default for LivePresenceConfig {
         Self {
             obstructed_brightness: 25.0,
             obstructed_speak_s: 8.0,
-            // Dhanvi PresenceInference speaks head_turned on the first committed
-            // sample (AttentionModel's 8s glance ignore is unused on the live path).
-            // Live loop already persists ~2s before emitting looking_away.
-            look_away_ignore_s: 0.0,
-            look_down_ignore_s: 5.0,
+            // Hold sustained gaze-away before TTS (glances must not scold).
+            // Live loop already persists ~2s before committing looking_away.
+            look_away_ignore_s: 8.0,
+            look_down_ignore_s: 8.0,
             away_confirm_s: 3.0,
             return_confirm_s: 2.0,
             // Demo-friendly (~10–25s band); closer to demo's 10s.
@@ -102,6 +101,7 @@ fn watching_note(state: LivePresenceState) -> String {
         }
         // Face still in frame — keep "present" so UI stays healthy.
         LivePresenceState::HeadTurned => {
+            // Instant status OK; TTS still waits for look_*_ignore_s hold.
             "Camera accountability · present · looking away".into()
         }
     }
@@ -435,8 +435,8 @@ mod tests {
 
     fn cfg_fast() -> LivePresenceConfig {
         LivePresenceConfig {
-            look_away_ignore_s: 0.0,
-            look_down_ignore_s: 5.0,
+            look_away_ignore_s: 8.0,
+            look_down_ignore_s: 8.0,
             obstructed_speak_s: 8.0,
             away_confirm_s: 3.0,
             return_confirm_s: 2.0,
@@ -449,13 +449,17 @@ mod tests {
     }
 
     #[test]
-    fn looking_away_emits_look_back_on_first_committed_sample() {
-        // Matches VIDEOINPUT PresenceInference: speak head_turned immediately
-        // (2s persistence already happened in camera_live before the sample arrives).
+    fn looking_away_emits_look_back_after_hold() {
         let mut p = LivePresenceInference::new(cfg_fast());
-        let fired = p.observe(&test_sample(0.0, true, "looking_away", 80.0), "active");
-        assert_eq!(fired.presence, LivePresenceState::HeadTurned);
-        let nudge = fired.nudge.expect("look_back on first looking_away sample");
+        let early = p.observe(&test_sample(0.0, true, "looking_away", 80.0), "active");
+        assert_eq!(early.presence, LivePresenceState::HeadTurned);
+        assert!(early.nudge.is_none(), "glance < 8s must not scold");
+
+        let mid = p.observe(&test_sample(7.0, true, "looking_away", 80.0), "active");
+        assert!(mid.nudge.is_none());
+
+        let fired = p.observe(&test_sample(8.0, true, "looking_away", 80.0), "active");
+        let nudge = fired.nudge.expect("look_back after 8s hold");
         assert_eq!(nudge.kind, "look_back");
         assert!(nudge.text.contains("looking away"));
 
@@ -506,10 +510,11 @@ mod tests {
     }
 
     #[test]
-    fn looking_down_uses_phone_hedge_text() {
+    fn looking_down_uses_phone_hedge_text_after_hold() {
         let mut p = LivePresenceInference::new(cfg_fast());
-        let _ = p.observe(&test_sample(0.0, true, "looking_down", 80.0), "active");
-        let fired = p.observe(&test_sample(5.0, true, "looking_down", 80.0), "active");
+        let early = p.observe(&test_sample(0.0, true, "looking_down", 80.0), "active");
+        assert!(early.nudge.is_none(), "brief look-down must not scold");
+        let fired = p.observe(&test_sample(8.0, true, "looking_down", 80.0), "active");
         let nudge = fired.nudge.expect("look_back");
         assert_eq!(nudge.kind, "look_back");
         assert!(nudge.text.to_lowercase().contains("phone"));

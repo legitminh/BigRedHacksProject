@@ -1376,8 +1376,11 @@ async fn start_lock_in(
     *state.session.lock() = Some(session.clone());
     companion::clear_history(&state);
 
-    // Gate webcam/observe on opt-in + readiness (never spawn when preference is off).
-    let use_camera = camera_enabled && camera_ready;
+    // Spawn the live camera loop whenever the user opted in. Do NOT gate on the
+    // short start-lock-in permission probe — ad-hoc re-sign / TCC reset makes
+    // `camera_ready` false for 2s even when Camera is allowed, which previously
+    // killed accountability entirely. The loop re-requests permission (8s) itself.
+    let use_camera = camera_enabled;
     coach::spawn_coach_loop(app, id, screen_enabled, use_camera, presage_ready);
     Ok(session)
 }

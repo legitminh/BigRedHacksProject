@@ -124,16 +124,11 @@ pub(crate) struct FaceSample {
 
 /// ~20° in radians — head turned away from the webcam.
 const YAW_AWAY_RAD: f64 = 0.35;
-/// Face box center far from horizontal middle ⇒ looking off to the side.
-const CENTER_X_AWAY: f64 = 0.22;
 
+/// Looking away requires Vision yaw. Do NOT use center_x alone — sitting
+/// off-center with a null yaw was the main false-positive source.
 fn sample_looking_away(s: &FaceSample) -> bool {
-    if s.yaw.map(|y| y.abs() >= YAW_AWAY_RAD).unwrap_or(false) {
-        return true;
-    }
-    s.center_x
-        .map(|x| (x - 0.5).abs() >= CENTER_X_AWAY)
-        .unwrap_or(false)
+    s.yaw.map(|y| y.abs() >= YAW_AWAY_RAD).unwrap_or(false)
 }
 
 fn sample_looking_down(s: &FaceSample) -> bool {
@@ -141,7 +136,7 @@ fn sample_looking_down(s: &FaceSample) -> bool {
 }
 
 /// Aggregate sampled Vision results → face_detected + attention.
-/// Priority when face present: looking_away (yaw/side) > looking_down > present.
+/// Priority when face present: looking_away (yaw) > looking_down > present.
 pub(crate) fn aggregate_face_samples(samples: &[FaceSample]) -> Option<(bool, FaceAttention)> {
     if samples.is_empty() {
         return None;
@@ -515,15 +510,16 @@ mod tests {
     }
 
     #[test]
-    fn aggregate_looking_away_by_center_x() {
+    fn center_x_alone_does_not_mark_looking_away() {
+        // Off-center box with null/small yaw must stay present (no false scold).
         let samples = [
-            face(0.6, 0.2, Some(0.0)),
+            face(0.6, 0.2, None),
             face(0.55, 0.18, None),
             face(0.65, 0.25, Some(0.1)),
         ];
         let (detected, attn) = aggregate_face_samples(&samples).unwrap();
         assert!(detected);
-        assert_eq!(attn, "looking_away");
+        assert_eq!(attn, "present");
     }
 
     #[test]
