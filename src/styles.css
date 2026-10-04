@@ -942,9 +942,9 @@ body:has(.view-home.view-home--guest.active) .grain {
 
 .welcome-field-label {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 20px;
-  color: #2a2440;
+  color: #282237;
 }
 
 .welcome-signin-card input {
@@ -1503,7 +1503,7 @@ body:has(.view-home.view-home--guest.active) .grain {
   border-radius: 999px;
   background: #e9ddfd;
   color: #6750a4;
-  font-size: 0.68rem;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1553,7 +1553,10 @@ body:has(.view-home.view-home--guest.active) .grain {
 
 .mc-perm-modal__btn--secondary {
   background: #e9ddfd;
-  color: #4a3d78;
+  color: #282237;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.4;
 }
 
 .mc-perm-modal__btn--secondary:hover {

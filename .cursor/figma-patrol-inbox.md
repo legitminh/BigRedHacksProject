@@ -4245,3 +4245,82 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     (~0.08em) / keep mint `#326c78` on `#e9ddfd`; leave Google wiring
     until form open lands Email/Password.
 - escalate: scrutinous
+
+## done: fp-permission-handoff-badge-type
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  badge `7:416` · text `7:417` ·
+  crop `_verify/tick39-handoff-modal-crop.png`
+- commit: PENDING
+- change: |
+    `.mc-perm-modal__badge` → 12px / weight 700 / tracking 0.08em /
+    `#6750a4` on `#e9ddfd`. Camera copy + pad 33 / Not now · Continue kept.
+- escalate: scrutinous
+
+## done: fp-permission-handoff-not-now-ink
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  Not now `7:421` · actions `7:420` ·
+  crop `_verify/tick39-handoff-modal-crop.png`
+- commit: PENDING
+- change: |
+    `.mc-perm-modal__btn--secondary` → Regular 16px / lh 1.4 / `#282237`
+    on `#e9ddfd` (not purple `#4a3d78`). Continue primary + dismiss wiring kept.
+- escalate: scrutinous
+
+## done: fp-welcome-field-label-weight
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` ·
+  Email label `5:64` · Password label `5:68` ·
+  crop `_verify/tick39-welcome-card-crop.png`
+- commit: PENDING
+- change: |
+    `.welcome-field-label` → font-weight 700 / 14px / lh 20 / `#282237`.
+    Google-only form shell unchanged.
+- escalate: scrutinous
+
+## open: fp-relaunch-primary-label-type
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  Relaunch `8:423` · crop `_verify/tick39-relaunch-panel-crop.png`
+- expected: |
+    Live card “Relaunch” (`8:423`, 386×52 filled `#6750a4`): M3 Label
+    Large — Medium **~14px** / weight 500 / white `#fff` centered on the
+    pill (same primary label token as welcome Sign in / Continue).
+- actual: |
+    Opens lock fill hierarchy (`fp-relaunch-cta-hierarchy`) + Take a break
+    tonal (`fp-relaunch-take-break-tonal-raised`) — not Relaunch **label
+    type**. App has no relaunch card yet.
+- deviation: |
+    Tick39 — Relaunch primary label type vs live `8:423`. Distinct from
+    cta-hierarchy / take-break-tonal / badge-type / title-medium-28;
+    under-covered `2:41`. Spot-check: left Take a break + End still on
+    flight card.
+- fix_hint: |
+    When mounting Relaunch CTA, set label ~14px / weight 500 / `#fff` on
+    filled `#6750a4` 52px pill; pair with tonal Take a break. Preserve
+    Pause/End on normal active.
+- escalate: scrutinous
+
+## open: fp-connection-lost-retry-label-type
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  Retry `6:1722` · crop `_verify/tick39-lost-panel-crop.png`
+- expected: |
+    Live “Retry connection” (`6:1722`, 386×52 tonal `#e9ddfd`): Regular
+    **16px** / lh 1.4 ink **`#282237`** — same secondary-label token as
+    handoff Not now / relaunch Take a break, not dense/semibold purple.
+- actual: |
+    Opens lock Retry tonal fill (`fp-connection-lost-retry-tonal`) +
+    Latest/suggest slot (`fp-connection-lost-latest-card`) — not Retry
+    **label type**. App has no lost Retry yet; risk: reuse suggest chip
+    type that drifts from 16/400/`#282237`.
+- deviation: |
+    Tick39 — Retry label type vs live `6:1722`. Distinct from retry-tonal /
+    latest-card / latest-type / composer-*; under-covered `2:48`.
+    Spot-check: Pause/End still on flight card; Copilot type tokens
+    (`4279978`) no regression on glance.
+- fix_hint: |
+    When mounting Retry, set label 16px / 400 / `#282237` on `#e9ddfd`
+    52px full-width; keep composer + Pause/End.
+- escalate: scrutinous
