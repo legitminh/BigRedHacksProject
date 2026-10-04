@@ -1456,6 +1456,8 @@ async function startLockInFromSuggestion(
   const mins = Math.min(180, Math.max(1, Math.round(suggestion.duration_mins)));
   const goalsText = suggestion.goals.trim();
   if (!goalsText) throw new Error("That suggestion had no mission goal.");
+  // Mission UI owns Live — never leave a Copilot socket owning the surface.
+  teardownCompanionLive();
   const session = await invoke<LockInSession>("start_lock_in", {
     goals: goalsText,
     durationMins: mins,
@@ -1656,14 +1658,20 @@ function applyGuestCloudLocks() {
       "session",
     ],
   ];
-  for (const [btn, title] of pairs) {
+  for (const [btn, title, surface] of pairs) {
     if (!btn) continue;
     btn.toggleAttribute("data-guest-locked", guestCloudLocked);
     btn.title = guestCloudLocked ? "Google account required (Guest is local-only)" : title;
-    btn.disabled = guestCloudLocked || companionBusy || chatBusy;
+    // Copilot typed-chat busy must not lock session Talk (and vice versa).
+    const otherSurfaceBusy =
+      surface === "session" ? chatBusy && liveSurface !== "session" : false;
+    btn.disabled = guestCloudLocked || companionBusy || otherSurfaceBusy;
   }
   const sessionSend = $("#session-chat-send") as HTMLButtonElement | null;
-  if (sessionSend) sessionSend.disabled = guestCloudLocked || companionBusy || chatBusy;
+  if (sessionSend) {
+    sessionSend.disabled =
+      guestCloudLocked || companionBusy || (chatBusy && liveSurface !== "session");
+  }
   const sessionInput = $("#session-chat-input") as HTMLTextAreaElement | null;
   if (sessionInput) {
     sessionInput.disabled = guestCloudLocked;
@@ -1751,9 +1759,17 @@ function setChatControlsBusy(busy: boolean) {
         return;
       }
       // Mic stays disabled for the whole companion start/stop; afterwards keep Talk/Live
-      // available so the user can end an active Live session.
+      // available so the user can end an active Live session. Copilot chatBusy must not
+      // disable session Talk.
       if (isMic) {
-        button.disabled = companionBusy || (busy && !companionLive?.active);
+        const sessionMic = button.id === "session-chat-mic";
+        const blockForChatBusy =
+          busy && !companionLive?.active && !(sessionMic && liveSurface !== "copilot");
+        button.disabled = companionBusy || blockForChatBusy;
+        return;
+      }
+      if (button.id === "session-chat-send" && liveSurface === "session") {
+        button.disabled = companionBusy;
         return;
       }
       button.disabled = busy;
@@ -1991,48 +2007,48 @@ function setCopilotListeningPlaceholder(listening: boolean) {
     : COPILOT_IDLE_PLACEHOLDER;
 }
 
-function applyStopSpeechUi(
-  btn: HTMLButtonElement | null,
-  phase: CompanionPhase,
-  liveActiveOnSurface: boolean,
-) {
+function applyStopSpeechUi(btn: HTMLButtonElement | null, show: boolean) {
   if (!btn) return;
-  const show =
-    liveActiveOnSurface && (phase === "speaking" || phase === "thinking");
   btn.hidden = !show;
   btn.disabled = !show;
   btn.setAttribute("aria-hidden", show ? "false" : "true");
 }
 
 function setCompanionPhaseUi(phase: CompanionPhase) {
+  const winding = Boolean(companionLive?.windingDown);
   const label = $("#session-companion-phase");
   if (label) {
+    const copy =
+      winding && (phase === "speaking" || phase === "thinking")
+        ? "Finishing reply — Stop to cut off"
+        : (COMPANION_PHASE_COPY[phase] ?? phase);
     label.textContent =
-      liveSurface === "session" || phase === "idle"
-        ? (COMPANION_PHASE_COPY[phase] ?? phase)
-        : COMPANION_PHASE_COPY.idle;
+      liveSurface === "session" || phase === "idle" ? copy : COMPANION_PHASE_COPY.idle;
   }
   const sessionPhase =
     liveSurface === "session" || phase === "idle" ? phase : "idle";
   const copilotPhase =
     liveSurface === "copilot" || phase === "idle" ? phase : "idle";
+  // Mic-off while finishing speech: show Talk/Mic as off, keep Stop available.
+  const sessionMicPhase = winding && liveSurface === "session" ? "idle" : sessionPhase;
+  const copilotMicPhase = winding && liveSurface === "copilot" ? "idle" : copilotPhase;
   applyMicLiveUi(
     $("#session-chat-mic") as HTMLButtonElement | null,
-    sessionPhase,
+    sessionMicPhase,
     "Talk",
   );
-  applyMicLiveUi($("#chat-mic") as HTMLButtonElement | null, copilotPhase, "Mic", {
+  applyMicLiveUi($("#chat-mic") as HTMLButtonElement | null, copilotMicPhase, "Mic", {
     stickyLabel: true,
   });
+  const stopVisible =
+    phase === "speaking" || phase === "thinking" || winding;
   applyStopSpeechUi(
     $("#chat-stop-speech") as HTMLButtonElement | null,
-    copilotPhase,
-    liveSurface === "copilot" && phase !== "idle",
+    liveSurface === "copilot" && stopVisible,
   );
   applyStopSpeechUi(
     $("#session-chat-stop-speech") as HTMLButtonElement | null,
-    sessionPhase,
-    liveSurface === "session" && phase !== "idle",
+    liveSurface === "session" && stopVisible,
   );
   setCopilotListeningPlaceholder(
     liveSurface === "copilot" &&
@@ -2158,7 +2174,8 @@ function upsertCopilotLiveBubble(role: "user" | "assistant", text: string, isFin
   if (isFinal && role === "assistant") hasChatReply = true;
 }
 
-async function collectCompanionContext(): Promise<CompanionContext> {
+/** Timer/goals only — safe to await before opening Live (no network). */
+function collectCompanionContextFast(): CompanionContext {
   const goals = ($("#session-goals")?.textContent ?? "").trim();
   const timer = $("#session-timer")?.textContent ?? "00:00";
   const [mm, ss] = timer.split(":").map((p) => Number(p));
@@ -2168,7 +2185,7 @@ async function collectCompanionContext(): Promise<CompanionContext> {
     ($("#session-pause") as HTMLButtonElement | null)?.getAttribute("aria-pressed") ===
     "true";
   const inSession = Boolean($("#view-session")?.classList.contains("active"));
-  const context: CompanionContext = {
+  return {
     goals: goals || undefined,
     notes: inSession ? undefined : "Copilot tab live voice (no lock-in session).",
     remaining_mins: inSession ? remainingMins : undefined,
@@ -2178,6 +2195,11 @@ async function collectCompanionContext(): Promise<CompanionContext> {
         : undefined,
     paused: inSession ? paused : false,
   };
+}
+
+async function attachGoogleCompanionContext(
+  context: CompanionContext,
+): Promise<CompanionContext> {
   // Live voice used to omit Google data — same calendar window, Drive inventory,
   // and recent-file excerpts that typed Copilot gets.
   try {
@@ -2212,6 +2234,10 @@ async function collectCompanionContext(): Promise<CompanionContext> {
   return context;
 }
 
+async function collectCompanionContext(): Promise<CompanionContext> {
+  return attachGoogleCompanionContext(collectCompanionContextFast());
+}
+
 function teardownCompanionLive() {
   if (companionLive) {
     companionLive.end(true);
@@ -2228,7 +2254,24 @@ async function ensureCompanionLive(surface: LiveSurface): Promise<CompanionLiveS
   if (companionLive?.active) teardownCompanionLive();
   liveSurface = surface;
   companionLive = new CompanionLiveSession({
-    onPhase: (phase) => setCompanionPhaseUi(phase),
+    onPhase: (phase) => {
+      setCompanionPhaseUi(phase);
+      // Graceful mic-off ends the session after speech drains — clear ownership here.
+      if (phase === "idle" && companionLive && !companionLive.active) {
+        const endedSurface = liveSurface;
+        companionLive = null;
+        liveSurface = null;
+        setCompanionPhaseUi("idle");
+        if (endedSurface) {
+          setComposerMicHint(
+            endedSurface === "copilot"
+              ? COPILOT_IDLE_HINT
+              : "Live voice ended. Tap Talk to start again, or type a turn.",
+            endedSurface === "copilot" ? "chat" : "session",
+          );
+        }
+      }
+    },
     onUser: (text, isFinal) => {
       if (liveSurface === "copilot") {
         if (isFinal) lastLiveCopilotUserFinal = text.trim();
@@ -2287,12 +2330,19 @@ async function ensureCompanionLive(surface: LiveSurface): Promise<CompanionLiveS
       );
     },
     onError: (message) => {
-      setComposerMicHint(message, liveSurface === "copilot" ? "chat" : "session");
-      liveSurface = null;
-      setCompanionPhaseUi("idle");
+      const target = liveSurface === "copilot" ? "chat" : "session";
+      setComposerMicHint(message, target);
+      // Mic-only failures keep Live open for typing — only clear UI ownership when
+      // the session actually ended (phase idle / socket closed via end()).
+      if (!companionLive?.active) {
+        liveSurface = null;
+        setCompanionPhaseUi("idle");
+      }
     },
   });
-  await companionLive.start(await collectCompanionContext());
+  // Open Live immediately with timer/goals; Google context is enrichment only.
+  // (Awaiting Drive inventory before connect made session Talk feel dead.)
+  await companionLive.start(collectCompanionContextFast());
   return companionLive;
 }
 
@@ -2302,17 +2352,48 @@ async function toggleCompanionLive(surface: LiveSurface): Promise<void> {
     setComposerMicHint(GUEST_LIVE_HINT, hintTarget);
     return;
   }
-  if (chatBusy || companionBusy) return;
+  // Session Talk must stay usable while Copilot typed chat is busy.
+  if (surface === "copilot" && chatBusy) return;
+  if (companionBusy) return;
   // Hold the mutex for the whole start *or* stop so rapid clicks cannot interleave.
   companionBusy = true;
   setChatControlsBusy(chatBusy);
   try {
     if (companionLive?.active && liveSurface === surface) {
-      teardownCompanionLive();
+      // Second click while already winding down → hard end.
+      if (companionLive.windingDown) {
+        teardownCompanionLive();
+        setComposerMicHint(
+          surface === "copilot"
+            ? COPILOT_IDLE_HINT
+            : "Live voice ended. Tap Talk to start again, or type a turn.",
+          hintTarget,
+        );
+        return;
+      }
+      // Mic/Talk off: stop listening, but finish the current spoken reply.
+      const live = companionLive;
+      live.releaseMic({ finishSpeech: true });
+      if (!live.active) {
+        // Ended immediately (nothing to finish). onPhase may already have cleared the ref.
+        if (companionLive === live) {
+          companionLive = null;
+          liveSurface = null;
+        }
+        setCompanionPhaseUi("idle");
+        setComposerMicHint(
+          surface === "copilot"
+            ? COPILOT_IDLE_HINT
+            : "Live voice ended. Tap Talk to start again, or type a turn.",
+          hintTarget,
+        );
+        return;
+      }
+      setCompanionPhaseUi(live.currentPhase);
       setComposerMicHint(
         surface === "copilot"
-          ? COPILOT_IDLE_HINT
-          : "Live voice ended. Tap Talk to start again, or type a turn.",
+          ? "Mic off — finishing reply. Press Stop to cut off."
+          : "Talk off — finishing reply. Press Stop to cut off.",
         hintTarget,
       );
       return;
@@ -2321,7 +2402,7 @@ async function toggleCompanionLive(surface: LiveSurface): Promise<void> {
     setComposerMicHint(
       surface === "copilot"
         ? "Live voice open — speak or type. Click the microphone to end."
-        : "Live voice open — talk freely or type a line. Tap Live to end.",
+        : "Live voice open — talk freely or type a line. Tap Talk to end.",
       hintTarget,
     );
     void renderPermissionsStatus();
@@ -2345,8 +2426,8 @@ async function sendSessionChat() {
   const message = input.value.trim();
   input.value = "";
 
-  // Prefer Live socket when already open (demo-style typed turn).
-  if (companionLive?.active) {
+  // Prefer Live socket only when session owns it (never ride leftover Copilot Live).
+  if (companionLive?.active && liveSurface === "session") {
     companionLive.sendText(message);
     return;
   }
@@ -3126,6 +3207,8 @@ async function toggleSessionMute() {
   try {
     const settings = await invoke<UserSettings>("get_settings");
     const next = !settings.silent_mode;
+    // Audio off only mutes *future* coach heads-ups — never cut an in-flight
+    // companion reply (use Stop for that). Live Web Audio is unchanged.
     await invoke("save_settings", { settings: { silent_mode: next } });
     syncSilentModeInputs(next);
     await syncSessionMuteButton();
@@ -3745,6 +3828,8 @@ async function bootApp() {
     const missionGoals = goals;
     setMissionLaunchButton(true);
     try {
+      // Mission UI owns Live — drop any Copilot socket before launch.
+      teardownCompanionLive();
       const session = await invoke<LockInSession>("start_lock_in", {
         goals: missionGoals,
         durationMins: duration,
@@ -4020,12 +4105,17 @@ async function bootApp() {
     const out = $("#invoke-voice-result");
     const btn = $("#invoke-voice-speak") as HTMLButtonElement | null;
     if (btn) btn.disabled = true;
-    if (out) out.textContent = "Speaking…";
+    if (out) out.textContent = "Speaking with Grok voice…";
     try {
-      await invoke("voice_speak", {
+      const engine = await invoke<string>("voice_speak", {
         text: "Waypoint voice test. Spoken coaching is ready.",
       });
-      if (out) out.textContent = "Speak OK — you should have heard a short test phrase.";
+      if (out) {
+        out.textContent =
+          engine === "grok"
+            ? "Speak OK — Grok voice played a short test phrase."
+            : "Speak OK — used local system voice (Grok TTS unavailable; sign in / check API).";
+      }
     } catch (err) {
       if (out) out.textContent = `Speak failed: ${String(err)}`;
     } finally {

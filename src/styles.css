@@ -4014,12 +4014,16 @@ body:has(.view-mission-setup.active) .grain {
   padding: 1.35rem 1.35rem 1.25rem;
 }
 
+/* Keep Talk / session chat usable during quick check-ins (overlay still toasts). */
 #view-session.is-session-checkin .session-copilot-chat {
-  display: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 #view-session.is-session-checkin .session-checkin-card {
   display: flex;
+  margin-bottom: 0.75rem;
 }
 
 /* Break wins if both classes briefly overlap (Take a break from check-in). */

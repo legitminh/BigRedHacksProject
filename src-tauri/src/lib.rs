@@ -1332,11 +1332,41 @@ fn save_settings(state: State<'_, AppState>, settings: UserSettings) -> Result<(
     Ok(())
 }
 
-/// Speak arbitrary text with the local TTS stand-in (macOS `say`).
-/// Waits until speech finishes so Settings “Test speak” can show a real success state.
+/// Speak via Grok/xAI TTS (same proxy as study heads-ups). Falls back to macOS `say`.
+/// Waits until playback finishes so Settings “Test speak” can show a real success state.
 #[tauri::command]
-fn voice_speak(text: String) -> Result<(), String> {
-    waypoint_voice::speak_wait(&text).map_err(|e| e.to_string())
+async fn voice_speak(state: State<'_, AppState>, text: String) -> Result<String, String> {
+    let snippet: String = text.trim().chars().take(160).collect();
+    if snippet.is_empty() {
+        return Ok("ok".into());
+    }
+    let cfg = state.config.lock().clone();
+    match api::fetch_test_speak_tts(&cfg, &snippet).await {
+        Ok(audio) => {
+            let bytes = audio.bytes;
+            let ext = audio.extension;
+            let play = tokio::task::spawn_blocking(move || {
+                waypoint_voice::play_audio_bytes_wait(&bytes, &ext)
+            })
+            .await
+            .map_err(|e| format!("Grok voice playback task failed: {e}"))?;
+            match play {
+                Ok(()) => return Ok("grok".into()),
+                Err(e) => {
+                    tracing::warn!("Grok TTS playback failed, falling back to local say: {e}");
+                }
+            }
+        }
+        Err(e) => {
+            tracing::debug!("Grok TTS unavailable for test speak ({e}); using local say");
+        }
+    }
+    let local = snippet.clone();
+    tokio::task::spawn_blocking(move || waypoint_voice::speak_wait(&local))
+        .await
+        .map_err(|e| format!("Local voice task failed: {e}"))?
+        .map_err(|e| e.to_string())?;
+    Ok("local".into())
 }
 
 /// Record a short mic clip and transcribe with macOS Speech (on-device when available).

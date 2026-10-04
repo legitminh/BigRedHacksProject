@@ -179,6 +179,12 @@ export class CompanionLiveSession {
   private muteUntil = 0;
   /** After Stop, ignore downlink until server clear_audio advances epoch. */
   private ignoreDownlinkUntilClear = false;
+  /**
+   * Mic released; keep the socket/playback open so the current reply can finish.
+   * Cleared by Stop (hard cut) or when speech drains.
+   */
+  private pendingEnd = false;
+  private endPollTimer: number | null = null;
   private debug = false;
 
   private handlers: CompanionLiveHandlers;
@@ -191,6 +197,11 @@ export class CompanionLiveSession {
     return this.phase !== "idle";
   }
 
+  /** Mic is off but companion may still be finishing the current utterance. */
+  get windingDown(): boolean {
+    return this.pendingEnd;
+  }
+
   get currentPhase(): CompanionPhase {
     return this.phase;
   }
@@ -198,6 +209,7 @@ export class CompanionLiveSession {
   private setPhase(next: CompanionPhase) {
     this.phase = next;
     this.handlers.onPhase?.(next);
+    this.maybeFinishPendingEnd();
   }
 
   private sendJson(payload: Record<string, unknown>) {
@@ -356,6 +368,7 @@ export class CompanionLiveSession {
         if (!this.speaking && this.queuedSamples === 0) {
           this.primed = false;
           this.muteUntil = performance.now() + POST_PLAYBACK_MUTE_MS;
+          this.maybeFinishPendingEnd();
         }
       }
     };
@@ -467,6 +480,7 @@ export class CompanionLiveSession {
         if (this.queuedSamples === 0 && this.pendingSamples === 0) {
           this.muteUntil = performance.now() + POST_PLAYBACK_MUTE_MS;
         }
+        this.maybeFinishPendingEnd();
       }
       return;
     }
@@ -556,6 +570,7 @@ export class CompanionLiveSession {
       if (micError) throw micError;
       await this.startMic();
     } catch (err) {
+      // Keep Live open for typed turns — do not tear down or desync phase/UI.
       this.handlers.onError?.(
         `Microphone unavailable (${err instanceof Error ? err.message : String(err)}). You can still type.`,
       );
@@ -568,8 +583,58 @@ export class CompanionLiveSession {
     this.sendJson({ type: "text", text: trimmed });
   }
 
+  private clearEndPoll() {
+    if (this.endPollTimer == null) return;
+    window.clearInterval(this.endPollTimer);
+    this.endPollTimer = null;
+  }
+
+  private armEndPoll() {
+    this.clearEndPoll();
+    this.endPollTimer = window.setInterval(() => this.maybeFinishPendingEnd(), 200);
+  }
+
+  private maybeFinishPendingEnd() {
+    if (!this.pendingEnd || this.phase === "idle") return;
+    // Let an in-flight reply finish generating + speaking.
+    if (this.phase === "thinking" || this.phase === "speaking") return;
+    if (this.playbackBusy) return;
+    this.pendingEnd = false;
+    this.clearEndPoll();
+    this.end(true);
+  }
+
   /**
-   * Stop assistant TTS only — keeps Live WS + mic open.
+   * Mic off: stop listening, but let the current companion reply finish talking.
+   * Press Stop to cut speech immediately and fully end Live.
+   */
+  releaseMic(opts?: { finishSpeech?: boolean }) {
+    if (!this.active) return;
+    const finishSpeech = opts?.finishSpeech !== false;
+    this.stopMic();
+    if (!finishSpeech) {
+      this.pendingEnd = false;
+      this.clearEndPoll();
+      this.end(true);
+      return;
+    }
+    if (
+      (this.phase === "listening" || this.phase === "connecting") &&
+      !this.playbackBusy
+    ) {
+      this.pendingEnd = false;
+      this.clearEndPoll();
+      this.end(true);
+      return;
+    }
+    this.pendingEnd = true;
+    this.armEndPoll();
+    this.handlers.onPhase?.(this.phase);
+    this.maybeFinishPendingEnd();
+  }
+
+  /**
+   * Stop assistant TTS only — keeps Live WS + mic open (unless winding down after mic-off).
    * Server clears Grok queue; we also clear local playback immediately.
    */
   stopSpeech() {
@@ -578,12 +643,21 @@ export class CompanionLiveSession {
     this.ignoreDownlinkUntilClear = true;
     this.stopPlayback();
     void invoke("voice_stop").catch(() => {});
+    // Mic-off already released capture — Stop means “end now”, not resume listening.
+    if (this.pendingEnd) {
+      this.pendingEnd = false;
+      this.clearEndPoll();
+      this.end(true);
+      return;
+    }
     if (this.phase === "speaking" || this.phase === "thinking") {
       this.setPhase("listening");
     }
   }
 
   end(notify = true) {
+    this.pendingEnd = false;
+    this.clearEndPoll();
     if (notify) this.sendJson({ type: "stop" });
     this.ignoreDownlinkUntilClear = false;
     this.stopMic();

@@ -11,6 +11,8 @@ use crate::config::AppConfig;
 
 /// Soft budget for study heads-up TTS — overlay already shown; local `say` is the fallback.
 const HEADS_UP_TTS_TIMEOUT: Duration = Duration::from_millis(3_800);
+/// Settings “Test speak” can wait longer for a cold Grok/xAI synthesis.
+const TEST_SPEAK_TTS_TIMEOUT: Duration = Duration::from_secs(15);
 
 fn http() -> Client {
     Client::builder()
@@ -19,11 +21,11 @@ fn http() -> Client {
         .expect("HTTP client")
 }
 
-fn http_heads_up_tts() -> Client {
+fn http_tts(timeout: Duration) -> Client {
     Client::builder()
-        .timeout(HEADS_UP_TTS_TIMEOUT)
+        .timeout(timeout)
         .build()
-        .expect("heads-up TTS HTTP client")
+        .expect("TTS HTTP client")
 }
 
 #[derive(Debug)]
@@ -35,15 +37,28 @@ pub struct HeadsUpAudio {
 /// Fetch Grok/xAI TTS audio for a study heads-up via the API proxy (`POST /v1/voice/tts`).
 /// Auth: signed-in JWT preferred, else baked `coach_api_token`.
 pub async fn fetch_heads_up_tts(cfg: &AppConfig, text: &str) -> Result<HeadsUpAudio, String> {
+    fetch_grok_tts(cfg, text, HEADS_UP_TTS_TIMEOUT).await
+}
+
+/// Same Grok proxy as heads-ups, with a longer timeout for Settings “Test speak”.
+pub async fn fetch_test_speak_tts(cfg: &AppConfig, text: &str) -> Result<HeadsUpAudio, String> {
+    fetch_grok_tts(cfg, text, TEST_SPEAK_TTS_TIMEOUT).await
+}
+
+async fn fetch_grok_tts(
+    cfg: &AppConfig,
+    text: &str,
+    timeout: Duration,
+) -> Result<HeadsUpAudio, String> {
     let snippet: String = text.trim().chars().take(160).collect();
     if snippet.is_empty() {
         return Err("empty heads-up text".into());
     }
     let auth = cfg
         .coach_auth_header()
-        .ok_or_else(|| "Sign in or set coach_api_token for heads-up voice.".to_string())?;
+        .ok_or_else(|| "Sign in with Google to use Grok voice.".to_string())?;
     let url = format!("{}/v1/voice/tts", cfg.api_base().trim_end_matches('/'));
-    let res = http_heads_up_tts()
+    let res = http_tts(timeout)
         .post(url)
         .header(auth.0, auth.1)
         .json(&json!({ "text": snippet, "language": "en" }))

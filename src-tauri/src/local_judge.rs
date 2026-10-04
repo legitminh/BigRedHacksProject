@@ -185,10 +185,11 @@ pub async fn judge_on_task(
     }
     let local = LocalJudgeConfig::from_app(cfg);
     let excerpt: String = page_text.chars().take(1200).collect();
+    let goal_hint = goals_snippet(goals, 48);
     let prompt = format!(
         r#"You are a strict study lock-in classifier. Decide if the student is ON TASK for their goals.
 Reply with ONLY compact JSON, no markdown:
-{{"on_task":true|false,"confidence":0.0-1.0,"distraction":null|"youtube","coach_line":"Close Discord and finish your ENGL discussion post."}}
+{{"on_task":true|false,"confidence":0.0-1.0,"distraction":null|"youtube","coach_line":"Close Discord and get back to {goal_hint}."}}
 
 Rules:
 - Decide from title, url, and page_text — NOT from the kind label alone, and NOT from tab-group names like "School".
@@ -197,7 +198,8 @@ Rules:
 - Discord is CONTEXTUAL: study/homework help matching goals → may be true; meme/gaming spam → false, distraction="discord".
 - Instagram, shopping, email, texting-class → ALWAYS on_task=false (never study).
 - If unsure, confidence < 0.5 and lean on_task=false for entertainment content.
-- coach_line MUST be a specific nudge naming the distraction AND the mission goal (course/assignment). Never output meta text like "one short sentence" or "short nudge".
+- coach_line MUST name the distraction AND reuse words from the goals field only — never invent other courses, assignments, or discussion posts that are not in goals.
+- Never output meta text like "one short sentence" or "short nudge".
 
 goals: {goals}
 kind: {kind}
@@ -256,7 +258,7 @@ page_text: {excerpt}"#
     };
     let coach_line = judged
         .coach_line
-        .filter(|s| !is_placeholder_coach_line(s))
+        .filter(|s| !is_placeholder_coach_line(s) && !coach_line_off_mission(s, goals))
         .unwrap_or_else(|| {
             if on_task {
                 format!(
@@ -399,10 +401,84 @@ pub fn is_placeholder_coach_line(text: &str) -> bool {
     false
 }
 
-/// Replace placeholder/meta coach text with a concrete mission-aware fallback.
+/// Pull `DEPT` / `DEPT 1230` style tokens from text (ASCII uppercase scan).
+fn course_like_tokens(text: &str) -> Vec<String> {
+    let up = text.to_uppercase();
+    let bytes = up.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i].is_ascii_alphabetic() {
+            let start = i;
+            while i < bytes.len() && bytes[i].is_ascii_alphabetic() {
+                i += 1;
+            }
+            let letters = &up[start..i];
+            // Skip spaces/dashes between dept and number.
+            let mut j = i;
+            while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'-') {
+                j += 1;
+            }
+            let num_start = j;
+            while j < bytes.len() && bytes[j].is_ascii_digit() {
+                j += 1;
+            }
+            // Optional trailing letter (CS 1110A).
+            if j < bytes.len() && j > num_start && bytes[j].is_ascii_alphabetic() {
+                j += 1;
+            }
+            let has_num = j > num_start;
+            if has_num && (2..=6).contains(&letters.len()) {
+                out.push(format!("{letters} {}", &up[num_start..j]));
+                i = j;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out
+}
+
+/// Course codes mentioned in a nudge but absent from the active mission goals.
+fn foreign_course_tokens(text: &str, goals: &str) -> bool {
+    let goals_up = goals.to_uppercase();
+    for token in course_like_tokens(text) {
+        let compact = token.replace(' ', "");
+        if goals_up.contains(&token) || goals_up.contains(&compact) {
+            continue;
+        }
+        return true;
+    }
+    false
+}
+
+/// True when a model nudge drifts off the active mission (e.g. ENGL while goals say coding).
+fn coach_line_off_mission(text: &str, goals: &str) -> bool {
+    let goals = goals.trim();
+    if goals.is_empty() || text.trim().is_empty() {
+        return false;
+    }
+    if foreign_course_tokens(text, goals) {
+        return true;
+    }
+    // Significant goal tokens (≥4 letters/digits) — require at least one overlap so
+    // "finish your ENGL discussion" can't survive a coding mission.
+    let goal_tokens: Vec<String> = normalize_line(goals)
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter(|t| t.len() >= 4)
+        .map(|t| t.to_string())
+        .collect();
+    if goal_tokens.is_empty() {
+        return false;
+    }
+    let line = normalize_line(text);
+    !goal_tokens.iter().any(|t| line.contains(t.as_str()))
+}
+
+/// Replace placeholder/meta/off-mission coach text with a concrete mission-aware fallback.
 pub fn sanitize_coach_line(text: &str, kind: &str, distraction: &str, goals: &str) -> String {
     let trimmed = text.trim();
-    if !is_placeholder_coach_line(trimmed) {
+    if !is_placeholder_coach_line(trimmed) && !coach_line_off_mission(trimmed, goals) {
         return trimmed.to_string();
     }
     pick_fallback(
@@ -599,7 +675,10 @@ mission goals: {goals_short}"#
         .unwrap_or("")
         .trim();
     let line: String = line.chars().take(160).collect();
-    let chosen = if is_placeholder_coach_line(&line) || too_similar(&line, &recent) {
+    let chosen = if is_placeholder_coach_line(&line)
+        || coach_line_off_mission(&line, goals)
+        || too_similar(&line, &recent)
+    {
         fallback
     } else {
         line
@@ -620,7 +699,7 @@ pub async fn freshen_coach_line(
 ) -> String {
     let recent = recent_lines_snapshot();
     let existing = existing.trim();
-    if !is_placeholder_coach_line(existing) {
+    if !is_placeholder_coach_line(existing) && !coach_line_off_mission(existing, goals) {
         // Keep a line we just composed (it's already the newest recent entry).
         if recent
             .last()
@@ -670,6 +749,32 @@ mod tests {
         );
         assert!(!is_placeholder_coach_line(&sanitized));
         assert!(sanitized.to_lowercase().contains("instagram"));
+    }
+
+    #[test]
+    fn rejects_off_mission_engl_when_goals_are_coding() {
+        let sanitized = sanitize_coach_line(
+            "Close Discord and finish your ENGL discussion post.",
+            "distracted",
+            "discord",
+            "work on coding please!",
+        );
+        assert!(
+            !sanitized.to_uppercase().contains("ENGL"),
+            "off-mission ENGL leaked: {sanitized}"
+        );
+        assert!(
+            sanitize_coach_line(
+                sanitized.as_str(),
+                "distracted",
+                "discord",
+                "work on coding please!",
+            )
+            .to_lowercase()
+            .contains("coding")
+                || sanitized.to_lowercase().contains("coding"),
+            "expected coding mission in nudge: {sanitized}"
+        );
     }
 
     #[test]
