@@ -61,8 +61,9 @@ pub fn grab_jpeg() -> Result<Vec<u8>, String> {
     Ok(jpeg)
 }
 
-/// Record a continuous webcam clip for Presage.
+/// Record a short webcam clip for server-side camera observe (presence / stress).
 /// Grabs as fast as the camera/JPEG path allows, then encodes at the measured fps.
+/// Duration is clamped so uploads stay under the ~8MB observe limit.
 pub fn record_presage_clip(
     dir: &Path,
     duration_secs: u64,
@@ -71,6 +72,7 @@ pub fn record_presage_clip(
     if !nokhwa::nokhwa_check() {
         return Err("Camera permission is unavailable.".into());
     }
+    // 12s ≈ enough frames for presence; 30s upper bound avoids oversized uploads.
     let duration_secs = duration_secs.clamp(12, 30);
     let frames_dir = dir.join("presage-frames");
     let _ = std::fs::remove_dir_all(&frames_dir);

@@ -249,6 +249,7 @@
                   <p class="copilot-empty-copy">
                     Tell me what feels tricky, and we’ll find one manageable place to start.
                   </p>
+                  <p id="chat-empty-digest" class="composer-hint copilot-empty-digest" hidden></p>
                 </div>
               </div>
             </div>
@@ -285,6 +286,17 @@
                     title="Start / end live voice with Copilot"
                   >
                     Mic
+                  </button>
+                  <button
+                    id="chat-stop-speech"
+                    type="button"
+                    class="copilot-stop-speech"
+                    aria-label="Stop companion speech"
+                    title="Stop companion speech"
+                    hidden
+                    disabled
+                  >
+                    Stop
                   </button>
                   <button id="chat-send" type="submit" class="primary copilot-send" aria-label="Send message">
                     <span aria-hidden="true">↑</span>
@@ -423,6 +435,13 @@
                 </p>
                 <p class="session-mission-id">MISSION 001</p>
               </div>
+              <p
+                id="session-watch-note"
+                class="session-watch-note"
+                hidden
+                aria-hidden="true"
+                aria-live="polite"
+              ></p>
               <p id="session-status" class="visually-hidden" aria-live="polite">watching</p>
               <div
                 id="session-orbit"
@@ -622,7 +641,7 @@
                     id="session-checkin-break"
                     class="session-checkin-btn session-checkin-btn--secondary"
                   >
-                    Take a break
+                    Take a 5-minute break
                   </button>
                 </div>
                 <p class="session-checkin-footer">
@@ -653,8 +672,9 @@
                     type="button"
                     id="session-copilot-suggest"
                     class="session-copilot-suggest"
+                    aria-label="Start a five-minute break"
                   >
-                    Set a five-minute timer
+                    Take a 5-minute break
                   </button>
                   <form id="session-chat-form" class="chat-form copilot-form">
                     <div class="copilot-input-wrap">
@@ -674,6 +694,17 @@
                         title="Start / end live voice with companion"
                       >
                         Talk
+                      </button>
+                      <button
+                        id="session-chat-stop-speech"
+                        type="button"
+                        class="copilot-stop-speech"
+                        aria-label="Stop companion speech"
+                        title="Stop companion speech"
+                        hidden
+                        disabled
+                      >
+                        Stop
                       </button>
                       <button id="session-chat-send" type="submit" class="primary copilot-send" aria-label="Send message">
                         <span aria-hidden="true">↑</span>
@@ -697,7 +728,6 @@
           aria-label="Coach messages"
           aria-live="polite"
         ></div>
-        <p id="session-watch-note" class="session-watch-note visually-hidden"></p>
         <div id="session-vitals" class="vitals-panel visually-hidden" hidden aria-hidden="true">
           <p class="vitals-label">Camera accountability</p>
           <p id="vitals-line">Running quietly in the background.</p>
@@ -980,6 +1010,11 @@
                       says it can’t see your files, or after you revoke Google access.
                     </p>
                     <div id="account-google-actions" class="cta-row"></div>
+                  </div>
+                  <div class="account-block" id="account-school-digest-block" hidden>
+                    <p class="account-label">School digest</p>
+                    <p id="account-school-digest-status" class="settings-copy tight">—</p>
+                    <div id="account-school-digest-actions" class="cta-row"></div>
                   </div>
                 </article>
                 <article class="mc-settings-card">

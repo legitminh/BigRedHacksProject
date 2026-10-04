@@ -395,6 +395,8 @@ pub async fn suggest_break_timer(
         }
     }
 
+    // Clear coach overlay / check-in chrome so Accept/Not now is not CSS-hidden.
+    overlay::hide(&app);
     let _ = app.emit("break-timer-suggested", &payload);
     Ok(payload)
 }

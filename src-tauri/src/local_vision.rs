@@ -144,8 +144,9 @@ pub async fn judge_frame(
     let hint: String = ocr_hint.chars().take(800).collect();
     let prompt = format!(
         r#"You are a study lock-in classifier. Look at the screenshot (and OCR hint).
-Reply ONLY JSON: {{"on_task":true|false,"confidence":0.0-1.0,"distraction":null|"youtube"|"instagram"|"shopping"|"email"|"discord"|"other","coach_line":"short"}}
+Reply ONLY JSON: {{"on_task":true|false,"confidence":0.0-1.0,"distraction":null|"youtube"|"instagram"|"shopping"|"email"|"discord"|"other","coach_line":"Close Instagram and finish your BIOMG quiz."}}
 Rules: on_task only if the visible content advances the goals. YouTube entertainment/music/gaming = false. Lectures matching goals = true.
+coach_line must be a specific nudge naming the distraction and the mission goal — never meta text like "short" or "one short sentence".
 goals: {goals}
 ocr_hint: {hint}"#
     );
@@ -200,16 +201,20 @@ ocr_hint: {hint}"#
     let on_task = parsed["on_task"].as_bool().unwrap_or(false);
     let confidence = parsed["confidence"].as_f64().unwrap_or(0.6) as f32;
     let distraction = parsed["distraction"].as_str().map(|s| s.to_string());
-    let coach_line = parsed["coach_line"]
-        .as_str()
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| {
-            if on_task {
-                "Screen looks on-task.".into()
-            } else {
-                "Screen looks off-task — get back to your lock-in.".into()
-            }
-        });
+    let raw_line = parsed["coach_line"].as_str().unwrap_or("").trim();
+    let coach_line = if crate::local_judge::is_placeholder_coach_line(raw_line) {
+        if on_task {
+            format!(
+                "Screen looks on track for {} — keep going.",
+                goals.chars().take(48).collect::<String>()
+            )
+        } else {
+            let d = distraction.as_deref().unwrap_or("that tab");
+            format!("That’s {d} — get back to your lock-in goal.")
+        }
+    } else {
+        raw_line.to_string()
+    };
     let conf = confidence.clamp(0.0, 1.0);
     if conf < MIN_VLM_CONFIDENCE {
         return Err(format!("local VLM low confidence ({conf:.2})"));

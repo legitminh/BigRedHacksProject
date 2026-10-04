@@ -22,6 +22,13 @@ pub struct CompanionContext {
     pub remaining_mins: Option<f64>,
     pub next_step_secs: Option<f64>,
     pub paused: Option<bool>,
+    /// Google context the frontend collected — forwarded so typed companion turns
+    /// see the same calendar window and Drive listing as Live voice.
+    pub calendar_summary: Option<String>,
+    pub drive_summary: Option<String>,
+    pub drive_inventory: Option<String>,
+    pub school_digest: Option<String>,
+    pub school_digest_date: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,6 +114,11 @@ pub async fn companion_send(
             "remaining_mins": ctx.remaining_mins,
             "next_step_secs": ctx.next_step_secs,
             "paused": ctx.paused,
+            "calendar_summary": ctx.calendar_summary,
+            "drive_summary": ctx.drive_summary,
+            "drive_inventory": ctx.drive_inventory,
+            "school_digest": ctx.school_digest,
+            "school_digest_date": ctx.school_digest_date,
         },
     });
 

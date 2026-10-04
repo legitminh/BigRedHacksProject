@@ -567,11 +567,13 @@ function show(view: ViewId) {
     renderHome(lastHomeStatus);
   }
   if (view === "view-chat") {
+    void updateCopilotDigestHint();
     requestAnimationFrame(() => {
       ($("#chat-input") as HTMLTextAreaElement | null)?.focus();
     });
   }
   if (view === "view-lockin") {
+    applyPendingSuggestionToMissionForm();
     syncDurationChips();
     requestAnimationFrame(() => {
       ($("#goals") as HTMLTextAreaElement | null)?.focus();
@@ -1003,6 +1005,99 @@ function renderAccountSettings(status: StatusPayload) {
     }
   });
   actions.appendChild(connect);
+  void renderSchoolDigestSettings(status);
+}
+
+type GoogleContextPayload = {
+  connected: boolean;
+  calendar_summary: string;
+  drive_summary: string;
+  drive_inventory?: string;
+  school_digest?: string;
+  school_digest_date?: string;
+};
+
+function formatSchoolDigestDate(raw: string | undefined): string | null {
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
+  const parsed = Date.parse(`${trimmed}T12:00:00`);
+  if (Number.isFinite(parsed)) {
+    return new Date(parsed).toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+  }
+  return trimmed;
+}
+
+async function renderSchoolDigestSettings(status: StatusPayload) {
+  const block = $("#account-school-digest-block");
+  const statusEl = $("#account-school-digest-status");
+  const actions = $("#account-school-digest-actions");
+  if (!block || !statusEl || !actions) return;
+  actions.innerHTML = "";
+  if (!status.signed_in || !status.google_connected) {
+    block.hidden = true;
+    return;
+  }
+  block.hidden = false;
+  statusEl.textContent = "Loading digest status…";
+  try {
+    const google = await invoke<GoogleContextPayload>("get_google_context");
+    if (!google.school_digest?.trim()) {
+      statusEl.textContent =
+        "No digest yet — Copilot still uses Calendar and Drive. Refresh rebuilds today’s digest on the server.";
+    } else {
+      const when = formatSchoolDigestDate(google.school_digest_date);
+      statusEl.textContent = when
+        ? `School digest updated ${when}.`
+        : "School digest is ready for today.";
+    }
+    const refresh = document.createElement("button");
+    refresh.className = "ghost pill";
+    refresh.type = "button";
+    refresh.textContent = "Refresh digest";
+    refresh.addEventListener("click", async () => {
+      refresh.disabled = true;
+      refresh.textContent = "Refreshing…";
+      try {
+        await invoke<GoogleContextPayload>("refresh_school_digest");
+        await renderSchoolDigestSettings(status);
+        await updateCopilotDigestHint();
+      } catch (e) {
+        console.warn("refresh_school_digest:", e);
+        statusEl.textContent =
+          "Could not refresh digest — try again later or keep using Calendar/Drive.";
+      } finally {
+        refresh.disabled = false;
+        refresh.textContent = "Refresh digest";
+      }
+    });
+    actions.appendChild(refresh);
+  } catch {
+    block.hidden = true;
+  }
+}
+
+async function updateCopilotDigestHint() {
+  const hint = $("#chat-empty-digest");
+  if (!hint) return;
+  try {
+    const google = await invoke<GoogleContextPayload>("get_google_context");
+    if (!google.connected || !google.school_digest?.trim()) {
+      hint.hidden = true;
+      hint.textContent = "";
+      return;
+    }
+    const when = formatSchoolDigestDate(google.school_digest_date);
+    hint.textContent = when
+      ? `School digest updated ${when}.`
+      : "Today’s school digest is loaded.";
+    hint.hidden = false;
+  } catch {
+    hint.hidden = true;
+  }
 }
 
 function setPermissionBadge(
@@ -1238,8 +1333,10 @@ function renderChatEmptyState() {
     <h3 class="copilot-empty-heading">What are you working on today?</h3>
     <p class="copilot-empty-copy">
       Tell me what feels tricky, and we’ll find one manageable place to start.
-    </p>`;
+    </p>
+    <p id="chat-empty-digest" class="composer-hint copilot-empty-digest" hidden></p>`;
   log.appendChild(empty);
+  void updateCopilotDigestHint();
 }
 
 function appendChat(role: "user" | "assistant", content: string) {
@@ -1259,18 +1356,72 @@ function isLockInSessionActive(): boolean {
   return isMissionRunning() || Boolean($("#view-session")?.classList.contains("active"));
 }
 
+/** Last Copilot-suggested lock-in — used by Accept and “Start a mission”. */
+let pendingStudySuggestion: StudySessionSuggestion | null = null;
+/** Last final user utterance on Copilot Live (for auto-start lock-in). */
+let lastLiveCopilotUserFinal = "";
+/** Last typed Copilot user message (for auto-start lock-in). */
+let lastTypedCopilotUserMessage = "";
+/** Prevents double start_lock_in from Live study_suggest + fallback timer. */
+let lockInLaunchInFlight = false;
+
+/** User explicitly asked Copilot to start a lock-in / study session / mission. */
+function wantsImmediateLockInStart(text: string): boolean {
+  const t = text.trim().replace(/\s+/g, " ");
+  if (!t) return false;
+  return (
+    /\b(start|begin|launch)\b[\s\S]{0,80}\b(study session|lock[- ]?in|mission|focus session)\b/i.test(
+      t,
+    ) ||
+    /\b(study session|lock[- ]?in|mission|focus session)\b[\s\S]{0,40}\b(start|begin|launch)\b/i.test(
+      t,
+    )
+  );
+}
+
+function synthesizeLockInGoals(userText: string): string {
+  const log = $("#chat-log");
+  const assistants = log
+    ? Array.from(log.querySelectorAll(".bubble.assistant"))
+    : [];
+  for (let i = assistants.length - 1; i >= 0; i -= 1) {
+    const prose = (assistants[i]?.textContent ?? "").trim();
+    const hits =
+      prose.match(
+        /\b[A-Z]{2,6}\s?-?\s?\d{3,4}[A-Z]?\b[^.\n]{0,100}(?:discussion|quiz|homework|assignment|essay|lab|prelim|post)?[^.\n]{0,40}/gi,
+      ) ?? [];
+    if (hits.length > 0) {
+      return hits
+        .slice(0, 4)
+        .map((h) => h.trim())
+        .join("; ");
+    }
+  }
+  const cleaned = userText
+    .replace(
+      /\b(perfect|please|could you|can you|start|begin|launch|a|the|study session|lock-?in|mission|for me|to work on|just those|specific|assignments?)\b/gi,
+      " ",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned.length >= 8 ? cleaned.slice(0, 220) : "Focus on upcoming homework assignments";
+}
+
 function parseStudySuggestion(
   raw: ChatMessage["study_suggestion"] | Record<string, unknown> | null | undefined,
 ): StudySessionSuggestion | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
+  // Older payloads omitted calendar_clear; only block when explicitly false.
   const calendarClear = o.calendar_clear ?? o.calendarClear;
-  if (calendarClear !== true) return null;
+  if (calendarClear === false) return null;
   const durationRaw = o.duration_mins ?? o.durationMins ?? o.duration;
   const durationMins = Number(durationRaw);
   if (!Number.isFinite(durationMins) || durationMins <= 0) return null;
+  const goals = String(o.goals ?? "").trim();
+  if (!goals) return null;
   return {
-    goals: String(o.goals ?? ""),
+    goals,
     duration_mins: durationMins,
     reason: String(o.reason ?? ""),
     proposed_start: String(o.proposed_start ?? o.proposedStart ?? ""),
@@ -1281,6 +1432,50 @@ function parseStudySuggestion(
         ? null
         : String(o.conflict_summary ?? o.conflictSummary ?? ""),
   };
+}
+
+/** Prefill mission setup from the pending Copilot suggestion (or clear stale TEST text). */
+function applyPendingSuggestionToMissionForm(): boolean {
+  const suggestion = pendingStudySuggestion;
+  if (!suggestion) return false;
+  const goalsInput = $("#goals") as HTMLTextAreaElement | null;
+  const durationInput = $("#duration") as HTMLInputElement | null;
+  if (goalsInput) goalsInput.value = suggestion.goals.trim();
+  if (durationInput) {
+    durationInput.value = String(
+      Math.min(180, Math.max(1, Math.round(suggestion.duration_mins))),
+    );
+  }
+  syncMissionSetupLaunchUi();
+  return true;
+}
+
+async function startLockInFromSuggestion(
+  suggestion: StudySessionSuggestion,
+): Promise<void> {
+  const mins = Math.min(180, Math.max(1, Math.round(suggestion.duration_mins)));
+  const goalsText = suggestion.goals.trim();
+  if (!goalsText) throw new Error("That suggestion had no mission goal.");
+  const session = await invoke<LockInSession>("start_lock_in", {
+    goals: goalsText,
+    durationMins: mins,
+    ...lockInConsentArgs(),
+  });
+  try {
+    sessionStorage.setItem("lockin-last-duration", String(mins));
+  } catch {
+    /* ignore */
+  }
+  pendingStudySuggestion = null;
+  const goalsInput = $("#goals") as HTMLTextAreaElement | null;
+  if (goalsInput) goalsInput.value = goalsText;
+  renderVitals(null);
+  playLaunchCelebration(() => {
+    dismissBreakSuggestion();
+    renderSession(session);
+    syncMissionTimer(session);
+    show("view-session");
+  });
 }
 
 function removeStudySuggestionCardNear(bubble: HTMLElement) {
@@ -1296,6 +1491,9 @@ function appendStudySuggestionCard(
   if (isLockInSessionActive()) return;
 
   removeStudySuggestionCardNear(bubble);
+
+  pendingStudySuggestion = suggestion;
+  applyPendingSuggestionToMissionForm();
 
   const mins = Math.min(180, Math.max(1, Math.round(suggestion.duration_mins)));
   const goalsText = suggestion.goals.trim() || "General study session";
@@ -1341,6 +1539,7 @@ function appendStudySuggestionCard(
   accept.textContent = "Accept";
 
   decline.addEventListener("click", () => {
+    if (pendingStudySuggestion === suggestion) pendingStudySuggestion = null;
     card.remove();
   });
 
@@ -1379,14 +1578,51 @@ function appendStudySuggestionCard(
   if (log) log.scrollTop = log.scrollHeight;
 }
 
+async function applyStudySuggestionFromCopilot(
+  bubble: HTMLElement | undefined | null,
+  suggestion: StudySessionSuggestion,
+  userTextForIntent: string,
+): Promise<void> {
+  if (isLockInSessionActive() || lockInLaunchInFlight) return;
+  if (wantsImmediateLockInStart(userTextForIntent)) {
+    lockInLaunchInFlight = true;
+    try {
+      // End Copilot Live so mission UI owns the surface.
+      teardownCompanionLive();
+      await startLockInFromSuggestion(suggestion);
+      return;
+    } catch (err) {
+      console.error("auto start_lock_in failed:", err);
+      if (bubble) appendStudySuggestionCard(bubble, suggestion);
+      return;
+    } finally {
+      lockInLaunchInFlight = false;
+    }
+  }
+  if (bubble) appendStudySuggestionCard(bubble, suggestion);
+}
+
 function maybeShowStudySuggestion(
   bubble: HTMLElement | undefined | null,
   reply: ChatMessage,
+  userTextForIntent = lastTypedCopilotUserMessage,
 ) {
   if (!bubble) return;
-  const suggestion = parseStudySuggestion(reply.study_suggestion);
+  let suggestion = parseStudySuggestion(reply.study_suggestion);
+  if (!suggestion && wantsImmediateLockInStart(userTextForIntent)) {
+    // Model claimed start without marker — still launch a real session.
+    suggestion = {
+      goals: synthesizeLockInGoals(userTextForIntent),
+      duration_mins: 25,
+      reason: "You asked to start a study session.",
+      proposed_start: "",
+      calendar_checked: false,
+      calendar_clear: true,
+      conflict_summary: null,
+    };
+  }
   if (!suggestion) return;
-  appendStudySuggestionCard(bubble, suggestion);
+  void applyStudySuggestionFromCopilot(bubble, suggestion, userTextForIntent);
 }
 
 let chatBusy = false;
@@ -1627,6 +1863,7 @@ async function dispatchChatMessage(
   focusInput?: HTMLTextAreaElement | null,
 ) {
   if (chatBusy || !message.trim()) return;
+  lastTypedCopilotUserMessage = message.trim();
   appendUser(message);
   const pending = appendAssistant("");
   if (pending) showThinkingIndicator(pending);
@@ -1641,7 +1878,7 @@ async function dispatchChatMessage(
     if (pending) {
       clearThinkingIndicator(pending);
       renderMarkdown(pending, reply.content);
-      maybeShowStudySuggestion(pending, reply);
+      maybeShowStudySuggestion(pending, reply, message.trim());
     }
     hasChatReply = true;
   } catch (e) {
@@ -1696,7 +1933,7 @@ const COMPANION_PHASE_COPY: Record<CompanionPhase, string> = {
   connecting: "Connecting companion…",
   listening: "Listening — talk or type",
   thinking: "Companion is answering…",
-  speaking: "Companion speaking — talk to interrupt",
+  speaking: "Companion speaking — Stop or talk to interrupt",
 };
 
 /** Live Figma 03 `5:256` — restore when Copilot Live returns to idle. */
@@ -1754,6 +1991,19 @@ function setCopilotListeningPlaceholder(listening: boolean) {
     : COPILOT_IDLE_PLACEHOLDER;
 }
 
+function applyStopSpeechUi(
+  btn: HTMLButtonElement | null,
+  phase: CompanionPhase,
+  liveActiveOnSurface: boolean,
+) {
+  if (!btn) return;
+  const show =
+    liveActiveOnSurface && (phase === "speaking" || phase === "thinking");
+  btn.hidden = !show;
+  btn.disabled = !show;
+  btn.setAttribute("aria-hidden", show ? "false" : "true");
+}
+
 function setCompanionPhaseUi(phase: CompanionPhase) {
   const label = $("#session-companion-phase");
   if (label) {
@@ -1774,6 +2024,16 @@ function setCompanionPhaseUi(phase: CompanionPhase) {
   applyMicLiveUi($("#chat-mic") as HTMLButtonElement | null, copilotPhase, "Mic", {
     stickyLabel: true,
   });
+  applyStopSpeechUi(
+    $("#chat-stop-speech") as HTMLButtonElement | null,
+    copilotPhase,
+    liveSurface === "copilot" && phase !== "idle",
+  );
+  applyStopSpeechUi(
+    $("#session-chat-stop-speech") as HTMLButtonElement | null,
+    sessionPhase,
+    liveSurface === "session" && phase !== "idle",
+  );
   setCopilotListeningPlaceholder(
     liveSurface === "copilot" &&
       (copilotPhase === "listening" ||
@@ -1790,6 +2050,10 @@ function setCompanionPhaseUi(phase: CompanionPhase) {
   } else if (phase === "idle" || phase === "listening") {
     clearOrphanLiveThinkingBubbles();
   }
+}
+
+function interruptCompanionSpeech() {
+  companionLive?.stopSpeech();
 }
 
 function ensureLiveThinkingBubble(surface: LiveSurface): void {
@@ -1912,19 +2176,24 @@ async function collectCompanionContext(): Promise<CompanionContext> {
       inSession && currentSessionDurationSecs
         ? currentSessionDurationSecs / 60
         : undefined,
-    next_step_secs: inSession ? nextStepSecs : undefined,
     paused: inSession ? paused : false,
   };
-  // Live voice used to omit Google data — same summaries typed Copilot gets.
+  // Live voice used to omit Google data — same calendar window, Drive inventory,
+  // and recent-file excerpts that typed Copilot gets.
   try {
-    const google = await invoke<{
-      connected: boolean;
-      calendar_summary: string;
-      drive_summary: string;
-    }>("get_google_context");
+    const google = await invoke<GoogleContextPayload>("get_google_context");
     if (google.connected) {
       if (google.calendar_summary?.trim()) {
         context.calendar_summary = google.calendar_summary.trim();
+      }
+      if (google.school_digest?.trim()) {
+        context.school_digest = google.school_digest.trim();
+        if (google.school_digest_date?.trim()) {
+          context.school_digest_date = google.school_digest_date.trim();
+        }
+      }
+      if (google.drive_inventory?.trim()) {
+        context.drive_inventory = google.drive_inventory.trim();
       }
       if (google.drive_summary?.trim()) {
         context.drive_summary = google.drive_summary.trim();
@@ -1961,12 +2230,61 @@ async function ensureCompanionLive(surface: LiveSurface): Promise<CompanionLiveS
   companionLive = new CompanionLiveSession({
     onPhase: (phase) => setCompanionPhaseUi(phase),
     onUser: (text, isFinal) => {
-      if (liveSurface === "copilot") upsertCopilotLiveBubble("user", text, isFinal);
-      else upsertSessionLiveBubble("user", text, isFinal);
+      if (liveSurface === "copilot") {
+        if (isFinal) lastLiveCopilotUserFinal = text.trim();
+        upsertCopilotLiveBubble("user", text, isFinal);
+      } else upsertSessionLiveBubble("user", text, isFinal);
     },
     onAssistant: (text, isFinal) => {
-      if (liveSurface === "copilot") upsertCopilotLiveBubble("assistant", text, isFinal);
-      else upsertSessionLiveBubble("assistant", text, isFinal);
+      if (liveSurface === "copilot") {
+        upsertCopilotLiveBubble("assistant", text, isFinal);
+        // Fallback when the model claims “started” but omits STUDY_SUGGEST.
+        if (
+          isFinal &&
+          wantsImmediateLockInStart(lastLiveCopilotUserFinal) &&
+          !isLockInSessionActive()
+        ) {
+          window.setTimeout(() => {
+            if (
+              isLockInSessionActive() ||
+              lockInLaunchInFlight ||
+              liveSurface !== "copilot"
+            ) {
+              return;
+            }
+            const log = $("#chat-log");
+            const bubble = log?.querySelector(
+              ".bubble.assistant:last-of-type",
+            ) as HTMLElement | null;
+            const suggestion: StudySessionSuggestion = {
+              goals: synthesizeLockInGoals(lastLiveCopilotUserFinal),
+              duration_mins: 25,
+              reason: "You asked to start a study session.",
+              proposed_start: "",
+              calendar_checked: false,
+              calendar_clear: true,
+              conflict_summary: null,
+            };
+            void applyStudySuggestionFromCopilot(
+              bubble,
+              suggestion,
+              lastLiveCopilotUserFinal,
+            );
+          }, 450);
+        }
+      } else upsertSessionLiveBubble("assistant", text, isFinal);
+    },
+    onStudySuggest: (raw) => {
+      if (liveSurface !== "copilot" || isLockInSessionActive()) return;
+      const suggestion = parseStudySuggestion(raw);
+      if (!suggestion) return;
+      const log = $("#chat-log");
+      const bubble = log?.querySelector(".bubble.assistant:last-of-type") as HTMLElement | null;
+      void applyStudySuggestionFromCopilot(
+        bubble,
+        suggestion,
+        lastLiveCopilotUserFinal || lastTypedCopilotUserMessage,
+      );
     },
     onError: (message) => {
       setComposerMicHint(message, liveSurface === "copilot" ? "chat" : "session");
@@ -2120,7 +2438,11 @@ function syncBreakCardCopy() {
   }
 }
 
+/** True while Accept/Not now stress-break invite is visible (wins over check-in). */
+let breakSuggestionActive = false;
+
 function setBreakSuggestionUi(active: boolean, reason?: string) {
+  breakSuggestionActive = active;
   const view = $("#view-session");
   view?.classList.toggle("is-break-suggested", active);
   const card = $("#session-break-suggest");
@@ -2347,6 +2669,11 @@ function syncCopilotPanelAriaLabel() {
 
 function setSessionCheckinUi(active: boolean) {
   const view = $("#view-session");
+  // Stress break invite (Accept/Not now) must stay actionable — don't replace it
+  // with quick check-in chrome (CSS would hide #session-break-suggest).
+  if (active && breakSuggestionActive) {
+    return;
+  }
   view?.classList.toggle("is-session-checkin", active);
   const checkinCard = $("#session-checkin-card");
   if (checkinCard) {
@@ -2429,11 +2756,48 @@ function formatVitals(vitals?: VitalsSnapshot | null): string {
   return `${state} (${source})`;
 }
 
+function cameraPresenceLabel(vitals?: VitalsSnapshot | null): "away" | "stressed" | null {
+  if (!vitals) return null;
+  const raw = vitals.raw_summary || "";
+  if (raw.includes("presence=left_frame")) return "away";
+  if (vitals.stressed) return "stressed";
+  return null;
+}
+
+/** Reflect observe vitals/presence on the visible mission progress + orbit. */
+function applyCameraPresenceUi(vitals?: VitalsSnapshot | null) {
+  if ($("#session-pause")?.getAttribute("aria-pressed") === "true") return;
+  if (breakTimerActive || breakSuggestionActive) return;
+  const presence = cameraPresenceLabel(vitals);
+  if (presence === "away") {
+    applySessionOrbitState("distracted");
+    updateSessionProgressPill("away");
+  } else if (presence === "stressed") {
+    applySessionOrbitState("stressed");
+    updateSessionProgressPill("stressed");
+  }
+}
+
 function renderVitals(vitals?: VitalsSnapshot | null) {
   const line = $("#vitals-line");
   const panel = $("#session-vitals");
   if (line) line.textContent = formatVitals(vitals);
   if (panel) panel.classList.toggle("stressed", Boolean(vitals?.stressed));
+  applyCameraPresenceUi(vitals);
+}
+
+function renderWatchingNote(note?: string | null) {
+  const el = $("#session-watch-note");
+  if (!el) return;
+  const raw = (note || "").trim();
+  const text = raw
+    ? raw.replace(/wellness later in background/gi, "camera accountability in background")
+    : "";
+  el.textContent = text;
+  const show = Boolean(text);
+  el.hidden = !show;
+  el.classList.toggle("visually-hidden", !show);
+  el.setAttribute("aria-hidden", show ? "false" : "true");
 }
 
 const SESSION_COACH_MAX = 8;
@@ -2486,7 +2850,11 @@ function updateSessionProgressPill(label: string, finishing = false) {
       ? "Ⅱ  On a break"
       : label === "distracted"
         ? "Needs focus"
-        : "Mission in progress";
+        : label === "stressed"
+          ? "Elevated stress"
+          : label === "away"
+            ? "Away from desk"
+            : "Mission in progress";
 }
 
 function syncPauseControls(paused: boolean) {
@@ -2547,7 +2915,6 @@ function renderSession(session: LockInSession) {
   const timer = $("#session-timer");
   const status = $("#session-status");
   const goals = $("#session-goals");
-  const note = $("#session-watch-note");
   if (timer) {
     // While paused, keep the captured freeze (session-update must not thaw countdown).
     timer.textContent =
@@ -2556,21 +2923,23 @@ function renderSession(session: LockInSession) {
         : formatRemaining(session.ends_at);
   }
   if (status) {
-    const label = session.paused ? "paused" : statusLabel(session.status);
+    const presence = session.paused ? null : cameraPresenceLabel(session.vitals);
+    const label = session.paused
+      ? "paused"
+      : presence || statusLabel(session.status);
     status.textContent = session.paused
       ? "Coach status: on a break"
       : `Coach status: ${label.replace(/_/g, " ")}`;
-    applySessionOrbitState(session.paused ? "on_task" : label);
+    applySessionOrbitState(
+      session.paused ? "on_task" : presence === "away" ? "distracted" : label,
+    );
     updateSessionProgressPill(label);
   }
   if (goals) {
     goals.textContent = session.goals || "Your mission";
     goals.hidden = false;
   }
-  if (note) {
-    const rawNote = session.watching_note || "Watching your screen";
-    note.textContent = rawNote.replace(/wellness later in background/gi, "camera accountability in background");
-  }
+  renderWatchingNote(session.watching_note || "Watching your screen");
   if (!session.paused && breakTimerActive) {
     // Mission resumed elsewhere (break window / Rust) — clear local pomodoro flag.
     setBreakTimerActive(false);
@@ -2826,10 +3195,6 @@ function renderSummary(summary: SessionSummary) {
       <p class="flight-log-stat-value">${flightMinutes}</p>
       <p class="flight-log-stat-label">flight minutes</p>
     </article>
-    <article class="quest-stat">
-      <p class="flight-log-stat-value">${relaunches}</p>
-      <p class="flight-log-stat-label">relaunch</p>
-    </article>
     <article class="quest-stat quest-stat--best">
       <p class="flight-log-stat-value">${escapeHtml(pbStatValue)}</p>
       <p class="flight-log-stat-label">${escapeHtml(pbStatLabel)}</p>
@@ -3081,11 +3446,28 @@ async function bootApp() {
     button.addEventListener("click", () => {
       const dest = button.dataset.copilotNav;
       if (dest === "home") show("view-home");
-      else if (dest === "lockin") show("view-lockin");
-      else if (dest === "settings") void openSettings();
+      else if (dest === "lockin") {
+        applyPendingSuggestionToMissionForm();
+        show("view-lockin");
+      } else if (dest === "settings") void openSettings();
     });
   });
-  $("#copilot-start-mission")?.addEventListener("click", () => show("view-lockin"));
+  $("#copilot-start-mission")?.addEventListener("click", () => {
+    void (async () => {
+      if (pendingStudySuggestion && !isLockInSessionActive()) {
+        try {
+          await startLockInFromSuggestion(pendingStudySuggestion);
+          return;
+        } catch (err) {
+          console.error("start_lock_in from pending suggestion failed:", err);
+          applyPendingSuggestionToMissionForm();
+        }
+      } else {
+        applyPendingSuggestionToMissionForm();
+      }
+      show("view-lockin");
+    })();
+  });
 
   const formatVoiceResult = (transcript: VoiceTranscript): string => {
     const text = transcript.text?.trim();
@@ -3237,6 +3619,9 @@ async function bootApp() {
 
   $("#chat-mic")?.addEventListener("click", () => {
     void toggleCompanionLive("copilot");
+  });
+  $("#chat-stop-speech")?.addEventListener("click", () => {
+    interruptCompanionSpeech();
   });
 
   $("#chat-form")?.addEventListener("submit", (e) => {
@@ -3672,12 +4057,12 @@ async function bootApp() {
   await listen<VitalsSnapshot>("vitals-update", (event) => renderVitals(event.payload));
   await listen("overlay-prompt", () => setSessionCheckinUi(true));
   await listen("overlay-clear", () => setSessionCheckinUi(false));
-  // Coach / interplay may suggest a break — never auto-start; Accept / Not now only.
+  // Coach / camera stress may suggest a break — never auto-start; Accept / Not now only.
   await listen<BreakSuggestedPayload>("break-timer-suggested", (event) => {
     if (!$("#view-session")?.classList.contains("active")) return;
     if ($("#session-pause")?.getAttribute("aria-pressed") === "true") return;
     if (breakTimerActive) return;
-    // Check-in chrome CSS-hides Accept/Not now — clear it so the offer is actionable.
+    // Clear check-in first, then show invite (breakSuggestionActive blocks re-checkin).
     setSessionCheckinUi(false);
     setBreakSuggestionUi(true, event.payload?.reason);
   });
@@ -3697,8 +4082,7 @@ async function bootApp() {
     }
   });
   await listen<string>("coach-error", (event) => {
-    const note = $("#session-watch-note");
-    if (note) note.textContent = `Camera check: ${event.payload}`;
+    renderWatchingNote(`Camera check: ${event.payload}`);
   });
   await listen<SessionSummary>("session-ended", (event) => {
     teardownCompanionLive();

@@ -34,11 +34,16 @@ const MAX_NAGS_PER_EPISODE: u32 = 3;
 /// Seconds to wait after nag 1 → nag 2, then after nag 2 → nag 3.
 const EPISODE_GAP_AFTER_FIRST_SECS: i64 = 14;
 const EPISODE_GAP_AFTER_SECOND_SECS: i64 = 22;
-const PRESAGE_CLIP_SECS: u64 = 22;
+/// Short clip for `/v1/camera/observe` — enough frames for presence/stress, under 8MB,
+/// and finishes well before the next observe tick.
+const PRESAGE_CLIP_SECS: u64 = 12;
 const PRESAGE_FPS: u32 = 12;
-const PRESAGE_GAP_SECS: u64 = 70;
-/// Don't touch the camera until coaching has already started.
-const PRESAGE_START_DELAY_SECS: u64 = 90;
+/// Post-observe wait. Must be ≥ server ~25s/user floor even when clip record fails
+/// instantly (no clip wall-time), so we don't 429-spam. With a 12s clip, successful
+/// observe cadence lands ~38s (target 25–40s).
+const PRESAGE_GAP_SECS: u64 = 26;
+/// Brief settle so opener / local watch start before the first webcam grab.
+const PRESAGE_START_DELAY_SECS: u64 = 20;
 /// Let the student settle before distraction tracking / nags begin.
 const TRACKING_WARMUP_SECS: i64 = 15;
 /// Fixed opener — never LLM/system-prompt text (tiny models regurgitate prompts).
@@ -420,11 +425,8 @@ async fn run_local_watch_loop(
                     last_fingerprint = fp.clone();
 
                     // 1) Instant keyword guess for obvious study vs entertainment.
-                    //    YouTube/video must never idle on "Checking…" — unclear = off-task.
-                    let mut heuristic = frontmost::local_context_guess(kind, &page_text, &goals);
-                    if heuristic.is_none() && matches!(kind, "youtube" | "video") {
-                        heuristic = Some(false);
-                    }
+                    //    Unclear YouTube → local judge (do NOT assume entertainment).
+                    let heuristic = frontmost::local_context_guess(kind, &page_text, &goals);
                     if let Some(on_task) = heuristic {
                         if on_task {
                             if was_distracted && switched {
@@ -562,6 +564,18 @@ async fn run_local_watch_loop(
         let now = chrono::Utc::now();
         if now.signed_duration_since(last_ocr_at).num_seconds() >= OCR_TICK_SECS as i64 {
             last_ocr_at = now;
+            // Skip OCR nags while focused in Cursor / Waypoint / other work apps.
+            let productive_now = tokio::task::spawn_blocking(frontmost::frontmost_info)
+                .await
+                .ok()
+                .and_then(|r| r.ok())
+                .map(|i| frontmost::is_productive_work_app(&i.app_name))
+                .unwrap_or(false);
+            if productive_now {
+                last_ocr_at = now;
+                tokio::time::sleep(Duration::from_millis(450)).await;
+                continue;
+            }
             let ocr_result = tokio::task::spawn_blocking(local_vision::read_screen_ocr).await;
             match ocr_result {
                 Ok(Ok(reading)) => {
@@ -578,7 +592,7 @@ async fn run_local_watch_loop(
                                 "youtube",
                                 &reading.ocr_text,
                                 &goals,
-                            ) == Some(true);
+                            ) != Some(false);
                         if !study_ok {
                             last_fingerprint = format!("ocr:{label}");
                             let hit = frontmost::DistractionHit {
@@ -799,123 +813,82 @@ async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop
 
         // Backend silences stress on both "paused" and "break"; prefer "break" while
         // the fullscreen pomodoro window owns the pause.
-        let phase = if on_pomodoro_break {
-            "break"
-        } else if paused {
-            "paused"
-        } else {
-            "active"
-        };
+        let phase = camera_observe_phase(paused, on_pomodoro_break);
 
-        // Still sample during pause so the server knows phase, but skip recording if paused
-        // to avoid needless camera use — just wait.
-        if paused {
-            tokio::time::sleep(Duration::from_secs(2)).await;
-            continue;
-        }
-
-        // Bail before touching the camera when signed out (no error spam / wasted clips).
+        // Bail before touching the camera / API when signed out (no error spam).
         let cfg = app.state::<AppState>().config.lock().clone();
         if crate::auth::load_tokens(&cfg).is_none() {
             tracing::debug!("camera accountability idle — not signed in");
             break;
         }
 
-        let dir = match capture::temp_session_dir(&session_id) {
-            Ok(d) => d,
-            Err(e) => {
-                tracing::warn!("camera accountability temp dir: {e}");
-                break;
-            }
-        };
-
-        let clip = {
-            let dir = dir.clone();
-            match tokio::task::spawn_blocking(move || {
-                camera::record_presage_clip(&dir, PRESAGE_CLIP_SECS, PRESAGE_FPS)
-            })
-            .await
-            {
-                Ok(Ok(path)) => Some(path),
-                Ok(Err(e)) => {
-                    tracing::warn!("camera clip record: {e}");
-                    None
-                }
-                Err(e) => {
-                    tracing::warn!("camera clip join: {e}");
-                    None
-                }
-            }
-        };
-
-        if let Some(path) = clip {
-            // Always delete local clip after attempt (upload, stop, or error).
-            let cleanup = path.clone();
-            let observe_result = if stop.load(Ordering::SeqCst) {
+        // Quiet phases: heartbeat with phase=paused|break (tiny JPEG, no webcam) so the
+        // server refreshes stress cooldown and stays silent. Active: record + upload clip.
+        let observe_result = if paused {
+            if stop.load(Ordering::SeqCst) {
                 Err("stopped".into())
             } else {
-                camera_observe::observe_clip(&cfg, &session_id, phase, &path).await
-            };
-            let _ = tokio::fs::remove_file(&cleanup).await;
-
-            match observe_result {
-                Ok(resp) => {
-                    if let Some(note) = resp.watching_note.as_deref() {
-                        apply_watching_note(&app, note);
-                    }
-                    if let Some(vitals) = resp.to_vitals() {
-                        store_vitals(&app, &vitals, resp.watching_note.as_deref());
-                        let _ = app.emit("vitals-update", &vitals);
-                    }
-                    if let Some(nudge) = resp.nudge.as_ref() {
-                        let kind = if nudge.kind.trim().is_empty() {
-                            "camera"
-                        } else {
-                            nudge.kind.as_str()
-                        };
-                        if kind == "suggest_break" {
-                            // Map server stress invite → local Accept/Not now card.
-                            // Never auto-start; skip overlay push_prompt (overlay-prompt
-                            // opens check-in UI which hides #session-break-suggest).
-                            let already_breaking = app
-                                .state::<AppState>()
-                                .break_active
-                                .load(Ordering::SeqCst);
-                            if !paused && !already_breaking {
-                                let _ = crate::break_timer::suggest_break_timer(
-                                    app.clone(),
-                                    Some(300),
-                                    Some("stress".into()),
-                                )
-                                .await;
-                                let silent = app
-                                    .state::<AppState>()
-                                    .silent_mode
-                                    .load(Ordering::SeqCst);
-                                if !silent {
-                                    let text = nudge.text.clone();
-                                    let handle = app.clone();
-                                    tauri::async_runtime::spawn(async move {
-                                        speak_heads_up(&handle, &text).await;
-                                    });
-                                }
-                            }
-                        } else {
-                            push_prompt(&app, &nudge.text, kind);
-                        }
-                    }
-                }
-                Err(e) if e == "stopped" => break,
-                Err(e) if is_quiet_observe_error(&e) => {
-                    // 429 / auth: stay quiet; stop on auth so we don't retry-spam.
-                    tracing::debug!("camera observe (quiet): {e}");
-                    if is_auth_observe_error(&e) {
-                        break;
-                    }
-                }
+                camera_observe::observe_quiet_phase(&cfg, &session_id, phase).await
+            }
+        } else {
+            let dir = match capture::temp_session_dir(&session_id) {
+                Ok(d) => d,
                 Err(e) => {
-                    tracing::warn!("camera observe: {e}");
+                    tracing::warn!("camera accountability temp dir: {e}");
+                    break;
                 }
+            };
+
+            let clip = {
+                let dir = dir.clone();
+                match tokio::task::spawn_blocking(move || {
+                    camera::record_presage_clip(&dir, PRESAGE_CLIP_SECS, PRESAGE_FPS)
+                })
+                .await
+                {
+                    Ok(Ok(path)) => Some(path),
+                    Ok(Err(e)) => {
+                        tracing::warn!("camera clip record: {e}");
+                        None
+                    }
+                    Err(e) => {
+                        tracing::warn!("camera clip join: {e}");
+                        None
+                    }
+                }
+            };
+
+            if let Some(path) = clip {
+                let cleanup = path.clone();
+                let result = if stop.load(Ordering::SeqCst) {
+                    Err("stopped".into())
+                } else {
+                    camera_observe::observe_clip(&cfg, &session_id, phase, &path).await
+                };
+                let _ = tokio::fs::remove_file(&cleanup).await;
+                result
+            } else {
+                Err("no_clip".into())
+            }
+        };
+
+        match observe_result {
+            Ok(resp) => {
+                apply_observe_response(&app, &resp, paused);
+            }
+            Err(e) if e == "stopped" => break,
+            Err(e) if e == "no_clip" => {
+                // Clip failed — still wait out the gap so we don't spin the camera.
+            }
+            Err(e) if is_quiet_observe_error(&e) => {
+                // 429 / auth: stay quiet; stop on auth so we don't retry-spam.
+                tracing::debug!("camera observe (quiet): {e}");
+                if is_auth_observe_error(&e) {
+                    break;
+                }
+            }
+            Err(e) => {
+                tracing::warn!("camera observe: {e}");
             }
         }
 
@@ -936,6 +909,79 @@ async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
     }
+}
+
+/// `active` | `paused` | `break` — server stays silent on the quiet phases.
+fn camera_observe_phase(paused: bool, on_pomodoro_break: bool) -> &'static str {
+    if on_pomodoro_break {
+        "break"
+    } else if paused {
+        "paused"
+    } else {
+        "active"
+    }
+}
+
+/// Whether this nudge kind should open the in-app Accept/Not now break invite.
+fn is_suggest_break_nudge(kind: &str) -> bool {
+    kind == "suggest_break"
+}
+
+fn apply_observe_response(app: &AppHandle, resp: &camera_observe::ObserveResponse, paused: bool) {
+    if let Some(note) = resp.watching_note.as_deref() {
+        apply_watching_note(app, note);
+    }
+    if let Some(vitals) = resp.to_vitals() {
+        store_vitals(app, &vitals, resp.watching_note.as_deref());
+        let _ = app.emit("vitals-update", &vitals);
+    }
+    // Quiet phases: server should return null nudges; never surface break invites while paused.
+    if paused {
+        return;
+    }
+    let Some(nudge) = resp.nudge.as_ref() else {
+        return;
+    };
+    let kind = if nudge.kind.trim().is_empty() {
+        "camera"
+    } else {
+        nudge.kind.as_str()
+    };
+    deliver_camera_nudge(app, kind, &nudge.text);
+}
+
+fn deliver_camera_nudge(app: &AppHandle, kind: &str, text: &str) {
+    if is_suggest_break_nudge(kind) {
+        // Stress → local Accept/Not now card. Never auto-start; never push_prompt
+        // (overlay-prompt opens check-in UI which would hide #session-break-suggest).
+        let already_breaking = app
+            .state::<AppState>()
+            .break_active
+            .load(Ordering::SeqCst);
+        if already_breaking {
+            return;
+        }
+        let handle = app.clone();
+        let speak_text = text.to_string();
+        tauri::async_runtime::spawn(async move {
+            let _ = crate::break_timer::suggest_break_timer(
+                handle.clone(),
+                Some(300),
+                Some("stress".into()),
+            )
+            .await;
+            let silent = handle
+                .state::<AppState>()
+                .silent_mode
+                .load(Ordering::SeqCst);
+            if !silent {
+                speak_heads_up(&handle, &speak_text).await;
+            }
+        });
+        return;
+    }
+    // left_desk / left_desk_pause / welcome_back / camera_obstructed / stressed → overlay + TTS.
+    push_prompt(app, text, kind);
 }
 
 fn is_quiet_observe_error(err: &str) -> bool {
@@ -1251,10 +1297,19 @@ fn push_ephemeral(app: &AppHandle, text: &str, kind: &str) {
     if !claim_ephemeral_slot_keyed(EPHEMERAL_FLOOR_SECS, Some(kind)) {
         return;
     }
+    // Last line of defense: never toast schema echoes like “one short sentence”.
+    let goals = app
+        .state::<AppState>()
+        .session
+        .lock()
+        .as_ref()
+        .map(|s| s.goals.clone())
+        .unwrap_or_default();
+    let safe = local_judge::sanitize_coach_line(text, kind, kind, &goals);
     let prompt = CoachPrompt {
         id: Uuid::new_v4().to_string(),
         at: chrono::Utc::now().to_rfc3339(),
-        text: text.into(),
+        text: safe,
         kind: kind.into(),
     };
     deliver_ephemeral(app, &prompt);
@@ -1348,5 +1403,64 @@ pub fn stop_coach(app: &AppHandle) {
         if let Some(session) = session_guard.as_mut() {
             session.active = false;
         }
+    }
+}
+
+#[cfg(test)]
+mod camera_observe_timing_tests {
+    use super::*;
+
+    /// Gap alone must clear the API floor — clip capture can fail before any wall time.
+    #[test]
+    fn observe_gap_respects_server_rate_floor() {
+        assert!(
+            PRESAGE_GAP_SECS >= 25,
+            "gap {}s must be >= ~25s server observe floor",
+            PRESAGE_GAP_SECS
+        );
+    }
+
+    #[test]
+    fn observe_cadence_is_frequent_within_mission() {
+        assert!(
+            PRESAGE_START_DELAY_SECS <= 30,
+            "start delay {}s should be a short settle, not a long deferral",
+            PRESAGE_START_DELAY_SECS
+        );
+        assert!(
+            PRESAGE_CLIP_SECS <= 15,
+            "clip {}s should stay short for upload size and tick fit",
+            PRESAGE_CLIP_SECS
+        );
+        // Matches capture::camera::record_presage_clip clamp lower bound.
+        assert!(PRESAGE_CLIP_SECS >= 12);
+        let cycle = PRESAGE_CLIP_SECS + PRESAGE_GAP_SECS;
+        assert!(
+            (25..=45).contains(&cycle),
+            "clip+gap cycle {}s should land near the 25–40s observe target",
+            cycle
+        );
+        assert!(
+            PRESAGE_CLIP_SECS < PRESAGE_GAP_SECS,
+            "clip must finish before the post-observe wait elapses"
+        );
+    }
+
+    #[test]
+    fn observe_phase_prefers_break_over_paused() {
+        assert_eq!(camera_observe_phase(false, false), "active");
+        assert_eq!(camera_observe_phase(true, false), "paused");
+        assert_eq!(camera_observe_phase(true, true), "break");
+        assert_eq!(camera_observe_phase(false, true), "break");
+    }
+
+    #[test]
+    fn stress_suggest_break_is_invite_not_overlay_kind() {
+        assert!(is_suggest_break_nudge("suggest_break"));
+        assert!(!is_suggest_break_nudge("stressed"));
+        assert!(!is_suggest_break_nudge("left_desk"));
+        assert!(!is_suggest_break_nudge("left_desk_pause"));
+        assert!(!is_suggest_break_nudge("welcome_back"));
+        assert!(!is_suggest_break_nudge("camera_obstructed"));
     }
 }

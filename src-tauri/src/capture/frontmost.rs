@@ -18,9 +18,9 @@ pub struct DistractionHit {
 /// What the local watcher saw this tick.
 #[derive(Debug, Clone)]
 pub enum FocusEvent {
-    /// Definitely off-task — nag immediately (Discord, Instagram, shopping, …).
+    /// Definitely off-task — nag immediately (Instagram-class, shopping, texting, …).
     Hard(DistractionHit),
-    /// Could be study or distraction — judge from page text/title (YouTube, etc.).
+    /// Could be study or distraction — judge from page text/title (YouTube, Discord, …).
     NeedsJudgment {
         kind: &'static str,
         info: FrontmostInfo,
@@ -96,11 +96,45 @@ end tell"#,
 
 /// Classify the current focus for the coach (hard vs needs context vs clear).
 /// `goals` lets YouTube study lectures pass; everything else YouTube interrupts.
+/// Editors / terminals used to do real work — never hard-nag; OCR must not call these off-task.
+pub fn is_productive_work_app(app_name: &str) -> bool {
+    let app = app_name.to_lowercase();
+    app.contains("waypoint")
+        || app.contains("cursor")
+        || app == "code"
+        || app.contains("visual studio code")
+        || app.contains("vscode")
+        || app.contains("xcode")
+        || app.contains("intellij")
+        || app.contains("webstorm")
+        || app.contains("pycharm")
+        || app.contains("sublime")
+        || app.contains("terminal")
+        || app.contains("iterm")
+        || app.contains("warp")
+        || app.contains("notion")
+        || app.contains("obsidian")
+        || app.contains("word")
+        || app.contains("pages")
+        || app.contains("google docs")
+        || app.contains("excel")
+        || app.contains("numbers")
+        || app.contains("powerpoint")
+        || app.contains("keynote")
+}
+
 pub fn evaluate_focus(goals: &str) -> Result<FocusEvent, String> {
     let info = frontmost_info()?;
 
     // Still scan browser tabs while Waypoint is focused (session UI / overlay).
     let waypoint_focused = info.app_name.to_lowercase().contains("waypoint");
+    let productive_focused = is_productive_work_app(&info.app_name);
+
+    // Cursor / IDEs / docs apps: on-task locally. Don't let a background YouTube tab
+    // override the focused work app (that was nailing chemistry study in Cursor).
+    if productive_focused && !waypoint_focused {
+        return Ok(FocusEvent::Clear(info));
+    }
 
     if !waypoint_focused {
         if let Some(label) = hard_app_label(&info.app_name) {
@@ -109,6 +143,11 @@ pub fn evaluate_focus(goals: &str) -> Result<FocusEvent, String> {
                 detail: info.summary(),
                 focused: true,
             }));
+        }
+
+        // Discord (and future contextual apps): title/context, not app-name alone.
+        if let Some(label) = contextual_app_label(&info.app_name) {
+            return classify_site(label, info, goals, true);
         }
 
         // Focused browser URL / window / tab title.
@@ -188,45 +227,65 @@ fn title_is_brand_chrome(title: &str, brand: &str) -> bool {
     false
 }
 
+/// Host/app distraction policy. Extend ALWAYS_OFF / CONTEXTUAL lists — don't special-case
+/// brand names inside the coach loop.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SurfacePolicy {
+    /// Never study (Instagram-class social, shopping, pure texting, streaming apps, …).
+    AlwaysOff,
+    /// Can be study or distraction — decide from title/URL/page text + goals.
+    Contextual,
+}
+
+fn surface_policy(label: &str) -> SurfacePolicy {
+    match label {
+        // Contextual tools: judge from real page/window context, not the site name alone.
+        "youtube" | "video" | "discord" => SurfacePolicy::Contextual,
+        // Always-off categories (add hosts/apps via classify_url_host / hard_app_label).
+        "instagram" | "tiktok" | "shopping" | "texting" | "email" | "netflix" | "twitch"
+        | "spotify" | "facebook" | "twitter" | "reddit" | "pinterest" | "snapchat" => {
+            SurfacePolicy::AlwaysOff
+        }
+        // Unknown distraction labels stay hard-off (safe default).
+        _ => SurfacePolicy::AlwaysOff,
+    }
+}
+
 fn classify_site(
     label: &'static str,
     info: FrontmostInfo,
     goals: &str,
     focused: bool,
 ) -> Result<FocusEvent, String> {
-    // YouTube: interrupt by default. Only allow through when title clearly matches study goals.
-    if label == "youtube" || label == "video" {
-        let page_text = if focused {
-            page_context_blob(&info)
-        } else {
-            format!("{}\n{}", info.window_title, info.url)
-        };
-        if local_context_guess("youtube", &page_text, goals) == Some(true) {
-            return Ok(FocusEvent::NeedsJudgment {
-                kind: "youtube",
-                info,
-                page_text,
-            });
-        }
-        // Unknown / entertainment → hard nag (do not wait on a tiny model that may say on-task).
-        return Ok(FocusEvent::Hard(DistractionHit {
-            label: "youtube",
-            detail: if info.window_title.is_empty() {
-                info.summary()
-            } else {
-                truncate(&info.window_title, 64)
-            },
-            focused,
-        }));
-    }
+    let page_text = if focused {
+        page_context_blob(&info)
+    } else {
+        format!("{}\n{}", info.window_title, info.url)
+    };
 
-    if is_ambiguous(label) {
-        let page_text = page_context_blob(&info);
-        return Ok(FocusEvent::NeedsJudgment {
-            kind: label,
-            info,
-            page_text,
-        });
+    if surface_policy(label) == SurfacePolicy::Contextual {
+        // Cheap title/URL guess first; entertainment → hard nag without waiting on LLM.
+        match local_context_guess(label, &page_text, goals) {
+            Some(false) => {
+                return Ok(FocusEvent::Hard(DistractionHit {
+                    label,
+                    detail: if info.window_title.is_empty() {
+                        info.summary()
+                    } else {
+                        truncate(&info.window_title, 64)
+                    },
+                    focused,
+                }));
+            }
+            Some(true) | None => {
+                // Study / unclear → local text judge (never treat unclear YouTube as entertainment).
+                return Ok(FocusEvent::NeedsJudgment {
+                    kind: label,
+                    info,
+                    page_text,
+                });
+            }
+        }
     }
 
     Ok(FocusEvent::Hard(DistractionHit {
@@ -271,15 +330,25 @@ pub fn distraction_coach_line(hit: &DistractionHit) -> String {
     }
 }
 
-/// Cheap local guess for YouTube / video titles before the Ollama text judge runs.
-/// `Some(true)` = looks study-related, `Some(false)` = entertainment, `None` = unclear.
+/// Cheap local guess for contextual surfaces (YouTube / Discord) before the Ollama text judge.
+/// `Some(true)` = looks study-related, `Some(false)` = entertainment/off-task, `None` = unclear.
+/// Ignores tab-group chrome like "School" — only title/URL/page_text + goal overlap count.
 pub fn local_context_guess(kind: &str, page_text: &str, goals: &str) -> Option<bool> {
     // Only scan the page/title — never let goal words (e.g. "course") mark every video as study.
     let blob = page_text.to_lowercase();
-    if kind != "youtube" && kind != "video" {
-        return None;
-    }
+    // Tab-group labels ("School") are not evidence of being on-task.
+    let blob = blob
+        .replace("tab group", " ")
+        .replace("school group", " ");
 
+    match kind {
+        "youtube" | "video" => guess_youtube_context(&blob, page_text, goals),
+        "discord" => guess_discord_context(&blob, goals),
+        _ => None,
+    }
+}
+
+fn guess_youtube_context(blob: &str, page_text: &str, goals: &str) -> Option<bool> {
     const STUDY: &[&str] = &[
         "lecture",
         "tutorial",
@@ -313,17 +382,38 @@ pub fn local_context_guess(kind: &str, page_text: &str, goals: &str) -> Option<b
         "theorem",
         "derivation",
         "lab ",
+        "lab report",
+        "prelab",
+        "pre-lab",
+        "pre lab",
+        "how to write",
+        "writing a",
         "workshop",
         "seminar",
         "mooc",
         "coursera",
         "edx",
     ];
+    // Entertainment / music / meme signals — match titles like
+    // "KSI - Thick of it, but with NO MUSIC" without waiting on the LLM.
     const ENTERTAIN: &[&str] = &[
         "music video",
         "official video",
         "official audio",
+        "official mv",
+        "no music",
+        "without music",
         "lyrics",
+        "lyric video",
+        "karaoke",
+        "remix",
+        "sped up",
+        "nightcore",
+        "instrumental",
+        "hip hop",
+        "hip-hop",
+        "rapping",
+        "rapper",
         "funny",
         "compilation",
         "vlog",
@@ -341,18 +431,17 @@ pub fn local_context_guess(kind: &str, page_text: &str, goals: &str) -> Option<b
         "drama",
         "tiktok",
         "shorts",
-        "rap ",
-        "song ",
-        "mv ",
         "live performance",
         "stand-up",
         "stand up",
+        "vevo",
     ];
 
     let study_hit = STUDY.iter().any(|k| blob.contains(k));
-    let fun_hit = ENTERTAIN.iter().any(|k| blob.contains(k));
+    let fun_hit = ENTERTAIN.iter().any(|k| blob.contains(k)) || music_or_rap_signal(blob);
 
     // Goal keywords appearing in the video title/page → strong on-task signal.
+    // Do not treat bare "school" / tab-group words as goals.
     let goal_overlap = goal_keywords(goals)
         .into_iter()
         .filter(|k| page_text.to_lowercase().contains(k))
@@ -365,6 +454,67 @@ pub fn local_context_guess(kind: &str, page_text: &str, goals: &str) -> Option<b
         return Some(true);
     }
     if fun_hit && !study_hit {
+        return Some(false);
+    }
+    None
+}
+
+/// Music/rap chrome that substring lists miss (word boundaries, "Artist - Track" + music cues).
+fn music_or_rap_signal(blob: &str) -> bool {
+    // Word-ish tokens: "rap", "raps", "song", "songs", "mv" (not "map", "songwriting" study edge).
+    for token in blob.split(|c: char| !c.is_alphanumeric()) {
+        if matches!(token, "rap" | "raps" | "song" | "songs" | "mv" | "mvs" | "beat" | "beats")
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn guess_discord_context(blob: &str, goals: &str) -> Option<bool> {
+    const STUDY: &[&str] = &[
+        "homework",
+        "study",
+        "lecture",
+        "office hours",
+        "tutoring",
+        "homework help",
+        "exam",
+        "quiz",
+        "problem set",
+        "pset",
+        "lab ",
+        "discussion",
+        "oh ",
+        "ta help",
+        "course",
+    ];
+    const OFF: &[&str] = &[
+        "meme",
+        "memes",
+        "gaming",
+        "game night",
+        "valorant",
+        "fortnite",
+        "minecraft",
+        "nft",
+        "anime",
+        "shitpost",
+        "general spam",
+    ];
+    let study_hit = STUDY.iter().any(|k| blob.contains(k));
+    let off_hit = OFF.iter().any(|k| blob.contains(k));
+    let goal_overlap = goal_keywords(goals)
+        .into_iter()
+        .filter(|k| blob.contains(k.as_str()))
+        .count();
+    if goal_overlap >= 1 && !off_hit {
+        return Some(true);
+    }
+    if study_hit && !off_hit {
+        return Some(true);
+    }
+    if off_hit && !study_hit {
         return Some(false);
     }
     None
@@ -386,15 +536,9 @@ fn goal_keywords(goals: &str) -> Vec<String> {
         .collect()
 }
 
-fn is_ambiguous(label: &str) -> bool {
-    matches!(label, "youtube" | "video")
-}
-
 fn hard_app_label(app_name: &str) -> Option<&'static str> {
     let app = app_name.to_lowercase();
-    if app.contains("discord") {
-        return Some("discord");
-    }
+    // Always-off native apps (Instagram-class / shopping-adjacent / texting / streaming).
     if app == "messages"
         || app.contains("imessage")
         || app.contains("whatsapp")
@@ -419,6 +563,16 @@ fn hard_app_label(app_name: &str) -> Option<&'static str> {
         return Some("netflix");
     }
     None
+}
+
+/// Contextual native apps (Discord): never hard-nag from app name alone — use window title.
+fn contextual_app_label(app_name: &str) -> Option<&'static str> {
+    let app = app_name.to_lowercase();
+    if app.contains("discord") {
+        Some("discord")
+    } else {
+        None
+    }
 }
 
 /// Host / path evidence only — never bare brand words (avoids "Instagram" in articles).
@@ -839,5 +993,77 @@ pub fn scan_distractions(front: &FrontmostInfo) -> Option<DistractionHit> {
             None
         }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn youtube_entertainment_ksi_no_music_is_off_task() {
+        let title = "KSI - Thick of it, but with NO MUSIC - YouTube";
+        let url = "https://www.youtube.com/watch?v=SbTT1f3xZVg";
+        let page = format!("{title}\n{url}\nKSI Rapping");
+        assert_eq!(
+            local_context_guess("youtube", &page, "ENGL 1140 discussion; BIOMG 1350 quiz"),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn youtube_lecture_matching_goals_is_on_task() {
+        let page = "MIT 6.006 Introduction to Algorithms, Lecture 1 - YouTube\nhttps://www.youtube.com/watch?v=abc\nlecture algorithms";
+        assert_eq!(
+            local_context_guess("youtube", page, "algorithms / 6.006 problem set"),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn school_tab_group_alone_does_not_mark_entertainment_on_task() {
+        // Tab-group chrome must not override clear music/entertainment titles.
+        let page = "KSI - Thick of it, but with NO MUSIC\nhttps://www.youtube.com/watch?v=x\nSchool tab group";
+        assert_eq!(
+            local_context_guess("youtube", page, "ENGL / BIOMG schoolwork"),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn surface_policy_instagram_always_off_youtube_contextual() {
+        assert_eq!(surface_policy("instagram"), SurfacePolicy::AlwaysOff);
+        assert_eq!(surface_policy("shopping"), SurfacePolicy::AlwaysOff);
+        assert_eq!(surface_policy("texting"), SurfacePolicy::AlwaysOff);
+        assert_eq!(surface_policy("youtube"), SurfacePolicy::Contextual);
+        assert_eq!(surface_policy("discord"), SurfacePolicy::Contextual);
+    }
+
+    #[test]
+    fn discord_study_vs_meme_from_title() {
+        assert_eq!(
+            local_context_guess(
+                "discord",
+                "#homework-help | ENGL 1140 discussion",
+                "ENGL 1140 discussion post"
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            local_context_guess("discord", "#memes | shitpost central", "ENGL 1140 discussion"),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn classify_url_host_instagram_and_youtube() {
+        assert_eq!(
+            classify_url_host("https://www.instagram.com/reel/xyz"),
+            Some("instagram")
+        );
+        assert_eq!(
+            classify_url_host("https://www.youtube.com/watch?v=1"),
+            Some("youtube")
+        );
     }
 }

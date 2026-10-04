@@ -80,8 +80,27 @@ pub fn speak(text: &str) -> Result<()> {
     }
 }
 
+/// Bundled soft two-note chime (not a macOS system sound).
+const REFOCUS_DING_WAV: &[u8] = include_bytes!("../assets/refocus-ding.wav");
+
+fn refocus_ding_path() -> Result<PathBuf> {
+    static PATH: OnceLock<PathBuf> = OnceLock::new();
+    if let Some(p) = PATH.get() {
+        return Ok(p.clone());
+    }
+    let dir = std::env::temp_dir().join("waypoint-voice");
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| VoiceError::Message(format!("ding cache dir: {e}")))?;
+    let path = dir.join("refocus-ding.wav");
+    // Always rewrite so app updates replace a stale cached file.
+    std::fs::write(&path, REFOCUS_DING_WAV)
+        .map_err(|e| VoiceError::Message(format!("write ding wav: {e}")))?;
+    let _ = PATH.set(path.clone());
+    Ok(path)
+}
+
 /// Short positive chime when the student returns to task — no speech, no overlay.
-/// Uses a built-in macOS system sound (quiet volume).
+/// Custom baked-in WAV (respect silent mode at the call site in coach).
 pub fn play_positive_ding() -> Result<()> {
     #[cfg(target_os = "macos")]
     {
@@ -92,12 +111,13 @@ pub fn play_positive_ding() -> Result<()> {
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status();
-        const SOUND: &str = "/System/Library/Sounds/Tink.aiff";
-        if !Path::new(SOUND).is_file() {
-            return Err(VoiceError::Message("system ding sound missing".into()));
+        let sound = refocus_ding_path()?;
+        if !sound.is_file() {
+            return Err(VoiceError::Message("refocus ding sound missing".into()));
         }
         Command::new("afplay")
-            .args(["-v", "0.4", SOUND])
+            .args(["-v", "0.55"])
+            .arg(&sound)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())

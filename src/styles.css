@@ -1,7 +1,18 @@
 @import "katex/dist/katex.min.css";
 
-.bubble.assistant .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.3rem 0; }
-.bubble.assistant .katex { font-size: 1.1em; }
+.bubble.assistant .katex {
+  font-size: 1.21em;
+  color: inherit;
+}
+.bubble.assistant .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.35rem 0;
+  margin: 0.75rem 0;
+}
+.bubble.assistant .katex-display > .katex {
+  font-size: 1.35em;
+}
 
 :root {
   /* Mission Control — surfaces (Figma light lavender / cream) */
@@ -2790,6 +2801,32 @@ button:active {
   background: #ddd0f5;
 }
 
+/* Stop TTS only — sits beside Mic/Talk while speaking/thinking. */
+.view-copilot .copilot-stop-speech,
+.view-session .session-copilot-composer .copilot-stop-speech {
+  flex-shrink: 0;
+  height: 3.25rem;
+  padding: 0 0.85rem;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: #2a6b7a;
+  color: #f4fcff;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.view-copilot .copilot-stop-speech:hover:not(:disabled),
+.view-session .session-copilot-composer .copilot-stop-speech:hover:not(:disabled) {
+  background: #245f6c;
+}
+
+.view-copilot .copilot-stop-speech[hidden],
+.view-session .session-copilot-composer .copilot-stop-speech[hidden] {
+  display: none;
+}
+
 /* Mic / Talk ON: distinct fills by Live phase (idle stays tonal #e9ddfd). */
 .view-copilot .copilot-mic.is-on.is-live,
 .view-session .session-companion-talk.is-on.is-live,
@@ -3069,9 +3106,35 @@ button:focus-visible, a:focus-visible, .table-scroll:focus-visible {
 .bubble.assistant li { margin: 0.3rem 0; }
 .bubble.assistant a { color: var(--amber); text-underline-offset: 3px; }
 .bubble.assistant blockquote { margin: 0.8rem 0; border-left: 3px solid var(--mist); padding-left: 0.8rem; color: var(--muted); }
-.bubble.assistant code { font-family: ui-monospace, monospace; font-size: 0.9em; background: rgba(0, 0, 0, 0.25); padding: 0.1em 0.3em; }
-.bubble.assistant pre { max-width: 100%; overflow: auto; white-space: pre; background: #07141a; padding: 0.85rem; }
-.bubble.assistant pre code { background: none; padding: 0; }
+.bubble.assistant :not(pre) > code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
+  color: var(--mc-text-primary);
+  background: var(--mc-bg-deep);
+  border: 1px solid var(--mc-border-default);
+  border-radius: var(--radius-sm);
+  padding: 0.12em 0.38em;
+}
+.bubble.assistant pre {
+  max-width: 100%;
+  overflow: auto;
+  white-space: pre;
+  margin: 0.75rem 0;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--mc-border-default);
+  background: var(--ship-hull);
+  color: var(--mc-bg-elevated);
+  line-height: 1.5;
+  font-size: 0.875rem;
+}
+.bubble.assistant pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
 .table-scroll { max-width: 100%; overflow-x: auto; margin: 0.8rem 0; }
 .bubble.assistant table { border-collapse: collapse; font-size: 0.9rem; }
 .bubble.assistant th, .bubble.assistant td { border: 1px solid rgba(159, 196, 188, 0.3); padding: 0.5rem 0.7rem; text-align: left; }
@@ -4096,8 +4159,7 @@ body:has(.view-session.active) .grain {
 
 .view-session > .session-top-bar,
 .view-session > .session-page,
-.view-session > .session-coach-log,
-.view-session > .session-watch-note {
+.view-session > .session-coach-log {
   position: relative;
   z-index: 1;
 }
@@ -4464,6 +4526,15 @@ body:has(.view-session.active) .grain {
   display: none !important;
 }
 
+/* Stress break invite wins over check-in if both classes overlap briefly. */
+#view-session.is-break-suggested.is-session-checkin .session-break-suggest {
+  display: flex !important;
+}
+
+#view-session.is-break-suggested.is-session-checkin .session-checkin-card {
+  display: none !important;
+}
+
 .session-break-suggest__badge {
   margin: 0 0 0.75rem;
   align-self: flex-start;
@@ -4653,11 +4724,16 @@ body:has(.view-session.active) .grain {
   box-shadow: none;
 }
 
-.session-watch-note {
-  text-align: center;
-  color: var(--muted);
-  font-size: 0.85rem;
-  margin: 0 auto 0.9rem;
+.session-mission-card > .session-watch-note {
+  margin: 0 0 0.65rem;
+  text-align: left;
+  color: var(--mc-text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.session-watch-note[hidden] {
+  display: none !important;
 }
 
 .vitals-panel {
@@ -4878,7 +4954,7 @@ body:has(.view-quest-complete.active) .grain {
 
 .quest-complete-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.55rem;
   margin-bottom: 0.85rem;
 }
@@ -5931,7 +6007,7 @@ img[src*="assets/figma/"] {
 }
 
 .view-quest-complete .flight-log-stats {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.55rem;
 }
 
