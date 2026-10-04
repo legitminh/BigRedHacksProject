@@ -2411,7 +2411,7 @@ button:active {
   font-size: 1.625rem; /* Live 03 5:220 Medium 26px */
   font-weight: 500;
   line-height: 1.4;
-  color: var(--mc-text-primary);
+  color: #282237; /* live 03 5:220 ink — not --mc-text-primary */
   letter-spacing: -0.02em;
 }
 
@@ -2428,7 +2428,7 @@ button:active {
   height: 1px;
   margin: 0;
   border: none;
-  background: var(--mc-border-default);
+  background: #c8bfd7; /* live 03 5:222 hairline — not rgba --mc-border-default */
 }
 
 .copilot-sidebar-cta,
@@ -2568,7 +2568,7 @@ button:active {
   margin: 0;
   font-size: 1.375rem; /* Live 03 5:238 Regular 22px */
   font-weight: 400;
-  color: var(--mc-text-primary);
+  color: #282237; /* live 03 5:238 ink — not --mc-text-primary */
   line-height: 1.4;
   letter-spacing: -0.01em;
 }
