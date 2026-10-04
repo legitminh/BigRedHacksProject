@@ -34,6 +34,18 @@ pub fn clear_history(state: &AppState) {
     state.companion_history.lock().clear();
 }
 
+/// User turns only — what they told the companion, not coach replies.
+pub fn user_utterances(state: &AppState) -> Vec<String> {
+    state
+        .companion_history
+        .lock()
+        .iter()
+        .filter(|m| m.role == "user")
+        .map(|m| m.content.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
 fn merge_session_context(state: &AppState, mut ctx: CompanionContext) -> CompanionContext {
     if let Some(session) = state.session.lock().as_ref() {
         if ctx.goals.as_ref().map(|g| g.trim().is_empty()).unwrap_or(true) {

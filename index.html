@@ -727,6 +727,11 @@
               <p class="quest-copilot-kicker" hidden>✦  A note from your copilot</p>
               <p id="summary-closing" class="quest-copilot-body"></p>
             </div>
+            <article id="summary-session-note" class="quest-session-note" hidden>
+              <h2 class="quest-session-note-kicker">Session note</h2>
+              <p id="summary-session-note-status" class="quest-session-note-status" hidden>Writing your note…</p>
+              <div id="summary-session-note-body" class="quest-session-note-body"></div>
+            </article>
             <details class="quest-flight-details visually-hidden" hidden>
               <summary>Flight details</summary>
               <div id="summary-body" class="summary-body quest-flight-details-body flight-log-details"></div>
@@ -854,6 +859,17 @@
                         <input id="setting-camera-signals" type="checkbox" />
                         <span class="mc-switch-track" aria-hidden="true"></span>
                         <span class="visually-hidden">Camera accountability</span>
+                      </label>
+                    </li>
+                    <li class="settings-toggle-row">
+                      <div class="settings-toggle-copy">
+                        <strong>Session notes</strong>
+                        <span>Waypoint writes a readable note when the lock-in ends.</span>
+                      </div>
+                      <label class="mc-switch">
+                        <input id="setting-session-notes" type="checkbox" checked />
+                        <span class="mc-switch-track" aria-hidden="true"></span>
+                        <span class="visually-hidden">Session notes</span>
                       </label>
                     </li>
                     <li class="settings-toggle-row">

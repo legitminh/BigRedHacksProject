@@ -12,6 +12,7 @@ mod local_vision;
 mod overlay;
 mod presage;
 mod session;
+mod session_notes;
 mod settings;
 mod study_memory;
 
@@ -20,7 +21,7 @@ use std::sync::Arc;
 
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use config::AppConfig;
 use gemini::{ChatMessage, StudySessionSuggestion};
@@ -37,6 +38,8 @@ pub struct AppState {
     pub companion_history: Mutex<Vec<ChatMessage>>,
     pub coach_stop: Mutex<Option<Arc<AtomicBool>>>,
     pub silent_mode: AtomicBool,
+    /// Session notes on by default. Updated from settings load/save.
+    pub notes_enabled: AtomicBool,
     /// When the current pause began (UTC), if any.
     pub pause_started: Mutex<Option<chrono::DateTime<chrono::Utc>>>,
 }
@@ -857,6 +860,27 @@ async fn start_lock_in(
     Ok(session)
 }
 
+/// When session notes are on, write and upload one note from sources snapshotted before clear.
+/// Returns whether a note was started (`notes_pending` on the summary).
+pub(crate) fn maybe_spawn_session_note(
+    app: &tauri::AppHandle,
+    session: &LockInSession,
+    user_utterances: Vec<String>,
+) -> bool {
+    if !app
+        .state::<AppState>()
+        .notes_enabled
+        .load(Ordering::SeqCst)
+    {
+        return false;
+    }
+    session_notes::spawn_session_note(
+        app,
+        session_notes::NoteJob::from_session(session, user_utterances),
+    );
+    true
+}
+
 /// Append the finished session to study memory and sync it to the account (best effort).
 /// Shared by early end (`stop_lock_in`) and natural expiry (`coach::finish_session`).
 pub(crate) fn persist_session_summary(app: &tauri::AppHandle, summary: &SessionSummary) {
@@ -896,6 +920,8 @@ async fn stop_lock_in(
     state: State<'_, AppState>,
 ) -> Result<Option<SessionSummary>, String> {
     coach::stop_coach(&app);
+    // Snapshot before clear — this command used to drop companion turns before summarize.
+    let utterances = companion::user_utterances(&state);
     companion::clear_history(&state);
     waypoint_voice::stop_speaking();
     let open_pause = state.pause_started.lock().take();
@@ -905,7 +931,9 @@ async fn stop_lock_in(
             s.finalize_open_pause(open_pause);
             s.active = false;
             s.paused = false;
-            s.summarize()
+            let mut summary = s.summarize();
+            summary.notes_pending = maybe_spawn_session_note(&app, s, utterances);
+            summary
         });
         *guard = None;
         summary
@@ -934,6 +962,7 @@ async fn delete_all_user_data(
     companion::clear_history(&state);
     waypoint_voice::stop_speaking();
     state.silent_mode.store(true, Ordering::SeqCst);
+    state.notes_enabled.store(true, Ordering::SeqCst);
 
     let cfg = state.config.lock().clone();
     let mut removed = Vec::new();
@@ -1009,6 +1038,9 @@ fn get_settings(state: State<'_, AppState>) -> UserSettings {
     state
         .silent_mode
         .store(loaded.silent_mode, Ordering::SeqCst);
+    state
+        .notes_enabled
+        .store(loaded.notes_enabled, Ordering::SeqCst);
     loaded
 }
 
@@ -1019,6 +1051,9 @@ fn save_settings(state: State<'_, AppState>, settings: UserSettings) -> Result<(
     state
         .silent_mode
         .store(settings.silent_mode, Ordering::SeqCst);
+    state
+        .notes_enabled
+        .store(settings.notes_enabled, Ordering::SeqCst);
     Ok(())
 }
 
@@ -1060,6 +1095,7 @@ pub fn run() {
             companion_history: Mutex::new(Vec::new()),
             coach_stop: Mutex::new(None),
             silent_mode: AtomicBool::new(initial_settings.silent_mode),
+            notes_enabled: AtomicBool::new(initial_settings.notes_enabled),
             pause_started: Mutex::new(None),
         })
         .setup(|app| {

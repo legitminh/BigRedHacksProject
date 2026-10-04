@@ -38,6 +38,7 @@ type ViewId =
 
 interface UserSettings {
   silent_mode: boolean;
+  notes_enabled?: boolean;
 }
 
 const PREF_CAMERA_SIGNALS = "wp-setting-camera-signals";
@@ -73,6 +74,32 @@ function syncSilentModeInputs(silentMode: boolean) {
   const audio = $("#setting-copilot-audio") as HTMLInputElement | null;
   if (silent) silent.checked = silentMode;
   if (audio) audio.checked = !silentMode;
+}
+
+function syncNotesInput(enabled: boolean) {
+  const notes = $("#setting-session-notes") as HTMLInputElement | null;
+  if (notes) notes.checked = enabled;
+}
+
+async function hydrateSettingsToggles() {
+  try {
+    const settings = await invoke<UserSettings>("get_settings");
+    syncSilentModeInputs(Boolean(settings.silent_mode));
+    syncNotesInput(settings.notes_enabled !== false);
+  } catch {
+    syncNotesInput(true);
+  }
+}
+
+function settingsFromToggles(): UserSettings {
+  const silent = $("#setting-silent-mode") as HTMLInputElement | null;
+  const audio = $("#setting-copilot-audio") as HTMLInputElement | null;
+  const notes = $("#setting-session-notes") as HTMLInputElement | null;
+  const silentMode = silent ? silent.checked : audio ? !audio.checked : true;
+  return {
+    silent_mode: silentMode,
+    notes_enabled: notes ? notes.checked : true,
+  };
 }
 
 function applyReduceMotionPref() {
@@ -231,6 +258,16 @@ interface SessionSummary {
   stress_spikes: number;
   closing_note: string;
   vitals_summary?: string;
+  session_id?: string;
+  started_at?: string;
+  session_note?: string | null;
+  notes_pending?: boolean;
+}
+
+interface SessionNoteReady {
+  session_id: string;
+  kind: string;
+  markdown: string;
 }
 
 const $ = <T extends HTMLElement>(sel: string) =>
@@ -238,6 +275,7 @@ const $ = <T extends HTMLElement>(sel: string) =>
 
 let lastSummaryGoals = "";
 let lastSessionSummary: SessionSummary | null = null;
+let bufferedSessionNote: SessionNoteReady | null = null;
 let lastSummaryPersonalBest: { previous: number; isNew: boolean; delta: number } | null = null;
 let lastSummaryRelaunches = 0;
 
@@ -2568,6 +2606,7 @@ async function openSettings(tab = "lockin") {
   try {
     const settings = await invoke<UserSettings>("get_settings");
     syncSilentModeInputs(Boolean(settings.silent_mode));
+    syncNotesInput(settings.notes_enabled !== false);
     syncSessionPreferenceToggles();
     const status = $("#settings-save-status");
     if (status) status.textContent = "";
@@ -2676,20 +2715,13 @@ function selectSettingsTab(tab: string) {
   }
 }
 
-async function persistSilentMode() {
-  const silent = $("#setting-silent-mode") as HTMLInputElement | null;
-  const audio = $("#setting-copilot-audio") as HTMLInputElement | null;
-  const silentMode = silent
-    ? silent.checked
-    : audio
-      ? !audio.checked
-      : false;
-  syncSilentModeInputs(silentMode);
+async function persistUserSettings() {
+  const settings = settingsFromToggles();
+  syncSilentModeInputs(settings.silent_mode);
+  syncNotesInput(settings.notes_enabled !== false);
   const status = $("#settings-save-status");
   try {
-    await invoke("save_settings", {
-      settings: { silent_mode: silentMode },
-    });
+    await invoke("save_settings", { settings });
     if (status) status.textContent = "Saved.";
     await syncSessionMuteButton();
   } catch (err) {
@@ -2697,11 +2729,15 @@ async function persistSilentMode() {
   }
 }
 
+async function persistSilentMode() {
+  await persistUserSettings();
+}
+
 async function persistCopilotAudioFromToggle() {
   const audio = $("#setting-copilot-audio") as HTMLInputElement | null;
   const silent = $("#setting-silent-mode") as HTMLInputElement | null;
   if (silent && audio) silent.checked = !audio.checked;
-  await persistSilentMode();
+  await persistUserSettings();
 }
 
 async function syncSessionMuteButton() {
@@ -2722,7 +2758,12 @@ async function toggleSessionMute() {
   try {
     const settings = await invoke<UserSettings>("get_settings");
     const next = !settings.silent_mode;
-    await invoke("save_settings", { settings: { silent_mode: next } });
+    await invoke("save_settings", {
+      settings: {
+        silent_mode: next,
+        notes_enabled: settings.notes_enabled !== false,
+      },
+    });
     syncSilentModeInputs(next);
     await syncSessionMuteButton();
   } catch (err) {
@@ -2842,6 +2883,56 @@ function renderSummary(summary: SessionSummary) {
       <ul class="flight-log-distractions">${distractions}</ul>
     </article>
   `;
+  applySessionNote(summary);
+}
+
+function hideSessionNote() {
+  const card = $("#summary-session-note");
+  if (card) card.hidden = true;
+}
+
+function showSessionNotePending() {
+  const card = $("#summary-session-note");
+  const status = $("#summary-session-note-status");
+  const body = $("#summary-session-note-body");
+  if (!card || !status || !body) return;
+  card.hidden = false;
+  status.hidden = false;
+  status.textContent = "Writing your note…";
+  body.hidden = true;
+  body.replaceChildren();
+}
+
+function showSessionNoteMarkdown(markdown: string) {
+  const card = $("#summary-session-note");
+  const status = $("#summary-session-note-status");
+  const body = $("#summary-session-note-body");
+  if (!card || !status || !body) return;
+  card.hidden = false;
+  status.hidden = true;
+  body.hidden = false;
+  renderMarkdown(body, markdown);
+}
+
+function applySessionNote(summary: SessionSummary) {
+  if (summary.session_note) {
+    showSessionNoteMarkdown(summary.session_note);
+    return;
+  }
+  if (
+    bufferedSessionNote &&
+    summary.session_id &&
+    bufferedSessionNote.session_id === summary.session_id
+  ) {
+    showSessionNoteMarkdown(bufferedSessionNote.markdown);
+    bufferedSessionNote = null;
+    return;
+  }
+  if (summary.notes_pending) {
+    showSessionNotePending();
+    return;
+  }
+  hideSessionNote();
 }
 
 let timerHandle: number | undefined;
@@ -3514,9 +3605,13 @@ async function bootApp() {
   $("#setting-silent-mode")?.addEventListener("change", () => {
     void persistSilentMode();
   });
+  $("#setting-session-notes")?.addEventListener("change", () => {
+    void persistUserSettings();
+  });
   wireCameraPermissionHandoff("lockin-camera", "setup");
   wireCameraPermissionHandoff("setting-camera-signals", "settings");
   syncSessionPreferenceToggles();
+  void hydrateSettingsToggles();
   syncMissionSetupLaunchUi();
   $("#setting-reduce-motion")?.addEventListener("change", (event) => {
     const input = event.target as HTMLInputElement;
@@ -3658,6 +3753,22 @@ async function bootApp() {
     setSessionCheckinUi(false);
     setSessionEndingUi(false);
     showSummaryWithCelebration(event.payload);
+  });
+  await listen<SessionNoteReady>("session-note", (event) => {
+    const note = event.payload;
+    if (
+      lastSessionSummary?.session_id &&
+      note.session_id === lastSessionSummary.session_id
+    ) {
+      lastSessionSummary = {
+        ...lastSessionSummary,
+        session_note: note.markdown,
+        notes_pending: false,
+      };
+      showSessionNoteMarkdown(note.markdown);
+      return;
+    }
+    bufferedSessionNote = note;
   });
 
   initShipUI();

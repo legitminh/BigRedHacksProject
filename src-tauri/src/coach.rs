@@ -387,6 +387,7 @@ async fn run_local_watch_loop(
                     // Key by label only — detail churn was resetting cooldown and stacking voice.
                     let fp = format!("hard:{}", hit.label);
                     last_fingerprint = fp;
+                    append_screen_log(&app, &format!("{} · {}", hit.label, hit.detail));
                     let cfg = app.state::<AppState>().config.lock().clone();
                     let nag_n = distraction_episode_nags(hit.label).saturating_add(1);
                     let coach_line = local_judge::compose_coach_line(
@@ -418,6 +419,12 @@ async fn run_local_watch_loop(
                     let fp = info.fingerprint();
                     let switched = fp != last_fingerprint;
                     last_fingerprint = fp.clone();
+                    if switched {
+                        append_screen_log(&app, &info.summary());
+                        if !page_text.trim().is_empty() {
+                            append_screen_log(&app, &format!("Page: {page_text}"));
+                        }
+                    }
 
                     // 1) Instant keyword guess for obvious study vs entertainment.
                     //    YouTube/video must never idle on "Checking…" — unclear = off-task.
@@ -549,6 +556,9 @@ async fn run_local_watch_loop(
                             };
                             session.watching_note =
                                 format!("On task · {}{ocr_bit}", info.summary());
+                            if !last_ocr_snippet.is_empty() {
+                                session.push_screen_log(&format!("OCR: {last_ocr_snippet}"));
+                            }
                             let snap = session.clone();
                             drop(guard);
                             let _ = app.emit("session-update", &snap);
@@ -571,6 +581,9 @@ async fn run_local_watch_loop(
                         .next()
                         .unwrap_or("")
                         .to_string();
+                    if !last_ocr_snippet.trim().is_empty() {
+                        append_screen_log(&app, &format!("OCR: {last_ocr_snippet}"));
+                    }
                     // OCR labels are host/chrome-strong only — ignore brand word mentions.
                     if let Some(label) = reading.labels.first().copied() {
                         let study_ok = label == "youtube"
@@ -619,11 +632,20 @@ async fn run_local_watch_loop(
                                 )
                                 .await
                                 {
-                                    if j.confidence >= local_judge::min_confidence()
-                                        && !j.result.on_task
-                                    {
-                                        apply_coach_tick(&app, &j.result, &mut last_vitals).await;
-                                        was_distracted = true;
+                                    if j.confidence >= local_judge::min_confidence() {
+                                        let verdict = if j.result.on_task {
+                                            "on task"
+                                        } else {
+                                            "off task"
+                                        };
+                                        append_screen_log(
+                                            &app,
+                                            &format!("Judge: {verdict} — {}", j.result.coach_line),
+                                        );
+                                        if !j.result.on_task {
+                                            apply_coach_tick(&app, &j.result, &mut last_vitals).await;
+                                            was_distracted = true;
+                                        }
                                     }
                                 }
                             }
@@ -720,6 +742,14 @@ async fn judge_context_cascade(
                 judgment.result.on_task
             );
             let on_task = judgment.result.on_task && judgment.result.distraction.is_none();
+            let verdict = if on_task { "on task" } else { "off task" };
+            append_screen_log(
+                app,
+                &format!(
+                    "Judge: {verdict} · {} · {} — {}",
+                    info.app_name, info.window_title, judgment.result.coach_line
+                ),
+            );
             apply_coach_tick(app, &judgment.result, last_vitals).await;
             Some(on_task)
         }
@@ -768,6 +798,7 @@ fn mark_local_on_task(app: &AppHandle, info: &frontmost::FrontmostInfo) {
     session.on_task_ticks = session.on_task_ticks.saturating_add(1);
     session.status = SessionStatusKind::OnTask;
     session.watching_note = format!("Watching full screen · {}", info.summary());
+    session.push_screen_log(&info.summary());
     let snap = session.clone();
     drop(guard);
     let _ = app.emit("session-update", &snap);
@@ -913,6 +944,14 @@ fn is_auth_observe_error(err: &str) -> bool {
     lower.contains("401")
         || lower.contains("unauthorized")
         || lower.contains("sign in")
+}
+
+fn append_screen_log(app: &AppHandle, line: &str) {
+    let state = app.state::<AppState>();
+    let mut guard = state.session.lock();
+    if let Some(session) = guard.as_mut() {
+        session.push_screen_log(line);
+    }
 }
 
 fn apply_watching_note(app: &AppHandle, note: &str) {
@@ -1270,6 +1309,12 @@ async fn speak_heads_up(app: &AppHandle, text: &str) {
 async fn finish_session(app: &AppHandle, session_id: &str) {
     waypoint_voice::stop_speaking();
     overlay::hide(app);
+    // Natural end does not clear companion history, but snapshot before the session goes away
+    // so the note still has what the user told the agent.
+    let utterances = {
+        let state = app.state::<AppState>();
+        crate::companion::user_utterances(&state)
+    };
     let summary = {
         let state = app.state::<AppState>();
         let open_pause = state.pause_started.lock().take();
@@ -1280,7 +1325,9 @@ async fn finish_session(app: &AppHandle, session_id: &str) {
                 session.finalize_open_pause(open_pause);
                 session.active = false;
                 session.paused = false;
-                let summary = session.summarize();
+                let mut summary = session.summarize();
+                summary.notes_pending =
+                    crate::maybe_spawn_session_note(app, session, utterances);
                 // Same lifecycle as `stop_lock_in`: clear the finished session.
                 *guard = None;
                 Some(summary)
