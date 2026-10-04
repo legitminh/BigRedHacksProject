@@ -4507,26 +4507,15 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `#645d73`; Start a mission + planet flow unchanged.
 - escalate: scrutinous
 
-## open: fp-copilot-empty-heading-ink
+## done: fp-copilot-empty-heading-ink
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   heading `5:238` · card `5:235` ·
   crop `_verify/tick42-empty-card.png`
-- expected: |
-    Live empty-card heading (`5:238`): Regular 22px ink **`#282237`**
-    (darkest sample rgb 40,34,55) on `#fffbff` — not legacy
-    `--mc-text-primary` `#2a2440`.
-- actual: |
-    Weight/size OK (`fp-copilot-empty-heading-weight` / 22px). 
-    `.copilot-empty-heading` still `color: var(--mc-text-primary)`
-    (`#2a2440`). Page title already hardcoded `#282237` (`070f446`).
-- deviation: |
-    Tick42 — empty heading ink vs live `5:238` `#282237`. Distinct from
-    empty-heading-weight / empty-surface / empty-card-pad-25; Copilot
-    spot-check after title/composer dones.
-- fix_hint: |
-    Set `.copilot-empty-heading` color to `#282237`; leave empty copy
-    `#645d73` + Mic/Send/chip wiring.
+- commit: 02df760
+- change: |
+    `.copilot-empty-heading` → ink `#282237` (Regular 22px / lh 1.4 kept);
+    empty copy `#645d73` + Mic/Send/chip wiring unchanged.
 - escalate: scrutinous
 
 ## open: fp-relaunch-end-label-type
@@ -4634,4 +4623,95 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `.view-session .session-copilot-composer .copilot-send.primary` →
     solid `#6750a4` (match Copilot Send after `97e3086`); 52 circle + ↑
     + Enter/mic + Pause/End kept.
+- escalate: scrutinous
+
+## done: fp-copilot-sidebar-title-ink
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  title `5:220` · sidebar `5:217` ·
+  crop `_verify/tick44-copilot-sidebar-crop.png`
+- commit: 02df760
+- change: |
+    `.copilot-sidebar-title` → ink `#282237` (Medium 26 / lh 1.4 kept);
+    body `#645d73` + Start a mission / planet wiring unchanged.
+- escalate: scrutinous
+
+## done: fp-copilot-sidebar-divider
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  divider `5:222` · sidebar `5:217` ·
+  crop `_verify/tick44-copilot-sidebar-crop.png`
+- commit: 02df760
+- change: |
+    `.copilot-sidebar-divider` → solid hairline `#c8bfd7` (1px; not
+    rgba `--mc-border-default`); Start a mission + planet flow kept.
+- escalate: scrutinous
+
+## open: fp-relaunch-timer-digit-type
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  digits `6:641` · countdown `6:640` ·
+  crop `_verify/tick44-relaunch-digits.png` · full `_verify/tick44-relaunch-live.png`
+- expected: |
+    Live relaunch countdown digits (`6:641`, ~222×120 box): Bold **~86px**
+    / tight leading / ink **`#282237`** “13:00” — caption under stays
+    Regular 11 muted (`fp-relaunch-timer-caption-type`).
+- actual: |
+    Opens lock caption type only. `.session-timer` is
+    `clamp(3.4rem, 12vw, 5rem)` (max **80px**) / weight **600** /
+    `color: var(--mc-text-primary)` (`#2a2440`) — undersized + lighter
+    weight/ink vs live Bold 86 / `#282237`.
+- deviation: |
+    Tick44 — relaunch timer digit type vs live `6:641`. Distinct from
+    timer-caption-type / earned-type / end-label-type; under-covered
+    `2:41`. Spot-check: welcome title/kicker + session Send (`4877bf7`)
+    — no live regression on 01/16 glance.
+- fix_hint: |
+    Set `.view-session .session-timer` to ~86px / weight 700 / `#282237`
+    (tabular); keep TIMER PAUSED caption open + Pause/End swap.
+- escalate: scrutinous
+
+## open: fp-connection-lost-header-ink
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  title `6:1710` · header `6:1708` ·
+  crop `_verify/tick44-lost-live.png`
+- expected: |
+    Live lost “Your copilot” title (`6:1710`): Medium ~22px / lh 1.4 ink
+    **`#282237`** beside ✦ — same darkest ink as Copilot page title.
+- actual: |
+    Open `fp-connection-lost-header-type` locks scale/weight (~22 / 500)
+    only — not ink. `.session-copilot-kicker` still
+    `color: var(--mc-text-primary)` (`#2a2440`) at 0.95rem/700.
+- deviation: |
+    Tick44 — lost/session header ink vs live `6:1710` `#282237`. Distinct
+    from header-type / panel-surface / meta-muted / latest-*; under-covered
+    `2:48`. Spot-check: session Send `#6750a4` (`4877bf7`) OK.
+- fix_hint: |
+    Pair with header-type: set `.session-copilot-kicker` color `#282237`
+    (+ ~22px / 500); keep ✦ Your copilot + composer + Pause/End.
+- escalate: scrutinous
+
+## open: fp-permissions-choice-kicker-type
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  kicker `7:394` · intro `7:393` ·
+  crop `_verify/tick44-choice-intro-crop.png`
+- expected: |
+    Live YOUR CHOICE kicker (`7:394`, h≈17): Regular **12px** / weight
+    **400** / lh 1.4 / purple **`#6750a4`** uppercase “YOUR CHOICE” —
+    not Bold/700 and not mint (mint is welcome/setup badges).
+- actual: |
+    Open `fp-permissions-choice-title-size` bundles “purple `#6750a4` bold
+    12px” with Medium 44 title — locks size/color family, not kicker
+    **weight/lh**. `fp-permissions-choice-sub-type` locks sub only.
+    App still has no YOUR CHOICE page under handoff/denied.
+- deviation: |
+    Tick44 — choice kicker type vs live `7:394` (Regular 12 / 400 /
+    `#6750a4`). Distinct from title-size / sub-type / choice-surface /
+    intro-gap / scrim; under-covered YOUR CHOICE.
+- fix_hint: |
+    When adding YOUR CHOICE view, set kicker 12px / 400 / lh 1.4 /
+    `#6750a4` (no heavy tracking); keep Medium 44 title + muted 16 sub +
+    Lock-in nav. Preserve Settings five-tab; do not block Launch.
 - escalate: scrutinous
