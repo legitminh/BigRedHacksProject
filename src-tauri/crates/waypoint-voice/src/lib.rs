@@ -1,7 +1,7 @@
 //! Local voice stack for Waypoint.
 //!
+//! - **TTS (primary)**: xAI / Grok audio via API proxy, played with `afplay`
 //! - **TTS (fallback)**: macOS `say`
-//! - **TTS (study heads-ups)**: xAI / Grok audio played via `afplay` (fetched by coach)
 //! - **STT**: macOS Speech framework via a small Swift helper (AVAudioRecorder +
 //!   SFSpeechRecognizer). `Transcriber` remains the swap point for Whisper later.
 
@@ -48,7 +48,7 @@ fn speak_snippet(text: &str) -> String {
     text.trim().chars().take(160).collect()
 }
 
-/// Local macOS `say` TTS — Settings “Test speak” and heads-up fallback.
+/// Local macOS `say` TTS — fallback when Grok/xAI TTS is unavailable.
 /// Non-blocking. Always cuts off any previous utterance so lines never stack.
 pub fn speak(text: &str) -> Result<()> {
     let snippet = speak_snippet(text);
@@ -135,8 +135,17 @@ pub fn play_positive_ding() -> Result<()> {
 }
 
 /// Play raw audio bytes from xAI / Grok TTS (typically MP3). Non-blocking.
-/// Used only by study heads-up / nudge audio — not Settings test speak.
+/// Used by study heads-up / nudge audio.
 pub fn play_audio_bytes(bytes: &[u8], extension: &str) -> Result<()> {
+    play_audio_bytes_inner(bytes, extension, false)
+}
+
+/// Play Grok/xAI TTS and wait until `afplay` finishes (Settings “Test speak”).
+pub fn play_audio_bytes_wait(bytes: &[u8], extension: &str) -> Result<()> {
+    play_audio_bytes_inner(bytes, extension, true)
+}
+
+fn play_audio_bytes_inner(bytes: &[u8], extension: &str, wait: bool) -> Result<()> {
     if bytes.is_empty() {
         return Err(VoiceError::Message("empty audio payload".into()));
     }
@@ -153,6 +162,22 @@ pub fn play_audio_bytes(bytes: &[u8], extension: &str) -> Result<()> {
         let path = temp_audio_path(ext)?;
         std::fs::write(&path, bytes)
             .map_err(|e| VoiceError::Message(format!("write TTS audio: {e}")))?;
+        if wait {
+            let status = Command::new("afplay")
+                .arg(&path)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .map_err(|e| VoiceError::Message(format!("afplay failed: {e}")))?;
+            let _ = std::fs::remove_file(&path);
+            if !status.success() {
+                return Err(VoiceError::Message(format!(
+                    "afplay failed (exit {status}). Check system audio output."
+                )));
+            }
+            return Ok(());
+        }
         let path_owned = path.clone();
         std::thread::spawn(move || {
             let _ = Command::new("afplay")
@@ -168,7 +193,7 @@ pub fn play_audio_bytes(bytes: &[u8], extension: &str) -> Result<()> {
 
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = extension;
+        let _ = (extension, wait);
         Err(VoiceError::Message(
             "Grok TTS playback is only wired for macOS `afplay` right now.".into(),
         ))
@@ -185,7 +210,7 @@ fn temp_audio_path(ext: &str) -> Result<PathBuf> {
     Ok(dir.join(format!("heads-up-{ts}.{ext}")))
 }
 
-/// Blocking TTS — used by the Settings “Test speak” button so success means audio finished.
+/// Blocking local `say` — fallback when Grok TTS is unavailable for Settings “Test speak”.
 pub fn speak_wait(text: &str) -> Result<()> {
     let snippet = speak_snippet(text);
     if snippet.is_empty() {

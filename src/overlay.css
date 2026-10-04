@@ -55,15 +55,17 @@ body {
   place-items: center;
   width: 2.75rem;
   height: 2.75rem;
-  border-radius: 14px;
-  background: var(--mc-raised);
-  border: 1px solid rgba(200, 191, 215, 0.65);
+  border-radius: 50%;
+  overflow: hidden;
+  background: transparent;
+  border: none;
 }
 
 .toast-icon img {
   display: block;
-  width: 32px;
-  height: auto;
+  width: 2.75rem;
+  height: 2.75rem;
+  object-fit: cover;
 }
 
 .toast-content {

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ensure-school-digest"
+description = "Enables the ensure_school_digest command without any pre-configured scope."
+commands.allow = ["ensure_school_digest"]
+
+[[permission]]
+identifier = "deny-ensure-school-digest"
+description = "Denies the ensure_school_digest command without any pre-configured scope."
+commands.deny = ["ensure_school_digest"]

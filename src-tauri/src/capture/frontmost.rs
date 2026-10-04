@@ -126,39 +126,42 @@ pub fn is_productive_work_app(app_name: &str) -> bool {
 pub fn evaluate_focus(goals: &str) -> Result<FocusEvent, String> {
     let info = frontmost_info()?;
 
-    // Still scan browser tabs while Waypoint is focused (session UI / overlay).
     let waypoint_focused = info.app_name.to_lowercase().contains("waypoint");
     let productive_focused = is_productive_work_app(&info.app_name);
 
-    // Cursor / IDEs / docs apps: on-task locally. Don't let a background YouTube tab
-    // override the focused work app (that was nailing chemistry study in Cursor).
-    if productive_focused && !waypoint_focused {
+    // While Waypoint itself is frontmost, don't nag about background browser tabs.
+    if waypoint_focused {
         return Ok(FocusEvent::Clear(info));
     }
 
-    if !waypoint_focused {
-        if let Some(label) = hard_app_label(&info.app_name) {
-            return Ok(FocusEvent::Hard(DistractionHit {
-                label,
-                detail: info.summary(),
-                focused: true,
-            }));
-        }
+    // Cursor / IDEs / docs apps: on-task locally. Don't let a background YouTube tab
+    // override the focused work app (that was nailing chemistry study in Cursor).
+    if productive_focused {
+        return Ok(FocusEvent::Clear(info));
+    }
 
-        // Discord (and future contextual apps): title/context, not app-name alone.
-        if let Some(label) = contextual_app_label(&info.app_name) {
-            return classify_site(label, info, goals, true);
-        }
+    if let Some(label) = hard_app_label(&info.app_name) {
+        return Ok(FocusEvent::Hard(DistractionHit {
+            label,
+            detail: info.summary(),
+            focused: true,
+        }));
+    }
 
-        // Focused browser URL / window / tab title.
-        let focused_label = classify_focus_label(&info);
+    // Discord (and future contextual apps): title/context, not app-name alone.
+    if let Some(label) = contextual_app_label(&info.app_name) {
+        return classify_site(label, info, goals, true);
+    }
 
-        if let Some(label) = focused_label {
-            return classify_site(label, info, goals, true);
-        }
+    // Focused browser URL / window / tab title.
+    let focused_label = classify_focus_label(&info);
+
+    if let Some(label) = focused_label {
+        return classify_site(label, info, goals, true);
     }
 
     // Background tabs: URL host only — never title keywords (articles about Instagram ≠ Instagram).
+    // Disclosed in Settings; full-tab scan remains on while a non-Waypoint app is focused.
     #[cfg(target_os = "macos")]
     {
         for tab in all_browser_tabs().into_iter().take(50) {
@@ -168,15 +171,12 @@ pub fn evaluate_focus(goals: &str) -> Result<FocusEvent, String> {
             let url_lower = tab.url.to_lowercase();
             if let Some(label) = classify_url_host(&url_lower) {
                 let mut bg = info.clone();
-                // Prefer real browser identity over "Waypoint" when nagging about a tab.
-                if waypoint_focused || bg.app_name.is_empty() {
+                if bg.app_name.is_empty() {
                     bg.app_name = "Browser".into();
                 }
                 bg.url = tab.url.clone();
                 bg.window_title = tab.title.clone();
-                let focused = !waypoint_focused
-                    && !info.url.is_empty()
-                    && urls_similar(&info.url, &tab.url);
+                let focused = !info.url.is_empty() && urls_similar(&info.url, &tab.url);
                 return classify_site(label, bg, goals, focused);
             }
         }
@@ -1065,5 +1065,34 @@ mod tests {
             classify_url_host("https://www.youtube.com/watch?v=1"),
             Some("youtube")
         );
+        assert_eq!(
+            classify_url_host("https://www.youtube.com/shorts/abc123"),
+            Some("youtube")
+        );
+        assert_eq!(
+            classify_url_host("https://youtu.be/abc123"),
+            Some("youtube")
+        );
+        assert_ne!(
+            classify_url_host("https://www.youtube.com/shorts/abc123"),
+            Some("instagram")
+        );
+    }
+
+    #[test]
+    fn youtube_shorts_entertainment_is_hard_off_task() {
+        let page = "Want to learn how to code? #shorts - YouTube\nhttps://www.youtube.com/shorts/xyz\nShorts";
+        assert_eq!(
+            local_context_guess("youtube", page, "coding project"),
+            Some(false)
+        );
+        let hit = DistractionHit {
+            label: "youtube",
+            detail: "YouTube Shorts".into(),
+            focused: true,
+        };
+        let line = distraction_coach_line(&hit);
+        assert!(line.to_lowercase().contains("youtube"));
+        assert!(!line.to_lowercase().contains("instagram"));
     }
 }

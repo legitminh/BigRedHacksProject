@@ -1,6 +1,8 @@
 //! Waypoint account session — tokens from the backend Google sign-in flow.
 
 use std::fs;
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -8,6 +10,61 @@ use serde_json::json;
 
 use crate::api;
 use crate::config::AppConfig;
+
+/// Set by `cancel_sign_in_waypoint_google` to abort an in-flight browser poll.
+static CANCEL_GOOGLE_SIGN_IN: AtomicBool = AtomicBool::new(false);
+
+/// Compact + owner-only write for secret material (never pretty-print JWTs).
+pub(crate) fn write_secret_file(path: &Path, raw: &str) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(parent, fs::Permissions::from_mode(0o700));
+        }
+    }
+    fs::write(path, raw).map_err(|e| format!("Couldn’t save session: {e}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+            .map_err(|e| format!("Couldn’t lock down session file: {e}"))?;
+    }
+    Ok(())
+}
+
+/// On unix: prefer parent `0o700`, then require file owner-only (`0o600`).
+/// Remediates legacy group/world-readable files; refuses load if chmod fails.
+#[cfg(unix)]
+pub(crate) fn ensure_owner_only_or_fix(path: &Path) -> bool {
+    use std::io::ErrorKind;
+    use std::os::unix::fs::PermissionsExt;
+    let meta = match fs::metadata(path) {
+        Ok(m) => m,
+        // Missing file is fine — caller will quietly get None on read.
+        Err(e) if e.kind() == ErrorKind::NotFound => return true,
+        Err(_) => return false,
+    };
+    if let Some(parent) = path.parent() {
+        let _ = fs::set_permissions(parent, fs::Permissions::from_mode(0o700));
+    }
+    let mode = meta.permissions().mode() & 0o777;
+    if mode & 0o077 == 0 {
+        return true;
+    }
+    // Remediate legacy world/group-readable installs, then allow load.
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600)).is_ok()
+}
+
+#[cfg(not(unix))]
+pub(crate) fn ensure_owner_only_or_fix(_path: &Path) -> bool {
+    true
+}
+
+pub fn request_cancel_google_sign_in() {
+    CANCEL_GOOGLE_SIGN_IN.store(true, Ordering::SeqCst);
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PublicUser {
@@ -46,18 +103,20 @@ fn legacy_session_path(cfg: &AppConfig) -> std::path::PathBuf {
 }
 
 pub fn load_tokens(cfg: &AppConfig) -> Option<AuthTokens> {
-    let raw = fs::read_to_string(tokens_path(cfg)).ok()?;
+    let path = tokens_path(cfg);
+    if !ensure_owner_only_or_fix(&path) {
+        tracing::warn!("refusing to load tokens — file permissions too open");
+        return None;
+    }
+    let raw = fs::read_to_string(&path).ok()?;
     serde_json::from_str(&raw).ok()
 }
 
 pub fn save_tokens(cfg: &AppConfig, tokens: &AuthTokens) -> Result<(), String> {
     let path = tokens_path(cfg);
-    if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
-    let raw = serde_json::to_string_pretty(tokens).map_err(|e| e.to_string())?;
-    fs::write(&path, raw).map_err(|e| format!("Couldn’t save session: {e}"))?;
-    // Keep a tiny legacy mirror for UI that still reads username.
+    let raw = serde_json::to_string(tokens).map_err(|e| e.to_string())?;
+    write_secret_file(&path, &raw)?;
+    // Keep a tiny legacy mirror for UI that still reads username (no tokens).
     let legacy = WaypointSession {
         username: tokens
             .user
@@ -71,7 +130,7 @@ pub fn save_tokens(cfg: &AppConfig, tokens: &AuthTokens) -> Result<(), String> {
     };
     let _ = fs::write(
         legacy_session_path(cfg),
-        serde_json::to_string_pretty(&legacy).unwrap_or_default(),
+        serde_json::to_string(&legacy).unwrap_or_default(),
     );
     Ok(())
 }
@@ -140,6 +199,7 @@ pub async fn sign_in_with_google(cfg: &AppConfig) -> Result<WaypointSession, Str
     let Ok(_guard) = GOOGLE_SIGN_IN.try_lock() else {
         return Err("Sign-in already in progress — use the open Google window.".into());
     };
+    CANCEL_GOOGLE_SIGN_IN.store(false, Ordering::SeqCst);
 
     let start: StartBody = api::post_json(cfg, "/v1/auth/google/start", &json!({}), None).await?;
     // Single explicit open — avoid any double-launcher quirks.
@@ -148,7 +208,11 @@ pub async fn sign_in_with_google(cfg: &AppConfig) -> Result<WaypointSession, Str
         .status()
         .map_err(|e| format!("Couldn’t open browser: {e}"))?;
 
-    for _ in 0..1200 {
+    // ~2 minutes (was ~10). FE can cancel via cancel_sign_in_waypoint_google.
+    for _ in 0..240 {
+        if CANCEL_GOOGLE_SIGN_IN.swap(false, Ordering::SeqCst) {
+            return Err("Sign-in cancelled. Try again when you’re ready.".into());
+        }
         tokio::time::sleep(Duration::from_millis(500)).await;
         let poll: PollBody = api::get_json(
             cfg,
@@ -219,7 +283,7 @@ pub async fn sign_in_with_google(cfg: &AppConfig) -> Result<WaypointSession, Str
             other => return Err(format!("Unexpected poll status: {other}")),
         }
     }
-    Err("Google sign-in timed out. Try again.".into())
+    Err("Google sign-in timed out. Re-open the browser with Sign in with Google, or cancel and try again.".into())
 }
 
 /// Remove the device-wide study memory cache (cloud copy is the source of truth when signed in).

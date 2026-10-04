@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-break-timer-status"
+description = "Enables the get_break_timer_status command without any pre-configured scope."
+commands.allow = ["get_break_timer_status"]
+
+[[permission]]
+identifier = "deny-get-break-timer-status"
+description = "Denies the get_break_timer_status command without any pre-configured scope."
+commands.deny = ["get_break_timer_status"]

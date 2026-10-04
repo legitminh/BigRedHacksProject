@@ -170,6 +170,12 @@ async fn probe(app: &AppConfig, cfg: &LocalJudgeConfig) -> (bool, String) {
     }
 }
 
+/// Strip query/fragment before cloud coach payloads (tokens in URLs stay local).
+fn url_for_judge(url: &str) -> String {
+    let base = url.split('#').next().unwrap_or(url);
+    base.split('?').next().unwrap_or(base).to_string()
+}
+
 /// Classify focus from text only (goals + app/title/url/excerpt). No screenshot.
 pub async fn judge_on_task(
     cfg: &AppConfig,
@@ -185,10 +191,12 @@ pub async fn judge_on_task(
     }
     let local = LocalJudgeConfig::from_app(cfg);
     let excerpt: String = page_text.chars().take(1200).collect();
+    let safe_url = url_for_judge(url);
+    let goal_hint = goals_snippet(goals, 48);
     let prompt = format!(
         r#"You are a strict study lock-in classifier. Decide if the student is ON TASK for their goals.
 Reply with ONLY compact JSON, no markdown:
-{{"on_task":true|false,"confidence":0.0-1.0,"distraction":null|"youtube","coach_line":"Close Discord and finish your ENGL discussion post."}}
+{{"on_task":true|false,"confidence":0.0-1.0,"distraction":null|"youtube","coach_line":"Close Discord and get back to {goal_hint}."}}
 
 Rules:
 - Decide from title, url, and page_text — NOT from the kind label alone, and NOT from tab-group names like "School".
@@ -197,13 +205,15 @@ Rules:
 - Discord is CONTEXTUAL: study/homework help matching goals → may be true; meme/gaming spam → false, distraction="discord".
 - Instagram, shopping, email, texting-class → ALWAYS on_task=false (never study).
 - If unsure, confidence < 0.5 and lean on_task=false for entertainment content.
-- coach_line MUST be a specific nudge naming the distraction AND the mission goal (course/assignment). Never output meta text like "one short sentence" or "short nudge".
+- coach_line MUST name the distraction AND reuse words from the goals field only — never invent other courses, assignments, or discussion posts that are not in goals.
+- When off-task, coach_line must tell them to leave the distraction and refocus on goals — NEVER suggest taking a break, resting, or stepping away (breaks are only for stress/tiredness).
+- Never output meta text like "one short sentence" or "short nudge".
 
 goals: {goals}
 kind: {kind}
 app: {app}
 title: {title}
-url: {url}
+url: {safe_url}
 page_text: {excerpt}"#
     );
 
@@ -246,31 +256,40 @@ page_text: {excerpt}"#
     let judged = parse_judge_json(raw)?;
     let confidence = judged.confidence.unwrap_or(0.6).clamp(0.0, 1.0);
     let on_task = judged.on_task;
+    // Prefer OS/URL kind evidence over model distraction guesses (never YouTube→Instagram).
     let distraction = if on_task {
         None
     } else {
-        judged
-            .distraction
-            .filter(|s| !s.is_empty())
-            .or_else(|| Some(kind.to_string()))
+        let model_d = judged.distraction.filter(|s| !s.is_empty());
+        let kind_l = kind.trim().to_lowercase();
+        let evidence = DISTRACTION_LABELS.iter().any(|l| *l == kind_l);
+        if evidence {
+            Some(kind_l)
+        } else {
+            model_d.or_else(|| {
+                if kind.is_empty() {
+                    None
+                } else {
+                    Some(kind.to_string())
+                }
+            })
+        }
     };
-    let coach_line = judged
-        .coach_line
-        .filter(|s| !is_placeholder_coach_line(s))
-        .unwrap_or_else(|| {
-            if on_task {
-                format!(
-                    "This looks on track for {} — keep going.",
-                    goals_snippet(goals, 48)
-                )
-            } else {
-                format!(
-                    "{} isn’t your mission — get back to {}.",
-                    if kind.is_empty() { "That" } else { kind },
-                    goals_snippet(goals, 48)
-                )
-            }
-        });
+    let d_for_line = distraction.as_deref().unwrap_or(kind);
+    let raw_line = judged.coach_line.unwrap_or_default();
+    let coach_line = if on_task {
+        let line = raw_line.trim();
+        if line.is_empty() || is_placeholder_coach_line(line) {
+            format!(
+                "This looks on track for {} — keep going.",
+                goals_snippet(goals, 48)
+            )
+        } else {
+            sanitize_coach_line(line, "on_task", "on_task", goals)
+        }
+    } else {
+        sanitize_coach_line(raw_line.trim(), "distracted", d_for_line, goals)
+    };
 
     Ok(LocalJudgment {
         confidence,
@@ -330,6 +349,25 @@ fn goals_snippet(goals: &str, max_chars: usize) -> String {
     out
 }
 
+/// Known distraction surface names (spoken / overlay).
+const DISTRACTION_LABELS: &[&str] = &[
+    "instagram",
+    "discord",
+    "youtube",
+    "tiktok",
+    "reddit",
+    "twitter",
+    "shopping",
+    "email",
+    "texting",
+    "slack",
+    "phone",
+    "facebook",
+    "snapchat",
+    "netflix",
+    "twitch",
+];
+
 /// Tiny models often echo schema hints (“one short sentence”, “short”) — never show those.
 pub fn is_placeholder_coach_line(text: &str) -> bool {
     let t = normalize_line(text)
@@ -361,8 +399,20 @@ pub fn is_placeholder_coach_line(text: &str) -> bool {
         "no quotes",
         "no json",
         "no markdown",
+        "do not reuse",
+        "never invent",
+        "return only that sentence",
+        "max 22 words",
+        "warm, direct",
+        "mission goals:",
+        "intensity:",
+        "kind:",
     ];
     if PHRASES.iter().any(|p| t.contains(p)) {
+        return true;
+    }
+    // Pipe-joined avoid-list / template dumps (e.g. "… | Quick check: instagram p").
+    if coach_line_has_prompt_leak(text) {
         return true;
     }
     // Single-token schema crumbs — exact match only (don't kill “Last nudge: …”).
@@ -377,41 +427,419 @@ pub fn is_placeholder_coach_line(text: &str) -> bool {
     // Ultra-short lines are almost always schema crumbs unless they name a real target.
     if words.len() < 4 {
         let concrete = words.iter().any(|w| {
-            matches!(
-                *w,
-                "discord"
-                    | "instagram"
-                    | "youtube"
-                    | "email"
-                    | "shopping"
-                    | "texting"
-                    | "phone"
-                    | "tiktok"
-                    | "reddit"
-                    | "twitter"
-                    | "slack"
-            ) || w.chars().any(|c| c.is_ascii_digit())
+            DISTRACTION_LABELS.iter().any(|l| *w == *l)
+                || w.chars().any(|c| c.is_ascii_digit())
         });
         if !concrete {
             return true;
         }
     }
+    // Compose prompt asks for ≤22 words; longer blobs are almost always concatenations.
+    if words.len() > 28 {
+        return true;
+    }
     false
 }
 
-/// Replace placeholder/meta coach text with a concrete mission-aware fallback.
+/// Detect model dumps of avoid-lists, duplicated templates, or truncated meta crumbs.
+fn coach_line_has_prompt_leak(text: &str) -> bool {
+    let raw = text.trim();
+    if raw.is_empty() {
+        return false;
+    }
+    // Pipe-joined recent-line dumps from compose prompts.
+    if raw.contains('|') {
+        return true;
+    }
+    let lower = normalize_line(raw);
+    // Duplicated fallback / intensity crumbs.
+    let quick_check_hits = lower.matches("quick check").count();
+    if quick_check_hits >= 2 {
+        return true;
+    }
+    // Glued draft + fallback template (even with a single "Quick check").
+    if (lower.contains("close ") || lower.contains("heads up"))
+        && lower.contains("quick check")
+    {
+        return true;
+    }
+    // Truncated tails like "instagram p" / "coding proje".
+    if looks_truncated_coach_tail(raw) {
+        return true;
+    }
+    // Classic prompt-example echoes (hard-coded in older prompts).
+    if lower.contains("close instagram and finish your biomg")
+        || lower.contains("finish your biomg quiz")
+    {
+        return true;
+    }
+    false
+}
+
+fn looks_truncated_coach_tail(text: &str) -> bool {
+    let t = text.trim();
+    if t.is_empty() {
+        return false;
+    }
+    // Ends mid-word after a space + 1–2 letters (e.g. "instagram p").
+    let bytes = t.as_bytes();
+    if let Some(last_space) = t.rfind(' ') {
+        let tail = t[last_space + 1..]
+            .trim_end_matches(|c: char| !c.is_ascii_alphanumeric());
+        if (1..=2).contains(&tail.len()) && tail.chars().all(|c| c.is_ascii_alphabetic()) {
+            return true;
+        }
+    }
+    // Trailing pipe / dangling punctuation without a sentence end.
+    if matches!(bytes.last(), Some(b'|') | Some(b':') | Some(b',')) {
+        return true;
+    }
+    false
+}
+
+/// Pull `DEPT` / `DEPT 1230` style tokens from text (ASCII uppercase scan).
+/// Also captures bare dept codes (BIOMG, ENGL) when 3–6 letters — common model hallucinations.
+fn course_like_tokens(text: &str) -> Vec<String> {
+    let up = text.to_uppercase();
+    let bytes = up.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i].is_ascii_alphabetic() {
+            let start = i;
+            while i < bytes.len() && bytes[i].is_ascii_alphabetic() {
+                i += 1;
+            }
+            let letters = &up[start..i];
+            // Skip spaces/dashes between dept and number.
+            let mut j = i;
+            while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'-') {
+                j += 1;
+            }
+            let num_start = j;
+            while j < bytes.len() && bytes[j].is_ascii_digit() {
+                j += 1;
+            }
+            // Optional trailing letter (CS 1110A).
+            if j < bytes.len() && j > num_start && bytes[j].is_ascii_alphabetic() {
+                j += 1;
+            }
+            let has_num = j > num_start;
+            if has_num && (2..=6).contains(&letters.len()) {
+                out.push(format!("{letters} {}", &up[num_start..j]));
+                i = j;
+                continue;
+            }
+            // Bare dept-looking codes (BIOMG, ENGL, CS) — skip common English/tech words.
+            if (3..=6).contains(&letters.len()) && looks_like_dept_code(letters) {
+                out.push(letters.to_string());
+            }
+        }
+        i += 1;
+    }
+    out
+}
+
+fn looks_like_dept_code(letters: &str) -> bool {
+    // Common non-course uppercase words / tech acronyms that appear in coding missions.
+    const SKIP: &[&str] = &[
+        "THE", "AND", "FOR", "YOU", "YOUR", "NOT", "GET", "BACK", "OFF", "VIA", "THAT",
+        "THIS", "WITH", "FROM", "INTO", "HAVE", "WILL", "JUST", "WANT", "NEED", "GOAL",
+        "LOCK", "WORK", "CODE", "HTML", "CSS", "JSON", "HTTP", "API", "URL", "TTS",
+        "OCR", "LLM", "VLM", "IDE", "CLI", "APP", "TAB", "PDF", "DOC", "ZIP", "PNG",
+        "JPG", "JPEG", "SVG", "GIT", "NPM", "SQL", "CPU", "GPU", "RAM", "OSX", "IOS",
+        "MAC", "WIN", "WEB", "UI", "UX", "AI", "ML", "NLP", "SDK", "CDN", "DNS",
+        "ONE", "TWO", "ALL", "ANY", "OUT", "NOW", "STILL", "LAST", "NEXT", "OVER",
+        "HEADS", "NICE", "KEEP", "STAY", "RIDE", "LEAVE", "CLOSE", "SWITCH", "RESET",
+        "PULL", "CLICK", "FINISH", "RETURN", "MISSION", "DRIFT", "CHECK", "QUICK",
+    ];
+    if SKIP.iter().any(|s| *s == letters) {
+        return false;
+    }
+    // Dept codes are usually consonant-heavy (BIOMG, ENGL, MATH, CS, CHEM).
+    let vowels = letters.chars().filter(|c| matches!(c, 'A' | 'E' | 'I' | 'O' | 'U')).count();
+    let consonants = letters.len().saturating_sub(vowels);
+    consonants >= vowels || letters.len() <= 3
+}
+
+/// Course codes mentioned in a nudge but absent from the active mission goals.
+fn foreign_course_tokens(text: &str, goals: &str) -> bool {
+    let goals_up = goals.to_uppercase();
+    for token in course_like_tokens(text) {
+        let compact = token.replace(' ', "");
+        if goals_up.contains(&token) || goals_up.contains(&compact) {
+            continue;
+        }
+        // Bare dept: also accept if goals contain the letters as a code prefix.
+        if !token.contains(' ') && goals_up.split(|c: char| !c.is_ascii_alphanumeric()).any(|w| w == token) {
+            continue;
+        }
+        return true;
+    }
+    false
+}
+
+/// Assignment nouns invented by the model (quiz/exam/…) that aren't in active goals.
+fn foreign_assignment_nouns(text: &str, goals: &str) -> bool {
+    const NOUNS: &[&str] = &[
+        "quiz",
+        "exam",
+        "midterm",
+        "final exam",
+        "essay",
+        "homework",
+        "problem set",
+        "pset",
+        "discussion post",
+        "lab report",
+        "prelab",
+        "pre-lab",
+        "worksheet",
+    ];
+    let line = normalize_line(text);
+    let goals_l = normalize_line(goals);
+    NOUNS.iter().any(|n| line.contains(n) && !goals_l.contains(n))
+}
+
+/// True when a model nudge drifts off the active mission (e.g. ENGL while goals say coding).
+fn coach_line_off_mission(text: &str, goals: &str) -> bool {
+    let goals = goals.trim();
+    if goals.is_empty() || text.trim().is_empty() {
+        return false;
+    }
+    // Foreign courses/assignments always win — even if the blob also mentions goal words
+    // (concatenated dumps often append a correct fallback after a BIOMG hallucination).
+    if foreign_course_tokens(text, goals) || foreign_assignment_nouns(text, goals) {
+        return true;
+    }
+    // Significant goal tokens (≥4 letters/digits) — require at least one overlap so
+    // "finish your ENGL discussion" can't survive a coding mission.
+    let goal_tokens: Vec<String> = normalize_line(goals)
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter(|t| t.len() >= 4)
+        .filter(|t| {
+            !matches!(
+                *t,
+                "with" | "this" | "that" | "from" | "study" | "work" | "lock" | "into" | "about"
+                    | "have" | "will" | "just" | "want" | "need" | "goal" | "goals" | "session"
+                    | "please" | "your"
+            )
+        })
+        .map(|t| t.to_string())
+        .collect();
+    if goal_tokens.is_empty() {
+        return false;
+    }
+    let line = normalize_line(text);
+    !goal_tokens.iter().any(|t| line.contains(t.as_str()))
+}
+
+/// Off-task / distraction coaching context — must never invite a break.
+fn is_distraction_coach_context(kind: &str, distraction: &str) -> bool {
+    const OFF: &[&str] = &[
+        "distracted",
+        "offtask",
+        "off_task",
+        "off-task",
+        "phone",
+        "instagram",
+        "discord",
+        "youtube",
+        "shopping",
+        "email",
+        "texting",
+        "tiktok",
+        "reddit",
+        "twitter",
+        "slack",
+        "other",
+        "social",
+    ];
+    let k = kind.to_lowercase();
+    let d = distraction.to_lowercase();
+    OFF.iter().any(|x| k == *x || d == *x)
+}
+
+/// Model sometimes invents “take a break” for Instagram/Discord — only stress paths may.
+pub fn coach_line_suggests_break(text: &str) -> bool {
+    let t = normalize_line(text);
+    const PHRASES: &[&str] = &[
+        "take a break",
+        "take a short break",
+        "take a quick break",
+        "take a little break",
+        "take a five-minute break",
+        "take a 5-minute break",
+        "take five minutes",
+        "take 5 minutes",
+        "optional five-minute break",
+        "optional 5-minute break",
+        "suggest a break",
+        "suggested break",
+        "time for a break",
+        "need a break",
+        "deserve a break",
+        "have a break",
+        "go on a break",
+        "go take a break",
+        "step away for a",
+        "rest for a bit",
+        "rest a bit",
+        "rest and come back",
+    ];
+    PHRASES.iter().any(|p| t.contains(p))
+}
+
+/// First known distraction surface named in the spoken line, if any.
+fn distraction_label_in_line(text: &str) -> Option<&'static str> {
+    let t = normalize_line(text);
+    DISTRACTION_LABELS.iter().copied().find(|l| t.contains(l))
+}
+
+/// All known distraction surfaces named in prose (concat dumps may name several).
+fn distractions_named_in_line(text: &str) -> Vec<&'static str> {
+    let t = normalize_line(text);
+    DISTRACTION_LABELS
+        .iter()
+        .copied()
+        .filter(|l| t.contains(l))
+        .collect()
+}
+
+/// Prose names a different site than the OS/URL/OCR evidence label.
+fn coach_line_wrong_distraction(text: &str, distraction: &str) -> bool {
+    let expected = distraction.trim().to_lowercase();
+    if expected.is_empty() || is_status_kind_token(&expected) || expected == "other" {
+        return false;
+    }
+    let named = distractions_named_in_line(text);
+    if named.is_empty() {
+        return false;
+    }
+    // Any named site that isn't the evidence label → stale model / prompt echo.
+    named.iter().any(|n| *n != expected.as_str())
+}
+
+fn is_stress_break_invite_kind(kind: &str) -> bool {
+    matches!(
+        kind.to_lowercase().as_str(),
+        "suggest_break" | "stressed"
+    )
+}
+
+/// Camera accountability + calm coach kinds — never treat the tag as a distraction app.
+/// Server/desktop already authored the spoken line; keep it verbatim (except placeholders).
+fn is_verbatim_coach_kind(kind: &str) -> bool {
+    matches!(
+        kind.to_lowercase().as_str(),
+        "watching"
+            | "encourage"
+            | "on_task"
+            | "left_desk"
+            | "left_desk_pause"
+            | "welcome_back"
+            | "camera_obstructed"
+            | "camera"
+            | "suggest_break"
+            | "stressed"
+    )
+}
+
+fn coach_line_needs_rewrite(text: &str, kind: &str, distraction: &str, goals: &str) -> bool {
+    if is_placeholder_coach_line(text) {
+        return true;
+    }
+    // Presence / watching / stress invites omit mission words on purpose.
+    // Never rewrite them into "left_desk isn't {goal}" distraction templates.
+    if is_verbatim_coach_kind(kind) {
+        // Exception: a "stressed" line that also names Instagram/etc → refocus, not break.
+        if is_stress_break_invite_kind(kind)
+            && (is_distraction_coach_context("", distraction)
+                || distraction_label_in_line(text).is_some())
+            && coach_line_suggests_break(text)
+        {
+            return true;
+        }
+        return false;
+    }
+    // Stress/break invites often omit mission words — don't treat that as off-mission.
+    // Still rewrite if the line also names a distraction surface (refocus, not break).
+    let pure_stress_invite = is_stress_break_invite_kind(kind)
+        && !is_distraction_coach_context("", distraction)
+        && distraction_label_in_line(text).is_none();
+    if pure_stress_invite {
+        return false;
+    }
+    if coach_line_off_mission(text, goals) {
+        return true;
+    }
+    if coach_line_wrong_distraction(text, distraction) {
+        return true;
+    }
+    // Break language is fine only on explicit stress/break-invite kinds with no distraction label.
+    coach_line_suggests_break(text)
+        && (is_distraction_coach_context(kind, distraction)
+            || distraction_label_in_line(text).is_some())
+}
+
+/// Status/kind tokens that must not appear as the named distraction surface.
+fn is_status_kind_token(s: &str) -> bool {
+    matches!(
+        s.to_lowercase().as_str(),
+        "distracted"
+            | "offtask"
+            | "off_task"
+            | "off-task"
+            | "stressed"
+            | "suggest_break"
+            | "on_task"
+            | "needs_help"
+            | "watching"
+            | "encourage"
+            | "camera"
+            | "left_desk"
+            | "left_desk_pause"
+            | "welcome_back"
+            | "camera_obstructed"
+    )
+}
+
+/// Concrete surface label for refocus fallbacks (never “distracted” / status kinds).
+/// Prefer OS/URL/OCR evidence (`distraction`) over site names hallucinated in prose.
+fn refocus_distraction_label(kind: &str, distraction: &str, text: &str) -> String {
+    let d = distraction.trim();
+    if !d.is_empty() && !is_status_kind_token(d) {
+        return d.to_string();
+    }
+    let k = kind.trim();
+    if !k.is_empty() && !is_status_kind_token(k) {
+        return k.to_string();
+    }
+    // Never mine brands from prompt-leak / BIOMG-echo dumps — deliver_ephemeral often
+    // passes kind=distracted for both args, and mining would revive "Instagram".
+    if !coach_line_has_prompt_leak(text) {
+        if let Some(label) = distraction_label_in_line(text) {
+            return label.to_string();
+        }
+    }
+    String::new() // pick_fallback → “that tab”
+}
+
+/// Replace placeholder/meta/off-mission/break-for-distraction text with a refocus fallback.
 pub fn sanitize_coach_line(text: &str, kind: &str, distraction: &str, goals: &str) -> String {
     let trimmed = text.trim();
-    if !is_placeholder_coach_line(trimmed) {
+    if !coach_line_needs_rewrite(trimmed, kind, distraction, goals) {
         return trimmed.to_string();
     }
-    pick_fallback(
-        kind,
-        distraction,
-        goals,
-        1,
-        &recent_lines_snapshot(),
-    )
+    let d = refocus_distraction_label(kind, distraction, trimmed);
+    let k = if is_distraction_coach_context(kind, distraction)
+        || distraction_label_in_line(trimmed).is_some()
+    {
+        "distracted"
+    } else {
+        kind
+    };
+    pick_fallback(k, &d, goals, 1, &recent_lines_snapshot())
 }
 
 fn recent_lines_snapshot() -> Vec<String> {
@@ -446,7 +874,7 @@ fn too_similar(candidate: &str, recent: &[String]) -> bool {
 }
 
 fn fallback_templates(kind: &str, distraction: &str, goals: &str, nag_n: u32) -> Vec<String> {
-    let d = if distraction.is_empty() {
+    let d = if distraction.is_empty() || is_status_kind_token(distraction) {
         "that tab"
     } else {
         distraction
@@ -465,10 +893,35 @@ fn fallback_templates(kind: &str, distraction: &str, goals: &str, nag_n: u32) ->
             format!("Good pullback toward {g}. Ride this focus."),
             format!("You’re on {g} — keep that momentum."),
         ],
+        // Camera accountability from Presage face-lost (D1) — never "tag isn't goal", never accuse phone.
+        "left_desk" => vec![
+            "You've stepped away. Come back to the work when you can.".into(),
+            "Still away from the desk — return when you’re ready.".into(),
+            "Camera lost you. Come back to the work.".into(),
+        ],
+        "left_desk_pause" => vec![
+            "I’ll stay quiet until you’re back at the desk.".into(),
+            "Still away — I’ll pause check-ins until you’re back.".into(),
+        ],
+        "welcome_back" => vec![
+            "Welcome back — good to see you. Let's pick the work back up.".into(),
+            "Welcome back. Stay with the work.".into(),
+        ],
+        "camera_obstructed" | "camera" => vec![
+            "I can’t see you clearly. Check the camera or lighting.".into(),
+            "Camera’s unclear — fix lighting or uncover the lens.".into(),
+        ],
+        "suggest_break" => vec![
+            "Feeling tense — optional five-minute break?".into(),
+        ],
+        "stressed" => vec![
+            "You seem tense — one slow breath, then back.".into(),
+        ],
         _ => {
+            // Avoid "Quick check:" here — models echo it into dumps that collide with the UI kicker.
             let mut lines = vec![
                 format!("Heads up — {d} isn’t {g}. Close it and return."),
-                format!("Quick check: {d} pulled you off {g}. Switch back."),
+                format!("{d} pulled you off {g}. Switch back."),
                 format!("That’s {d}, not {g}. One click back to the work."),
                 format!("Mission drift via {d}. Reset to {g}."),
             ];
@@ -519,6 +972,7 @@ pub async fn compose_coach_line(
     }
 
     let local = LocalJudgeConfig::from_app(cfg);
+    // Prefer numbered lines over `|` joins — models echo pipe-joined avoid lists into overlays.
     let avoid = if recent.is_empty() {
         "(none yet)".into()
     } else {
@@ -526,30 +980,45 @@ pub async fn compose_coach_line(
             .iter()
             .rev()
             .take(5)
-            .cloned()
+            .enumerate()
+            .map(|(i, line)| format!("{}. {line}", i + 1))
             .collect::<Vec<_>>()
-            .join(" | ")
+            .join(" / ")
     };
     let goals_short = goals_snippet(goals, 120);
     let detail_short: String = detail.chars().take(120).collect();
     let intensity = match nag_n {
         0 | 1 => "first gentle nudge",
         2 => "second reminder — firmer, still kind",
-        _ => "final short nudge for this distraction",
+        _ => "final firmer nudge for this distraction",
+    };
+    let off_task = is_distraction_coach_context(kind, distraction);
+    let break_rule = if off_task {
+        "- OFF-TASK: tell them to leave the distraction and refocus on the mission. NEVER suggest taking a break, resting, or stepping away — breaks are only for stress/tiredness, not distraction."
+    } else {
+        "- Do not invent a break invite unless this is explicitly a stress/tiredness check-in."
+    };
+    let example_distraction = if distraction.is_empty() {
+        "that tab"
+    } else {
+        distraction
     };
     let prompt = format!(
         r#"Write ONE specific check-in sentence for a student mid lock-in.
 Return ONLY that sentence — no quotes, no JSON, no markdown, no instructions.
 Rules:
 - Max 22 words. Warm, direct, slightly playful space/mission tone.
-- MUST name the mission goal (use words from: {goals_short}) and, if off-task, the distraction ({distraction}).
-- Be concrete (e.g. “Close Instagram and finish your BIOMG quiz.”) — never meta phrases like “one short sentence”.
+- MUST name the mission goal (use words from: {goals_short}) and, if off-task, the distraction ({example_distraction}).
+- Be concrete — name ONLY the given distraction and goals. Example shape: “Close {example_distraction} and get back to {goals_short}.”
+- Never invent other apps, courses, quizzes, or assignments not listed in goals.
+- Never meta phrases like “one short sentence”. Never copy the recent-lines list.
+{break_rule}
 - Do NOT reuse or paraphrase these recent lines: {avoid}
 - Never dump URLs or tech jargon. Vary wording every time.
 
 kind: {kind}
 intensity: {intensity}
-distraction: {distraction}
+distraction: {example_distraction}
 context: {detail_short}
 mission goals: {goals_short}"#
     );
@@ -599,7 +1068,9 @@ mission goals: {goals_short}"#
         .unwrap_or("")
         .trim();
     let line: String = line.chars().take(160).collect();
-    let chosen = if is_placeholder_coach_line(&line) || too_similar(&line, &recent) {
+    let chosen = if coach_line_needs_rewrite(&line, kind, distraction, goals)
+        || too_similar(&line, &recent)
+    {
         fallback
     } else {
         line
@@ -620,7 +1091,7 @@ pub async fn freshen_coach_line(
 ) -> String {
     let recent = recent_lines_snapshot();
     let existing = existing.trim();
-    if !is_placeholder_coach_line(existing) {
+    if !coach_line_needs_rewrite(existing, kind, distraction, goals) {
         // Keep a line we just composed (it's already the newest recent entry).
         if recent
             .last()
@@ -673,6 +1144,32 @@ mod tests {
     }
 
     #[test]
+    fn rejects_off_mission_engl_when_goals_are_coding() {
+        let sanitized = sanitize_coach_line(
+            "Close Discord and finish your ENGL discussion post.",
+            "distracted",
+            "discord",
+            "work on coding please!",
+        );
+        assert!(
+            !sanitized.to_uppercase().contains("ENGL"),
+            "off-mission ENGL leaked: {sanitized}"
+        );
+        assert!(
+            sanitize_coach_line(
+                sanitized.as_str(),
+                "distracted",
+                "discord",
+                "work on coding please!",
+            )
+            .to_lowercase()
+            .contains("coding")
+                || sanitized.to_lowercase().contains("coding"),
+            "expected coding mission in nudge: {sanitized}"
+        );
+    }
+
+    #[test]
     fn goals_snippet_picks_first_useful_clause() {
         let s = goals_snippet(
             "ENGL 1140 discussion post; BIOMG 1350 pre-lecture quiz",
@@ -694,5 +1191,173 @@ mod tests {
         assert!(line.to_lowercase().contains("instagram"));
         assert!(line.contains("ENGL 1140"));
         assert!(!is_placeholder_coach_line(&line));
+        assert!(!coach_line_suggests_break(&line));
+    }
+
+    #[test]
+    fn distraction_break_copy_rewritten_to_refocus() {
+        let bad = "Kindly, take a break and focus on your coding project. Let's move forward together.";
+        assert!(coach_line_suggests_break(bad));
+        let sanitized = sanitize_coach_line(bad, "distracted", "instagram", "coding project");
+        assert!(
+            !coach_line_suggests_break(&sanitized),
+            "still suggests break: {sanitized}"
+        );
+        assert!(
+            sanitized.to_lowercase().contains("instagram")
+                || sanitized.to_lowercase().contains("coding"),
+            "expected refocus line naming distraction or goals: {sanitized}"
+        );
+    }
+
+    #[test]
+    fn stress_break_invite_copy_is_kept() {
+        let stress = "Feeling tense — optional five-minute break?";
+        assert!(coach_line_suggests_break(stress));
+        let kept = sanitize_coach_line(stress, "suggest_break", "suggest_break", "coding project");
+        assert_eq!(kept, stress);
+        let stressed = sanitize_coach_line(stress, "stressed", "stressed", "coding project");
+        assert_eq!(stressed, stress);
+    }
+
+    #[test]
+    fn camera_presence_kinds_kept_verbatim_not_rewritten_as_distraction() {
+        let goals = "work on coding project for Waypoint!";
+        let cases: &[(&str, &str)] = &[
+            (
+                "left_desk",
+                "You've stepped away. Come back to the work when you can.",
+            ),
+            (
+                "left_desk",
+                "Still away from the desk — return when you're ready.",
+            ),
+            (
+                "left_desk_pause",
+                "I'll stay quiet until you're back at the desk.",
+            ),
+            (
+                "welcome_back",
+                "Welcome back — good to see you. Let's pick the work back up.",
+            ),
+            (
+                "camera_obstructed",
+                "I can't see you clearly. Check the camera or lighting.",
+            ),
+            (
+                "suggest_break",
+                "Feeling tense — optional five-minute break?",
+            ),
+            (
+                "stressed",
+                "You seem tense — one slow breath, then back.",
+            ),
+            (
+                "watching",
+                "You're locked in. I'll check in if you drift.",
+            ),
+        ];
+        for (kind, text) in cases {
+            // deliver_ephemeral used to pass kind as distraction → "left_desk isn't coding…".
+            let sanitized = sanitize_coach_line(text, kind, kind, goals);
+            assert_eq!(
+                sanitized, *text,
+                "kind={kind} was rewritten into distraction copy: {sanitized}"
+            );
+            assert!(
+                !sanitized.to_lowercase().contains("left_desk"),
+                "tag leaked into spoken line for {kind}: {sanitized}"
+            );
+            assert!(
+                !sanitized.contains("isn't") && !sanitized.contains("isn’t"),
+                "distraction template leaked for {kind}: {sanitized}"
+            );
+        }
+    }
+
+    #[test]
+    fn break_plus_named_distraction_rewritten_even_if_kind_is_stressed() {
+        let bad = "Take a break from Instagram and finish your coding project.";
+        let sanitized = sanitize_coach_line(bad, "stressed", "stressed", "coding project");
+        assert!(
+            !coach_line_suggests_break(&sanitized),
+            "distraction+break must refocus: {sanitized}"
+        );
+        assert!(
+            sanitized.to_lowercase().contains("instagram"),
+            "expected Instagram refocus: {sanitized}"
+        );
+    }
+
+    #[test]
+    fn fallback_templates_never_suggest_break() {
+        for nag_n in [1u32, 2, 3] {
+            for line in fallback_templates("distracted", "discord", "finish coding lab", nag_n) {
+                assert!(
+                    !coach_line_suggests_break(&line),
+                    "fallback suggested break: {line}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn biomg_quiz_hallucination_sanitized_for_coding_goals() {
+        let bad = "Close Instagram and finish your BIOMG quiz.";
+        assert!(coach_line_off_mission(bad, "coding project"));
+        let sanitized = sanitize_coach_line(bad, "distracted", "youtube", "coding project");
+        let lower = sanitized.to_lowercase();
+        assert!(
+            !lower.contains("biomg") && !lower.contains("quiz") && !lower.contains("instagram"),
+            "BIOMG/Instagram leaked: {sanitized}"
+        );
+        assert!(
+            lower.contains("youtube") && lower.contains("coding"),
+            "expected youtube + coding refocus: {sanitized}"
+        );
+    }
+
+    #[test]
+    fn prompt_leak_pipe_and_quick_check_rejected() {
+        let leak = "Close Instagram and finish your BIOMG quiz. Quick check: instagram pulled you off work on coding project. One click back to the work. | Quick check: instagram p";
+        assert!(is_placeholder_coach_line(leak));
+        assert!(coach_line_has_prompt_leak(leak));
+        let sanitized = sanitize_coach_line(leak, "distracted", "youtube", "coding project");
+        assert!(!sanitized.contains('|'), "pipe survived: {sanitized}");
+        assert!(
+            !normalize_line(&sanitized).contains("quick check"),
+            "Quick check crumb survived: {sanitized}"
+        );
+        assert!(
+            !sanitized.to_lowercase().contains("instagram"),
+            "Instagram leak survived: {sanitized}"
+        );
+        assert!(sanitized.to_lowercase().contains("youtube"));
+
+        // deliver_ephemeral often passes kind for both args — must not revive Instagram.
+        let via_kind_only = sanitize_coach_line(leak, "distracted", "distracted", "coding project");
+        assert!(
+            !via_kind_only.to_lowercase().contains("instagram"),
+            "kind-only sanitize revived Instagram: {via_kind_only}"
+        );
+        assert!(
+            !via_kind_only.contains('|') && !via_kind_only.to_lowercase().contains("biomg"),
+            "kind-only sanitize kept leak crumbs: {via_kind_only}"
+        );
+    }
+
+    #[test]
+    fn youtube_evidence_rejects_instagram_prose() {
+        let bad = "Instagram isn’t the goal — close it and get back to coding project.";
+        assert!(coach_line_wrong_distraction(bad, "youtube"));
+        let sanitized = sanitize_coach_line(bad, "distracted", "youtube", "coding project");
+        assert!(
+            sanitized.to_lowercase().contains("youtube"),
+            "expected youtube label: {sanitized}"
+        );
+        assert!(
+            !sanitized.to_lowercase().contains("instagram"),
+            "Instagram prose kept for youtube evidence: {sanitized}"
+        );
     }
 }

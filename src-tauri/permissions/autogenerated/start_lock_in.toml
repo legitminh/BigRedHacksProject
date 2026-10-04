@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-start-lock-in"
+description = "Enables the start_lock_in command without any pre-configured scope."
+commands.allow = ["start_lock_in"]
+
+[[permission]]
+identifier = "deny-start-lock-in"
+description = "Denies the start_lock_in command without any pre-configured scope."
+commands.deny = ["start_lock_in"]

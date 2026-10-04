@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-end-break-timer"
+description = "Enables the end_break_timer command without any pre-configured scope."
+commands.allow = ["end_break_timer"]
+
+[[permission]]
+identifier = "deny-end-break-timer"
+description = "Denies the end_break_timer command without any pre-configured scope."
+commands.deny = ["end_break_timer"]

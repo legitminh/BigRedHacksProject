@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sign-in-waypoint-guest"
+description = "Enables the sign_in_waypoint_guest command without any pre-configured scope."
+commands.allow = ["sign_in_waypoint_guest"]
+
+[[permission]]
+identifier = "deny-sign-in-waypoint-guest"
+description = "Denies the sign_in_waypoint_guest command without any pre-configured scope."
+commands.deny = ["sign_in_waypoint_guest"]

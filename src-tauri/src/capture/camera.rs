@@ -61,14 +61,46 @@ pub fn grab_jpeg() -> Result<Vec<u8>, String> {
     Ok(jpeg)
 }
 
+/// Short webcam clip + mean frame luminance (0–255) for server `client_meta.brightness`.
+pub struct PresageClip {
+    pub path: PathBuf,
+    /// Mean Rec.601 luma across sampled frames (0–255).
+    pub brightness: f64,
+}
+
+/// Mean Rec.601 luma for an RGB24 buffer (0–255). Samples every Nth pixel for speed.
+fn mean_luma_rgb(rgb: &[u8], step_px: usize) -> Option<f64> {
+    if rgb.len() < 3 {
+        return None;
+    }
+    let step = step_px.max(1) * 3;
+    let mut sum = 0.0f64;
+    let mut n = 0u64;
+    let mut i = 0usize;
+    while i + 2 < rgb.len() {
+        let r = rgb[i] as f64;
+        let g = rgb[i + 1] as f64;
+        let b = rgb[i + 2] as f64;
+        sum += 0.299 * r + 0.587 * g + 0.114 * b;
+        n += 1;
+        i += step;
+    }
+    if n == 0 {
+        None
+    } else {
+        Some(sum / n as f64)
+    }
+}
+
 /// Record a short webcam clip for server-side camera observe (presence / stress).
 /// Grabs as fast as the camera/JPEG path allows, then encodes at the measured fps.
 /// Duration is clamped so uploads stay under the ~8MB observe limit.
+/// Presence / phone-away inference is Presage-only (VIDEOINPUT) — no local VLM on frames.
 pub fn record_presage_clip(
     dir: &Path,
     duration_secs: u64,
     _target_fps: u32,
-) -> Result<PathBuf, String> {
+) -> Result<PresageClip, String> {
     if !nokhwa::nokhwa_check() {
         return Err("Camera permission is unavailable.".into());
     }
@@ -92,6 +124,8 @@ pub fn record_presage_clip(
     let started_at = Instant::now();
     let deadline = started_at + Duration::from_secs(duration_secs);
     let mut paths = Vec::new();
+    let mut luma_sum = 0.0f64;
+    let mut luma_n = 0u64;
     let mut i = 0u32;
 
     while Instant::now() < deadline {
@@ -108,6 +142,10 @@ pub fn record_presage_clip(
                     } else {
                         decoded
                     };
+                    if let Some(luma) = mean_luma_rgb(small.as_raw(), 8) {
+                        luma_sum += luma;
+                        luma_n += 1;
+                    }
                     match jpeg_from_rgb(small.width(), small.height(), small.as_raw()) {
                         Ok(jpeg) => {
                             let path = frames_dir.join(format!("frame-{i:05}.jpg"));
@@ -140,5 +178,13 @@ pub fn record_presage_clip(
     let out = dir.join("presage-clip.mp4");
     encode_clip_from_jpegs(&paths, &out, measured_fps.max(10))?;
     let _ = std::fs::remove_dir_all(&frames_dir);
-    Ok(out)
+    let brightness = if luma_n > 0 {
+        luma_sum / luma_n as f64
+    } else {
+        128.0
+    };
+    Ok(PresageClip {
+        path: out,
+        brightness,
+    })
 }

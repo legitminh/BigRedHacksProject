@@ -26,7 +26,6 @@ use tauri::{AppHandle, State};
 use config::AppConfig;
 use gemini::{ChatMessage, StudySessionSuggestion};
 use google::GoogleContext;
-use presage::PresageClient;
 use session::{LockInSession, SessionSummary};
 use settings::UserSettings;
 
@@ -74,7 +73,11 @@ struct SystemPermissions {
     microphone: String,
 }
 
-/// Screen Recording status WITHOUT capturing pixels (opening Settings must not screenshot).
+/// Screen Recording TCC flag WITHOUT capturing pixels (Settings badges must not screenshot).
+///
+/// Ad-hoc / rebuilt apps often get a new code identity, so this can be false even when the
+/// user already toggled “Waypoint” on — or when capture still works. Prefer
+/// [`screen_recording_usable`] for hard launch gates.
 #[cfg(target_os = "macos")]
 fn screen_recording_preflight() -> bool {
     #[link(name = "CoreGraphics", kind = "framework")]
@@ -85,8 +88,40 @@ fn screen_recording_preflight() -> bool {
     unsafe { CGPreflightScreenCaptureAccess() }
 }
 
+#[cfg(target_os = "macos")]
+fn request_screen_recording_access() -> bool {
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGRequestScreenCaptureAccess() -> bool;
+    }
+    // SAFETY: plain C call; may show the system permission prompt for this binary.
+    unsafe { CGRequestScreenCaptureAccess() }
+}
+
+/// True when we can actually capture (TCC preflight, request prompt, or a short probe).
+#[cfg(target_os = "macos")]
+fn screen_recording_usable() -> bool {
+    if screen_recording_preflight() {
+        return true;
+    }
+    // Re-prompt for *this* binary identity (e.g. after installing into /Applications).
+    if request_screen_recording_access() || screen_recording_preflight() {
+        return true;
+    }
+    // Some macOS builds leave preflight false while ScreenCaptureKit/xcap still works.
+    match capture::screen::grab_ocr_jpeg() {
+        Ok(bytes) => bytes.len() > 64,
+        Err(_) => false,
+    }
+}
+
 #[cfg(not(target_os = "macos"))]
 fn screen_recording_preflight() -> bool {
+    true
+}
+
+#[cfg(not(target_os = "macos"))]
+fn screen_recording_usable() -> bool {
     true
 }
 
@@ -153,6 +188,25 @@ async fn get_status(state: State<'_, AppState>) -> Result<StatusPayload, String>
             .is_some_and(|u| u.eq_ignore_ascii_case("guest"));
     // Gemini is server-side only; ready once the user has a JWT.
     let gemini_ready = signed_in;
+    // Camera vitals readiness = server PRESAGE_API_KEY (via /v1/status), not a local key.
+    let presage_ready = if signed_in {
+        match api::authed_json::<ServiceStatusPayload>(
+            &cfg,
+            reqwest::Method::GET,
+            "/v1/status",
+            None,
+        )
+        .await
+        {
+            Ok(status) => status
+                .services
+                .iter()
+                .any(|s| s.id == "presage" && s.state == "ok"),
+            Err(_) => false,
+        }
+    } else {
+        false
+    };
     Ok(StatusPayload {
         signed_in,
         guest_mode,
@@ -163,7 +217,7 @@ async fn get_status(state: State<'_, AppState>) -> Result<StatusPayload, String>
         gemini_ready,
         // Google OAuth is required — ready means API can run the sign-in flow.
         google_oauth_ready: true,
-        presage_ready: cfg.presage_api_key.is_some(),
+        presage_ready,
         local_llm_model: cfg.local_llm_model.clone(),
         local_llm_enabled: cfg.local_llm_enabled,
         session: state.session.lock().clone(),
@@ -248,6 +302,11 @@ async fn gemini_status(state: State<'_, AppState>) -> Result<GeminiLiveStatus, S
     }
     let (ok, detail) = gemini::probe_status_via_api(&cfg).await;
     Ok(GeminiLiveStatus { ok, detail })
+}
+
+#[tauri::command]
+fn cancel_sign_in_waypoint_google() {
+    auth::request_cancel_google_sign_in();
 }
 
 #[tauri::command]
@@ -366,9 +425,51 @@ struct SchoolDigestResp {
     digest: Option<String>,
     #[serde(default, alias = "date", alias = "built_at")]
     digest_date: Option<String>,
+    #[serde(default)]
+    manual_refresh_available: Option<bool>,
+    #[serde(default)]
+    last_manual_refresh_at: Option<String>,
+    #[serde(default)]
+    next_manual_refresh_at: Option<String>,
 }
 
-async fn fetch_school_digest(cfg: &config::AppConfig) -> (String, String) {
+struct SchoolDigestFetch {
+    digest: String,
+    digest_date: String,
+    manual_refresh_available: bool,
+    last_manual_refresh_at: String,
+    next_manual_refresh_at: String,
+}
+
+fn empty_school_digest_fetch() -> SchoolDigestFetch {
+    SchoolDigestFetch {
+        digest: String::new(),
+        digest_date: String::new(),
+        manual_refresh_available: false,
+        last_manual_refresh_at: String::new(),
+        next_manual_refresh_at: String::new(),
+    }
+}
+
+fn school_digest_from_resp(resp: SchoolDigestResp) -> SchoolDigestFetch {
+    SchoolDigestFetch {
+        digest: resp.digest.unwrap_or_default(),
+        digest_date: resp.digest_date.unwrap_or_default(),
+        manual_refresh_available: resp.manual_refresh_available.unwrap_or(false),
+        last_manual_refresh_at: resp
+            .last_manual_refresh_at
+            .unwrap_or_default()
+            .trim()
+            .to_string(),
+        next_manual_refresh_at: resp
+            .next_manual_refresh_at
+            .unwrap_or_default()
+            .trim()
+            .to_string(),
+    }
+}
+
+async fn fetch_school_digest(cfg: &config::AppConfig) -> SchoolDigestFetch {
     let tz = urlencoding::encode(&google::local_timezone()).into_owned();
     let path = format!("/v1/school-digest?tz={tz}");
     let Ok(resp) = api::authed_json::<SchoolDigestResp>(
@@ -379,11 +480,9 @@ async fn fetch_school_digest(cfg: &config::AppConfig) -> (String, String) {
     )
     .await
     else {
-        return (String::new(), String::new());
+        return empty_school_digest_fetch();
     };
-    let digest = resp.digest.unwrap_or_default();
-    let date = resp.digest_date.unwrap_or_default();
-    (digest, date)
+    school_digest_from_resp(resp)
 }
 
 fn school_digest_context_block(digest: &str, date: &str) -> String {
@@ -418,6 +517,9 @@ async fn get_google_context(state: State<'_, AppState>) -> Result<GoogleContext,
                 drive_inventory: String::new(),
                 school_digest: String::new(),
                 school_digest_date: String::new(),
+                manual_refresh_available: false,
+                last_manual_refresh_at: String::new(),
+                next_manual_refresh_at: String::new(),
             });
         }
         let calendar_summary = google::calendar::upcoming_events_summary(&cfg, 8)
@@ -433,6 +535,9 @@ async fn get_google_context(state: State<'_, AppState>) -> Result<GoogleContext,
             drive_inventory: String::new(),
             school_digest: String::new(),
             school_digest_date: String::new(),
+            manual_refresh_available: false,
+            last_manual_refresh_at: String::new(),
+            next_manual_refresh_at: String::new(),
         });
     }
 
@@ -450,6 +555,9 @@ async fn get_google_context(state: State<'_, AppState>) -> Result<GoogleContext,
             drive_inventory: String::new(),
             school_digest: String::new(),
             school_digest_date: String::new(),
+            manual_refresh_available: false,
+            last_manual_refresh_at: String::new(),
+            next_manual_refresh_at: String::new(),
         });
     }
     #[derive(serde::Deserialize)]
@@ -490,14 +598,38 @@ async fn get_google_context(state: State<'_, AppState>) -> Result<GoogleContext,
     .unwrap_or_else(|e| Summary {
         summary: format!("Drive unavailable: {e}"),
     });
-    let (school_digest, school_digest_date) = fetch_school_digest(&cfg).await;
+    let digest = fetch_school_digest(&cfg).await;
     Ok(GoogleContext {
         connected: true,
         calendar_summary: calendar.summary,
         drive_summary: drive.summary,
         drive_inventory: inventory,
-        school_digest,
-        school_digest_date,
+        school_digest: digest.digest,
+        school_digest_date: digest.digest_date,
+        manual_refresh_available: digest.manual_refresh_available,
+        last_manual_refresh_at: digest.last_manual_refresh_at,
+        next_manual_refresh_at: digest.next_manual_refresh_at,
+    })
+}
+
+/// Ensure today's school digest exists (cheap when already cached). Called on app launch.
+#[tauri::command]
+async fn ensure_school_digest(state: State<'_, AppState>) -> Result<GoogleContext, String> {
+    let cfg = state.config.lock().clone();
+    if auth::load_tokens(&cfg).is_none() {
+        return Err("Sign in to load today’s school digest.".into());
+    }
+    let digest = fetch_school_digest(&cfg).await;
+    Ok(GoogleContext {
+        connected: true,
+        calendar_summary: String::new(),
+        drive_summary: String::new(),
+        drive_inventory: String::new(),
+        school_digest: digest.digest,
+        school_digest_date: digest.digest_date,
+        manual_refresh_available: digest.manual_refresh_available,
+        last_manual_refresh_at: digest.last_manual_refresh_at,
+        next_manual_refresh_at: digest.next_manual_refresh_at,
     })
 }
 
@@ -509,8 +641,20 @@ async fn refresh_school_digest(state: State<'_, AppState>) -> Result<GoogleConte
     }
     let tz = urlencoding::encode(&google::local_timezone()).into_owned();
     let path = format!("/v1/school-digest/refresh?tz={tz}");
-    api::authed_empty(&cfg, reqwest::Method::POST, &path, None).await?;
-    get_google_context(state).await
+    let resp: SchoolDigestResp =
+        api::authed_json(&cfg, reqwest::Method::POST, &path, None).await?;
+    let digest = school_digest_from_resp(resp);
+    Ok(GoogleContext {
+        connected: true,
+        calendar_summary: String::new(),
+        drive_summary: String::new(),
+        drive_inventory: String::new(),
+        school_digest: digest.digest,
+        school_digest_date: digest.digest_date,
+        manual_refresh_available: digest.manual_refresh_available,
+        last_manual_refresh_at: digest.last_manual_refresh_at,
+        next_manual_refresh_at: digest.next_manual_refresh_at,
+    })
 }
 
 #[tauri::command]
@@ -1130,15 +1274,44 @@ async fn start_lock_in(
     }
 
     let cfg = state.config.lock().clone();
-    // Camera accountability runs through the API; local PRESAGE_API_KEY is optional/legacy.
-    // Mark ready when signed in so the session UI reflects that server analysis can run.
-    let presage_ready = auth::load_tokens(&cfg).is_some() || PresageClient::configured(&cfg);
+    // Camera accountability runs through the API (`PRESAGE_API_KEY` server-side).
+    // Derive readiness from `/v1/status` presage row — not JWT alone or a local baked key.
+    let presage_ready = if auth::load_tokens(&cfg).is_some() {
+        match api::authed_json::<ServiceStatusPayload>(
+            &cfg,
+            reqwest::Method::GET,
+            "/v1/status",
+            None,
+        )
+        .await
+        {
+            Ok(status) => status
+                .services
+                .iter()
+                .any(|s| s.id == "presage" && s.state == "ok"),
+            Err(e) => {
+                tracing::warn!("presage readiness via /v1/status failed: {e}");
+                false
+            }
+        }
+    } else {
+        false
+    };
 
-    // Screen watching is required. Probe Screen Recording on launch;
-    // timeout so a stuck permission prompt can't freeze the UI.
+    // Screen watching is required. Don't hard-fail on CGPreflight alone (adhoc rebuilds /
+    // /Applications installs often look "denied" there). Prompt + short capture probe.
     if screen_enabled {
+        let usable = tokio::task::spawn_blocking(screen_recording_usable)
+            .await
+            .unwrap_or(false);
+        if !usable {
+            return Err(
+                "Allow Screen Recording for Waypoint in System Settings → Privacy & Security → Screen Recording (enable the Waypoint.app entry), then quit and reopen the app."
+                    .into(),
+            );
+        }
         match tokio::time::timeout(
-            std::time::Duration::from_secs(12),
+            std::time::Duration::from_secs(4),
             tokio::task::spawn_blocking(capture::screen::grab_primary_jpeg),
         )
         .await
@@ -1148,7 +1321,7 @@ async fn start_lock_in(
             Ok(Err(e)) => return Err(format!("Screen capture task failed: {e}")),
             Err(_) => {
                 return Err(
-                    "Screen capture timed out. Allow Screen Recording for Waypoint in System Settings → Privacy & Security → Screen Recording, then quit and reopen the app."
+                    "Screen capture timed out. Allow Screen Recording for Waypoint in System Settings → Privacy & Security → Screen Recording (enable the Waypoint.app entry), then quit and reopen the app."
                         .into(),
                 );
             }
@@ -1274,9 +1447,8 @@ async fn delete_all_user_data(
             .await
             .map_err(|e| {
                 format!(
-                    "Couldn’t delete your cloud account data ({e}). \
-                     Check that the Waypoint API is reachable, then try again. \
-                     Local files were not wiped."
+                    "Cloud delete failed — local data kept. \
+                     Check Connection status, then retry when the Waypoint API is reachable. ({e})"
                 )
             })?;
         removed.push("cloud account data".into());
@@ -1332,11 +1504,41 @@ fn save_settings(state: State<'_, AppState>, settings: UserSettings) -> Result<(
     Ok(())
 }
 
-/// Speak arbitrary text with the local TTS stand-in (macOS `say`).
-/// Waits until speech finishes so Settings “Test speak” can show a real success state.
+/// Speak via Grok/xAI TTS (same proxy as study heads-ups). Falls back to macOS `say`.
+/// Waits until playback finishes so Settings “Test speak” can show a real success state.
 #[tauri::command]
-fn voice_speak(text: String) -> Result<(), String> {
-    waypoint_voice::speak_wait(&text).map_err(|e| e.to_string())
+async fn voice_speak(state: State<'_, AppState>, text: String) -> Result<String, String> {
+    let snippet: String = text.trim().chars().take(160).collect();
+    if snippet.is_empty() {
+        return Ok("ok".into());
+    }
+    let cfg = state.config.lock().clone();
+    match api::fetch_test_speak_tts(&cfg, &snippet).await {
+        Ok(audio) => {
+            let bytes = audio.bytes;
+            let ext = audio.extension;
+            let play = tokio::task::spawn_blocking(move || {
+                waypoint_voice::play_audio_bytes_wait(&bytes, &ext)
+            })
+            .await
+            .map_err(|e| format!("Grok voice playback task failed: {e}"))?;
+            match play {
+                Ok(()) => return Ok("grok".into()),
+                Err(e) => {
+                    tracing::warn!("Grok TTS playback failed, falling back to local say: {e}");
+                }
+            }
+        }
+        Err(e) => {
+            tracing::debug!("Grok TTS unavailable for test speak ({e}); using local say");
+        }
+    }
+    let local = snippet.clone();
+    tokio::task::spawn_blocking(move || waypoint_voice::speak_wait(&local))
+        .await
+        .map_err(|e| format!("Local voice task failed: {e}"))?
+        .map_err(|e| e.to_string())?;
+    Ok("local".into())
 }
 
 /// Record a short mic clip and transcribe with macOS Speech (on-device when available).
@@ -1404,12 +1606,14 @@ pub fn run() {
             gemini_status,
             sign_in_waypoint,
             sign_in_waypoint_google,
+            cancel_sign_in_waypoint_google,
             sign_in_waypoint_guest,
             sign_out_waypoint,
             study_memory_stats,
             connect_google,
             disconnect_google,
             get_google_context,
+            ensure_school_digest,
             refresh_school_digest,
             chat_send,
             clear_chat,

@@ -48,17 +48,19 @@ presage_api_key = ""
 Then:
 
 ```bash
-npm run app:dev      # iterate
+npm run app:dev      # iterate (localhost OK; no release guard)
 # or
-npm run app:build    # ship Waypoint.app
+npm run app:build    # ship Waypoint.app (sets WAYPOINT_RELEASE=1)
 ```
+
+`npm run app:build` sets `WAYPOINT_RELEASE=1`, so `src-tauri/build.rs` refuses empty / localhost / `http://` `waypoint_api_base`. Point `secrets.toml` at your public `https://` origin first. Use `npm run app:dev` or `npm run app:build:debug` for local `http://127.0.0.1:8787` builds.
 
 ### Rules
 
 | Do | Don’t |
 |---|---|
 | Put only the **public API origin** in `secrets.toml` | Put `gemini_api_key` / Google OAuth secrets in the app (build fails if present) |
-| Use **HTTPS** for any non-localhost API | Ship `http://` API URLs for production |
+| Use **HTTPS** for any non-localhost API | Ship `http://` API URLs for production (`app:build` fails if you try) |
 | Rebuild after changing `waypoint_api_base` | Expect end users to edit config |
 
 Google OAuth, Gemini, Postgres, and Ollama stay on the **API host** (`.env` there). Signed-in users call the API with a JWT.
@@ -72,12 +74,15 @@ Google OAuth, Gemini, Postgres, and Ollama stay on the **API host** (`.env` ther
 | Google sign-in | `POST /v1/auth/google/start` + poll | — |
 | **Connection status** | `GET /v1/status` | Optional JWT (enriches account + Google) |
 | Copilot / study-memory consolidate | `POST /v1/gemini/chat` | User JWT |
-| Study companion Live (Gemini Live proxy) | `WS /v1/companion/live` | User JWT (`?access_token=`) |
+| Study companion Live (Gemini Live proxy) | `WS /v1/companion/live` | User JWT via `Sec-WebSocket-Protocol`: `waypoint.live.v1` + `bearer.<jwt>` (query `?access_token=` is deprecated / prod-off) |
 | Study companion typed fallback | `POST /v1/companion/chat` | User JWT |
 | Lock-in coach | `/v1/coach/api/*` | User JWT (or optional `coach_api_token`) |
 | Study heads-up TTS (Grok/xAI) | `POST /v1/voice/tts` | User JWT (or optional `coach_api_token`) |
-| Calendar / Drive / memory | `/v1/google/*`, `/v1/drive/*`, `/v1/study-memory`, … | User JWT |
+| Camera observe | `POST /v1/camera/observe` | User JWT (+ `client_meta.brightness` on active clips) |
+| Calendar / Drive / study-memory | `/v1/google/*`, `/v1/drive/*`, `/v1/study-memory`, … | User JWT |
 | Delete everything | `DELETE /v1/me/data` | User JWT |
+
+Lock-in cloud history uses **`PUT /v1/study-memory` only** — the Mac does not call `/v1/tasks` or `/v1/sessions`.
 
 Settings → Connection is a thin client of `/v1/status` (Tauri `service_status`). Indicator meanings: API repo [docs/STATUS.md](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/docs/STATUS.md).
 
@@ -96,7 +101,7 @@ Lock-in overlays still show instantly. Spoken nudges try **xAI TTS** through the
 | `XAI_API_KEY` | Required for Grok TTS. Blank → desktop uses macOS `say`. |
 | `XAI_TTS_VOICE` | Optional voice id (default `eve`). |
 
-**Latency / fallback:** the desktop budgets ~3.8s for `POST /v1/voice/tts` (API waits up to ~4s on xAI). On timeout, 503 (key unset), auth failure, or playback error, coach falls back to local macOS `say`. Settings “Test speak” stays on local `say` only.
+**Latency / fallback:** the desktop budgets ~3.8s for lock-in heads-up `POST /v1/voice/tts` (API waits up to ~4s on xAI). On timeout, 503 (key unset), auth failure, or playback error, coach falls back to local macOS `say`. Settings **Test speak** uses the same Grok proxy with `extended_wait: true` (~15s client budget) when signed in — not local-only. Talk/Live requires `XAI_API_KEY` on the API (no `say` fallback for Live speak).
 
 ---
 

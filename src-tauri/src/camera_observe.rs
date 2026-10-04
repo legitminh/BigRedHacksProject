@@ -1,13 +1,17 @@
 //! Lightweight client for server-side camera accountability (`POST /v1/camera/observe`).
 
 use std::path::Path;
+use std::time::Duration;
 
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use serde::Deserialize;
 
-use crate::api;
+use crate::api::{self, ApiClientError};
 use crate::config::AppConfig;
 use crate::presage::VitalsSnapshot;
+
+/// Observe can spend ~12s clip + upload + up to ~45s Presage retrieve — above the shared 60s client.
+const OBSERVE_HTTP_TIMEOUT: Duration = Duration::from_secs(120);
 
 #[derive(Debug, Deserialize)]
 pub struct ObserveNudge {
@@ -104,24 +108,32 @@ async fn post_observe(
     phase: &str,
     mime: &str,
     bytes: &[u8],
-) -> Result<ObserveResponse, String> {
+    brightness: Option<f64>,
+) -> Result<ObserveResponse, ApiClientError> {
     if bytes.is_empty() {
-        return Err("empty clip".into());
+        return Err(ApiClientError::msg("empty clip"));
     }
     if bytes.len() > 8 * 1024 * 1024 {
-        return Err("clip exceeds 8MB upload limit".into());
+        return Err(ApiClientError::msg("clip exceeds 8MB upload limit"));
     }
-    let body = serde_json::json!({
+    let mut body = serde_json::json!({
         "session_id": session_id,
         "phase": phase,
         "mime": mime,
         "data_base64": B64.encode(bytes),
     });
-    api::authed_json::<ObserveResponse>(
+    if let Some(b) = brightness.filter(|v| v.is_finite()) {
+        body["client_meta"] = serde_json::json!({
+            "brightness": b,
+            "brightness_measured": true,
+        });
+    }
+    api::authed_json_timeout::<ObserveResponse>(
         cfg,
         reqwest::Method::POST,
         "/v1/camera/observe",
         Some(&body),
+        OBSERVE_HTTP_TIMEOUT,
     )
     .await
 }
@@ -132,21 +144,23 @@ pub async fn observe_clip(
     session_id: &str,
     phase: &str,
     video_path: &Path,
-) -> Result<ObserveResponse, String> {
+    brightness: Option<f64>,
+) -> Result<ObserveResponse, ApiClientError> {
     let bytes = tokio::fs::read(video_path)
         .await
-        .map_err(|e| format!("read clip: {e}"))?;
-    post_observe(cfg, session_id, phase, "video/mp4", &bytes).await
+        .map_err(|e| ApiClientError::msg(format!("read clip: {e}")))?;
+    post_observe(cfg, session_id, phase, "video/mp4", &bytes, brightness).await
 }
 
 /// Tell the API the mission is paused/on break without recording the webcam.
 /// Refreshes stress cooldown so resume does not immediately re-nudge.
+/// Quiet placeholder JPEG has no real luminance — omit `client_meta.brightness`.
 pub async fn observe_quiet_phase(
     cfg: &AppConfig,
     session_id: &str,
     phase: &str,
-) -> Result<ObserveResponse, String> {
-    post_observe(cfg, session_id, phase, "image/jpeg", QUIET_PHASE_JPEG).await
+) -> Result<ObserveResponse, ApiClientError> {
+    post_observe(cfg, session_id, phase, "image/jpeg", QUIET_PHASE_JPEG, None).await
 }
 
 #[cfg(test)]

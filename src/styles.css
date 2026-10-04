@@ -313,6 +313,18 @@ body {
   font-weight: 500;
   color: var(--foam);
   letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.brand-mark {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: block;
+  object-fit: cover;
 }
 
 .mc-nav-actions {
@@ -630,12 +642,22 @@ body:has(.view-home.view-home--guest.active) .grain {
   background: var(--mc-bg-card);
 }
 
+.mc-home-best-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+}
+
 .mc-home-best-stat {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.35rem 0.5rem;
-  margin-bottom: 0.85rem;
+}
+
+.mc-home-best-stat--secondary {
+  padding-top: 0.15rem;
 }
 
 .mc-home-best-num {
@@ -644,6 +666,12 @@ body:has(.view-home.view-home--guest.active) .grain {
   line-height: 1;
   letter-spacing: -0.03em;
   color: var(--mc-text-primary);
+}
+
+.mc-home-best-num--sm {
+  font-size: clamp(1.45rem, 3vw, 1.85rem);
+  font-weight: 650;
+  color: var(--mc-text-secondary);
 }
 
 .mc-home-best-unit {
@@ -1682,6 +1710,11 @@ body:has(.view-home.view-home--guest.active) .grain {
   display: flex;
   align-items: center;
   gap: 0.35rem;
+}
+
+.settings-brand .brand-mark {
+  width: 1.55rem;
+  height: 1.55rem;
 }
 
 .settings-brand-star {
@@ -3350,20 +3383,6 @@ body:has(.view-mission-setup.active) .grain {
     0 20px 48px rgba(42, 36, 64, 0.08);
 }
 
-.mission-setup-step {
-  margin: 0;
-  display: inline-flex;
-  align-self: flex-start;
-  padding: 0.35rem 0.75rem;
-  border-radius: 999px;
-  background: rgba(232, 224, 245, 0.85);
-  border: 1px solid rgba(107, 76, 255, 0.12);
-  color: #326c78;
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-}
-
 .mission-setup-title {
   margin: 0;
   font-family: var(--font-display);
@@ -3390,6 +3409,11 @@ body:has(.view-mission-setup.active) .grain {
   font-weight: 600;
   letter-spacing: normal;
   text-transform: none;
+}
+
+.view-mission-setup .mission-field-optional {
+  font-weight: 500;
+  color: #6b6280;
 }
 
 .mission-field-input-wrap {
@@ -3788,15 +3812,6 @@ body:has(.view-mission-setup.active) .grain {
   border-color: transparent;
 }
 
-.session-mission-id {
-  margin: 0;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--mc-text-muted);
-}
-
 .session-copilot-panel {
   display: flex;
   flex-direction: column;
@@ -4014,12 +4029,16 @@ body:has(.view-mission-setup.active) .grain {
   padding: 1.35rem 1.35rem 1.25rem;
 }
 
+/* Keep Talk / session chat usable during quick check-ins (overlay still toasts). */
 #view-session.is-session-checkin .session-copilot-chat {
-  display: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 #view-session.is-session-checkin .session-checkin-card {
   display: flex;
+  margin-bottom: 0.75rem;
 }
 
 /* Break wins if both classes briefly overlap (Take a break from check-in). */
@@ -4470,6 +4489,22 @@ body:has(.view-session.active) .grain {
   transform: none;
 }
 
+.session-control-pill--break {
+  /* Secondary control beside Pause — tonal surface, not full-width chat CTA */
+  background: #f3eefc;
+  color: #282237;
+  border: 1px solid rgba(107, 76, 255, 0.16);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.4;
+  min-width: 10.5rem;
+}
+
+.session-control-pill--break:hover:not(:disabled) {
+  background: #ebe3fb;
+  border-color: rgba(107, 76, 255, 0.26);
+}
+
 .session-control-pill--end {
   /* Live End mission 6:647: Regular 16 / 400 / #282237 on tonal #e9ddfd */
   background: #e9ddfd;
@@ -4497,9 +4532,8 @@ body:has(.view-session.active) .grain {
   text-align: center;
 }
 
-#view-session.is-session-break #session-copilot-suggest,
-#view-session.is-session-checkin #session-copilot-suggest,
-#view-session.is-break-suggested #session-copilot-suggest {
+/* Hide manual break while already on a break; keep it available during suggestions. */
+#view-session.is-session-break #session-copilot-suggest {
   display: none;
 }
 
@@ -4610,44 +4644,82 @@ body:has(.view-session.active) .grain {
 }
 
 .session-break-suggest__btn:disabled,
-.session-copilot-suggest:disabled,
+.session-control-pill--break:disabled,
 .session-checkin-btn:disabled {
   opacity: 0.55;
   cursor: wait;
-}
-
-#view-session.is-break-suggested .session-copilot-chat {
-  opacity: 0.72;
 }
 
 #view-session.is-break-suggested .session-break-suggest {
   order: -1;
 }
 
-.session-copilot-suggest {
-  display: block;
-  width: 100%;
-  margin: 0 0 0.65rem;
-  padding: 0.7rem 1rem;
-  border: 1px solid rgba(107, 76, 255, 0.18);
-  border-radius: 0.95rem;
-  background: var(--mc-surface-lavender);
+/* In-chat stress break invite (session transcript) — Accept / Decline */
+.break-suggest-card {
+  align-self: flex-start;
+  width: min(22rem, 94%);
+  margin: 0.15rem 0 0.45rem;
+  padding: 0.95rem 1.05rem 1rem;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(107, 76, 255, 0.16);
+  background: var(--mc-bg-card);
+  box-shadow: var(--mc-shadow-soft);
   color: var(--mc-text-primary);
-  font-size: 0.92rem;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  animation: slideIn 0.3s ease both;
 }
 
-.session-copilot-suggest:hover {
-  background: rgba(232, 224, 245, 0.95);
-  border-color: rgba(107, 76, 255, 0.28);
+.session-chat-turn + .break-suggest-card {
+  margin-left: 0;
 }
 
-.session-copilot-suggest:focus-visible {
-  outline: 2px solid var(--mc-accent-purple);
-  outline-offset: 2px;
+.break-suggest-card__kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mc-accent-purple);
+}
+
+.break-suggest-card__title {
+  margin: 0 0 0.4rem;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--mc-text-primary);
+}
+
+.break-suggest-card__body {
+  margin: 0 0 0.85rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--mc-text-secondary);
+}
+
+.break-suggest-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.break-suggest-card__decline {
+  color: var(--mc-text-secondary);
+  border-color: var(--mc-border-default);
+  padding: 0.5rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+.break-suggest-card__accept {
+  padding: 0.55rem 1.1rem;
+  font-size: 0.85rem;
+}
+
+.break-suggest-card__accept:disabled,
+.break-suggest-card__decline:disabled {
+  opacity: 0.55;
+  cursor: wait;
 }
 
 .session-composer-hint {

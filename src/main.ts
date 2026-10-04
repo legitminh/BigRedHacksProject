@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import shipIconUrl from "./assets/branding/ship-icon.png?url";
 import { renderMarkdown } from "./markdown.ts";
 import { retryChat } from "./chat-retry.ts";
 import {
@@ -44,6 +45,8 @@ const PREF_CAMERA_SIGNALS = "wp-setting-camera-signals";
 /** Legacy key — screen sharing is always on for study; kept only to clear old prefs. */
 const PREF_SCREEN_SHARING = "wp-setting-screen-sharing";
 const PREF_REDUCE_MOTION = "wp-setting-reduce-motion";
+/** One-time ack that missions require screen watching + may scan open tabs. */
+const PREF_SCREEN_WATCH_ACK = "wp-screen-watch-ack";
 
 /** Screen watching is part of lock-in; not user-toggleable. */
 function screenSharingEnabled(): boolean {
@@ -86,19 +89,27 @@ function applyReduceMotionPref() {
 function syncSessionPreferenceToggles() {
   // Persist mandatory screen so any leftover readers see on.
   writeBoolPref(PREF_SCREEN_SHARING, true);
-  const camOn = readBoolPref(PREF_CAMERA_SIGNALS, false);
+  const camOn = cloudSignedIn && readBoolPref(PREF_CAMERA_SIGNALS, false);
   for (const id of ["setting-camera-signals", "lockin-camera"]) {
     const el = $(`#${id}`) as HTMLInputElement | null;
     if (el) el.checked = camOn;
   }
+  const ack = $("#lockin-screen-ack") as HTMLInputElement | null;
+  const ackRow = $("#lockin-screen-ack-row");
+  if (ack) {
+    const already = readBoolPref(PREF_SCREEN_WATCH_ACK, false);
+    ack.checked = already;
+    if (ackRow) ackRow.hidden = already;
+  }
   applyReduceMotionPref();
+  applyCameraGuestLocks();
 }
 
-/** Consent flags for start_lock_in — screen is always required; camera is a pref. */
+/** Consent flags for start_lock_in — screen is always required; camera needs sign-in. */
 function lockInConsentArgs() {
   return {
     screenEnabled: screenSharingEnabled(),
-    cameraEnabled: readBoolPref(PREF_CAMERA_SIGNALS, false),
+    cameraEnabled: cloudSignedIn && readBoolPref(PREF_CAMERA_SIGNALS, false),
   };
 }
 
@@ -294,6 +305,7 @@ async function applyAccountLocalScope(status: StatusPayload): Promise<void> {
     try {
       const stats = await invoke<{
         total_sessions?: number;
+        total_flight_minutes?: number;
         total_on_task_minutes?: number;
         longest_flight_minutes?: number;
       }>("study_memory_stats");
@@ -626,37 +638,27 @@ function missionLaunchLabel(loading: boolean) {
 
 function setupConsentSummary(): string {
   const camera = readBoolPref(PREF_CAMERA_SIGNALS, false);
+  // Mission preference only — not macOS Screen Recording TCC.
   return camera
-    ? "Screen sharing is on; camera accountability is on."
-    : "Screen sharing is on; camera accountability is off.";
+    ? "Screen watching enabled for this mission; camera accountability on."
+    : "Screen watching enabled for this mission; camera accountability off.";
 }
-function setupFootEmpty(): string {
-  return `Type an objective to enable launch.<br />${setupConsentSummary()}`;
-}
-function setupFootReady(): string {
+function setupFootText(): string {
   return setupConsentSummary();
 }
 
 let missionLaunchLoading = false;
 
-function goalsHasObjective(): boolean {
-  const goalsInput = $("#goals") as HTMLTextAreaElement | null;
-  return Boolean(goalsInput?.value.trim());
-}
-
 function syncMissionSetupLaunchUi(): void {
   const startBtn = $("#lockin-start") as HTMLButtonElement | null;
   const labelEl = startBtn?.querySelector(".mission-launch-label");
   const foot = $("#mission-setup-foot");
-  const canLaunch = goalsHasObjective() && !missionLaunchLoading;
+  const canLaunch = !missionLaunchLoading;
 
   if (labelEl) labelEl.textContent = missionLaunchLabel(missionLaunchLoading);
   if (startBtn) startBtn.disabled = !canLaunch;
 
-  if (foot) {
-    if (goalsHasObjective()) foot.textContent = setupFootReady();
-    else foot.innerHTML = setupFootEmpty();
-  }
+  if (foot) foot.textContent = setupFootText();
 }
 
 function setMissionLaunchButton(loading: boolean) {
@@ -674,6 +676,16 @@ function resetWelcomeSignInState() {
     btn.disabled = false;
     btn.textContent = "Sign in with Google →";
   }
+  const cancel = $("#welcome-cancel-google") as HTMLButtonElement | null;
+  if (cancel) {
+    cancel.disabled = false;
+    cancel.hidden = true;
+  }
+}
+
+function setWelcomeGoogleCancelVisible(visible: boolean) {
+  const cancel = $("#welcome-cancel-google") as HTMLButtonElement | null;
+  if (cancel) cancel.hidden = !visible;
 }
 
 async function submitWelcomeGoogle() {
@@ -689,12 +701,13 @@ async function submitWelcomeGoogle() {
     btn.disabled = true;
     btn.textContent = "Waiting for Google…";
   }
+  setWelcomeGoogleCancelVisible(true);
   try {
     await invoke("sign_in_waypoint_google");
     await refreshStatus();
     if (!appUnlocked) {
       throw new Error(
-        "Google signed in, but Calendar/Drive were not linked. Try Sign in with Google again and accept all permissions.",
+        "Google signed in, but Calendar/Drive were not linked. Use Sign in with Google again and accept Calendar + Drive access.",
       );
     }
   } catch (e) {
@@ -712,9 +725,21 @@ async function submitWelcomeGoogle() {
       alert(nice);
     }
   } finally {
+    setWelcomeGoogleCancelVisible(false);
     // Always clear — otherwise sign-out → sign-in again is a silent no-op.
     resetWelcomeSignInState();
   }
+}
+
+async function cancelWelcomeGoogle() {
+  if (!googleSignInInFlight) return;
+  try {
+    await invoke("cancel_sign_in_waypoint_google");
+  } catch {
+    // ignore — poll will time out if cancel IPC is unavailable
+  }
+  const cancel = $("#welcome-cancel-google") as HTMLButtonElement | null;
+  if (cancel) cancel.disabled = true;
 }
 
 async function submitWelcomeGuest() {
@@ -758,6 +783,15 @@ function wireWelcomeSignIn() {
       void submitWelcomeGoogle();
     };
   }
+  const cancel = $("#welcome-cancel-google") as HTMLButtonElement | null;
+  if (cancel && cancel.dataset.wired !== "1") {
+    cancel.dataset.wired = "1";
+    cancel.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void cancelWelcomeGoogle();
+    };
+  }
   const guest = $("#welcome-continue-guest") as HTMLButtonElement | null;
   if (guest && guest.dataset.wired !== "1") {
     guest.dataset.wired = "1";
@@ -783,7 +817,8 @@ function renderGuestNav() {
   nav?.classList.add("mc-nav-actions");
   if (brand) {
     brand.className = "mc-nav-brand";
-    brand.innerHTML = '<span class="welcome-brand-star" aria-hidden="true">✦</span> Waypoint';
+    brand.innerHTML =
+      `<img class="brand-mark" src="${shipIconUrl}" width="28" height="28" alt="" aria-hidden="true" /><span class="welcome-brand-star" aria-hidden="true">✦</span> Waypoint`;
   }
   if (nav) {
     nav.innerHTML = "";
@@ -815,7 +850,7 @@ function renderHomeNav(status: StatusPayload) {
   if (brand) {
     brand.className = "settings-brand";
     brand.innerHTML =
-      '<span class="settings-brand-star" aria-hidden="true">✦</span> Waypoint';
+      `<img class="brand-mark" src="${shipIconUrl}" width="28" height="28" alt="" aria-hidden="true" /><span class="settings-brand-star" aria-hidden="true">✦</span> Waypoint`;
   }
   if (center) {
     center.className = "settings-nav";
@@ -867,6 +902,7 @@ function renderHome(status: StatusPayload) {
   const unlocked = isAppUnlocked(status);
   appUnlocked = unlocked;
   guestCloudLocked = Boolean(status.guest_mode && !status.signed_in);
+  cloudSignedIn = Boolean(status.signed_in);
   applyGuestCloudLocks();
 
   const home = $("#view-home");
@@ -1015,6 +1051,9 @@ type GoogleContextPayload = {
   drive_inventory?: string;
   school_digest?: string;
   school_digest_date?: string;
+  manual_refresh_available?: boolean;
+  last_manual_refresh_at?: string;
+  next_manual_refresh_at?: string;
 };
 
 function formatSchoolDigestDate(raw: string | undefined): string | null {
@@ -1031,6 +1070,48 @@ function formatSchoolDigestDate(raw: string | undefined): string | null {
   return trimmed;
 }
 
+function formatDigestDateTime(raw: string | undefined): string | null {
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
+  const parsed = Date.parse(trimmed);
+  if (!Number.isFinite(parsed)) return trimmed;
+  return new Date(parsed).toLocaleString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function schoolDigestStatusCopy(google: GoogleContextPayload): string {
+  const when = formatSchoolDigestDate(google.school_digest_date);
+  const ready = google.school_digest?.trim()
+    ? when
+      ? `School digest ready for ${when}.`
+      : "School digest is ready for today."
+    : "No digest yet — Copilot still uses Calendar and Drive.";
+  if (google.manual_refresh_available) {
+    return `${ready} You can manually refresh once every 24 hours.`;
+  }
+  const next = formatDigestDateTime(google.next_manual_refresh_at);
+  return next
+    ? `${ready} Next manual refresh available ${next}.`
+    : `${ready} Manual refresh is on cooldown (once every 24 hours).`;
+}
+
+/** Build today’s digest on launch if missing (server no-ops when already cached). */
+async function ensureDailySchoolDigest(status?: StatusPayload | null) {
+  const current = status ?? lastHomeStatus;
+  if (!current?.signed_in || !current.google_connected) return;
+  try {
+    await invoke<GoogleContextPayload>("ensure_school_digest");
+    await updateCopilotDigestHint();
+  } catch (e) {
+    console.warn("ensure_school_digest:", e);
+  }
+}
+
 async function renderSchoolDigestSettings(status: StatusPayload) {
   const block = $("#account-school-digest-block");
   const statusEl = $("#account-school-digest-status");
@@ -1044,34 +1125,33 @@ async function renderSchoolDigestSettings(status: StatusPayload) {
   block.hidden = false;
   statusEl.textContent = "Loading digest status…";
   try {
-    const google = await invoke<GoogleContextPayload>("get_google_context");
-    if (!google.school_digest?.trim()) {
-      statusEl.textContent =
-        "No digest yet — Copilot still uses Calendar and Drive. Refresh rebuilds today’s digest on the server.";
-    } else {
-      const when = formatSchoolDigestDate(google.school_digest_date);
-      statusEl.textContent = when
-        ? `School digest updated ${when}.`
-        : "School digest is ready for today.";
-    }
+    const google = await invoke<GoogleContextPayload>("ensure_school_digest");
+    statusEl.textContent = schoolDigestStatusCopy(google);
     const refresh = document.createElement("button");
     refresh.className = "ghost pill";
     refresh.type = "button";
-    refresh.textContent = "Refresh digest";
+    const canRefresh = Boolean(google.manual_refresh_available);
+    refresh.textContent = canRefresh ? "Refresh digest" : "Refresh on cooldown";
+    refresh.disabled = !canRefresh;
+    refresh.title = canRefresh
+      ? "Rebuild today’s school digest (once every 24 hours)."
+      : "Manual refresh is limited to once every 24 hours.";
     refresh.addEventListener("click", async () => {
+      if (refresh.disabled) return;
       refresh.disabled = true;
       refresh.textContent = "Refreshing…";
       try {
-        await invoke<GoogleContextPayload>("refresh_school_digest");
+        const updated = await invoke<GoogleContextPayload>("refresh_school_digest");
+        statusEl.textContent = schoolDigestStatusCopy(updated);
         await renderSchoolDigestSettings(status);
         await updateCopilotDigestHint();
       } catch (e) {
         console.warn("refresh_school_digest:", e);
-        statusEl.textContent =
-          "Could not refresh digest — try again later or keep using Calendar/Drive.";
-      } finally {
-        refresh.disabled = false;
-        refresh.textContent = "Refresh digest";
+        const msg = String(e);
+        statusEl.textContent = /digest_manual_refresh_cooldown|once every 24 hours/i.test(msg)
+          ? "Manual refresh is limited to once every 24 hours. Try again later."
+          : "Could not refresh digest — try again later or keep using Calendar/Drive.";
+        await renderSchoolDigestSettings(status);
       }
     });
     actions.appendChild(refresh);
@@ -1272,15 +1352,48 @@ function friendlyServiceCopy(s: ServiceIndicator): { label: string; detail: stri
             ? "Calendar and Drive linked"
             : "Link Calendar and Drive to continue"),
       };
+    case "companion_live":
+      return {
+        label: "Talk / Live voice",
+        detail:
+          s.detail?.trim() ||
+          (state === "ok"
+            ? "Ready for Talk"
+            : "Talk unavailable — needs Gemini Live and Grok on the API"),
+      };
+    case "presage":
+      return {
+        label: "Camera vitals",
+        detail:
+          s.detail?.trim() ||
+          (state === "ok"
+            ? "Camera accountability vitals ready"
+            : "Presence-only — vitals unavailable on the API"),
+      };
+    case "xai_tts":
+      return {
+        label: "Grok voice",
+        detail:
+          s.detail?.trim() ||
+          (state === "ok"
+            ? "Heads-up and Live speak ready"
+            : "Grok unset — Live unavailable; heads-ups may use macOS say"),
+      };
+    case "storage":
+      return {
+        label: s.label?.trim() || "Storage",
+        detail: s.detail?.trim() || (state === "ok" ? "Configured" : "Needs attention"),
+      };
     default:
       return {
         label: s.label?.trim() || "Service",
         detail:
-          state === "ok"
+          s.detail?.trim() ||
+          (state === "ok"
             ? "Connected"
             : state === "warn"
               ? "Needs attention"
-              : "Unavailable right now",
+              : "Unavailable right now"),
       };
   }
 }
@@ -1456,6 +1569,8 @@ async function startLockInFromSuggestion(
   const mins = Math.min(180, Math.max(1, Math.round(suggestion.duration_mins)));
   const goalsText = suggestion.goals.trim();
   if (!goalsText) throw new Error("That suggestion had no mission goal.");
+  // Mission UI owns Live — never leave a Copilot socket owning the surface.
+  teardownCompanionLive();
   const session = await invoke<LockInSession>("start_lock_in", {
     goals: goalsText,
     durationMins: mins,
@@ -1636,17 +1751,23 @@ let companionBusy = false;
 let liveSurface: LiveSurface | null = null;
 /** Guest is local-only: cloud Live voice + mission companion chat are unavailable. */
 let guestCloudLocked = false;
+/** Signed-in with JWT — required for camera accountability uploads. */
+let cloudSignedIn = false;
 
 const GUEST_LIVE_HINT =
   "Live voice needs a Google account — Guest mode is local-only. Sign out and sign in with Google to use it.";
 const GUEST_SESSION_CHAT_HINT =
   "Mission copilot chat needs a Google account — Guest mode is local-only.";
+const GUEST_COPILOT_HINT =
+  "Copilot Ask needs a Google account — Guest mode is local-only.";
+const GUEST_CAMERA_HINT =
+  "Camera accountability needs a Google account so clips can reach the Waypoint API.";
 
 const SESSION_IDLE_HINT =
   "Talk for live voice · type + Enter for a turn";
 let guestLocksApplied = false;
 
-/** Disable/badge Live + companion cloud controls for Guest; restores them for Google accounts. */
+/** Disable/badge Live + companion + Copilot cloud controls for Guest; restores for Google. */
 function applyGuestCloudLocks() {
   const pairs: [HTMLButtonElement | null, string, "chat" | "session"][] = [
     [$("#chat-mic") as HTMLButtonElement | null, "Start / end live voice with Copilot", "chat"],
@@ -1656,14 +1777,20 @@ function applyGuestCloudLocks() {
       "session",
     ],
   ];
-  for (const [btn, title] of pairs) {
+  for (const [btn, title, surface] of pairs) {
     if (!btn) continue;
     btn.toggleAttribute("data-guest-locked", guestCloudLocked);
     btn.title = guestCloudLocked ? "Google account required (Guest is local-only)" : title;
-    btn.disabled = guestCloudLocked || companionBusy || chatBusy;
+    // Copilot typed-chat busy must not lock session Talk (and vice versa).
+    const otherSurfaceBusy =
+      surface === "session" ? chatBusy && liveSurface !== "session" : false;
+    btn.disabled = guestCloudLocked || companionBusy || otherSurfaceBusy;
   }
   const sessionSend = $("#session-chat-send") as HTMLButtonElement | null;
-  if (sessionSend) sessionSend.disabled = guestCloudLocked || companionBusy || chatBusy;
+  if (sessionSend) {
+    sessionSend.disabled =
+      guestCloudLocked || companionBusy || (chatBusy && liveSurface !== "session");
+  }
   const sessionInput = $("#session-chat-input") as HTMLTextAreaElement | null;
   if (sessionInput) {
     sessionInput.disabled = guestCloudLocked;
@@ -1671,6 +1798,26 @@ function applyGuestCloudLocks() {
       ? "Companion chat needs a Google account"
       : "Message your copilot…";
   }
+  const chatInput = $("#chat-input") as HTMLTextAreaElement | null;
+  if (chatInput) {
+    chatInput.disabled = guestCloudLocked;
+    chatInput.placeholder = guestCloudLocked
+      ? "Sign in with Google to use Copilot"
+      : COPILOT_IDLE_PLACEHOLDER;
+  }
+  const chatSend = $("#chat-send") as HTMLButtonElement | null;
+  if (chatSend) {
+    chatSend.disabled = guestCloudLocked || chatBusy;
+    chatSend.title = guestCloudLocked ? GUEST_COPILOT_HINT : "Send";
+  }
+  document.querySelectorAll<HTMLButtonElement>("[data-study]").forEach((chip) => {
+    if (!chip.dataset.studyTitle) {
+      chip.dataset.studyTitle = chip.title || chip.textContent?.trim() || "";
+    }
+    chip.disabled = guestCloudLocked || chatBusy;
+    chip.title = guestCloudLocked ? GUEST_COPILOT_HINT : chip.dataset.studyTitle;
+  });
+  applyCameraGuestLocks();
   if (guestCloudLocked) {
     setComposerMicHint(GUEST_LIVE_HINT, "chat");
     setComposerMicHint(GUEST_SESSION_CHAT_HINT, "session");
@@ -1679,6 +1826,23 @@ function applyGuestCloudLocks() {
     setComposerMicHint(SESSION_IDLE_HINT, "session");
   }
   guestLocksApplied = guestCloudLocked;
+}
+
+function applyCameraGuestLocks() {
+  const locked = !cloudSignedIn;
+  for (const id of ["lockin-camera", "setting-camera-signals"]) {
+    const el = $(`#${id}`) as HTMLInputElement | null;
+    if (!el) continue;
+    el.disabled = locked;
+    el.title = locked ? GUEST_CAMERA_HINT : "Optional camera accountability";
+    if (locked && el.checked) {
+      el.checked = false;
+      writeBoolPref(PREF_CAMERA_SIGNALS, false);
+    }
+  }
+  const row = $("#lockin-camera")?.closest(".mission-toggle-row");
+  row?.classList.toggle("is-guest-locked", locked);
+  syncMissionSetupLaunchUi();
 }
 
 const CHAT_FAIL_MSG =
@@ -1751,9 +1915,17 @@ function setChatControlsBusy(busy: boolean) {
         return;
       }
       // Mic stays disabled for the whole companion start/stop; afterwards keep Talk/Live
-      // available so the user can end an active Live session.
+      // available so the user can end an active Live session. Copilot chatBusy must not
+      // disable session Talk.
       if (isMic) {
-        button.disabled = companionBusy || (busy && !companionLive?.active);
+        const sessionMic = button.id === "session-chat-mic";
+        const blockForChatBusy =
+          busy && !companionLive?.active && !(sessionMic && liveSurface !== "copilot");
+        button.disabled = companionBusy || blockForChatBusy;
+        return;
+      }
+      if (button.id === "session-chat-send" && liveSurface === "session") {
+        button.disabled = companionBusy;
         return;
       }
       button.disabled = busy;
@@ -1847,8 +2019,11 @@ function formatAtLaunchMissionLine(goals: string, durationSecs: number): string 
 function ensureSessionAtLaunchSeed(session: LockInSession): void {
   if (seededAtLaunchSessionId === session.id) return;
   seededAtLaunchSessionId = session.id;
+  dismissBreakSuggestion();
+  breakSuggestionCooldownUntil = 0;
   const log = $("#session-chat-log");
   if (log) log.innerHTML = "";
+  activeBreakSuggestCard = null;
   appendSessionChat(
     "system",
     formatAtLaunchMissionLine(session.goals, session.duration_secs),
@@ -1910,6 +2085,10 @@ function resizeCopilotComposerInput() {
 }
 
 async function sendChat() {
+  if (guestCloudLocked) {
+    setComposerMicHint(GUEST_COPILOT_HINT, "chat");
+    return;
+  }
   const input = $<HTMLTextAreaElement>("#chat-input");
   if (chatBusy || !input?.value.trim()) return;
   const message = input.value.trim();
@@ -1991,48 +2170,48 @@ function setCopilotListeningPlaceholder(listening: boolean) {
     : COPILOT_IDLE_PLACEHOLDER;
 }
 
-function applyStopSpeechUi(
-  btn: HTMLButtonElement | null,
-  phase: CompanionPhase,
-  liveActiveOnSurface: boolean,
-) {
+function applyStopSpeechUi(btn: HTMLButtonElement | null, show: boolean) {
   if (!btn) return;
-  const show =
-    liveActiveOnSurface && (phase === "speaking" || phase === "thinking");
   btn.hidden = !show;
   btn.disabled = !show;
   btn.setAttribute("aria-hidden", show ? "false" : "true");
 }
 
 function setCompanionPhaseUi(phase: CompanionPhase) {
+  const winding = Boolean(companionLive?.windingDown);
   const label = $("#session-companion-phase");
   if (label) {
+    const copy =
+      winding && (phase === "speaking" || phase === "thinking")
+        ? "Finishing reply — Stop to cut off"
+        : (COMPANION_PHASE_COPY[phase] ?? phase);
     label.textContent =
-      liveSurface === "session" || phase === "idle"
-        ? (COMPANION_PHASE_COPY[phase] ?? phase)
-        : COMPANION_PHASE_COPY.idle;
+      liveSurface === "session" || phase === "idle" ? copy : COMPANION_PHASE_COPY.idle;
   }
   const sessionPhase =
     liveSurface === "session" || phase === "idle" ? phase : "idle";
   const copilotPhase =
     liveSurface === "copilot" || phase === "idle" ? phase : "idle";
+  // Mic-off while finishing speech: show Talk/Mic as off, keep Stop available.
+  const sessionMicPhase = winding && liveSurface === "session" ? "idle" : sessionPhase;
+  const copilotMicPhase = winding && liveSurface === "copilot" ? "idle" : copilotPhase;
   applyMicLiveUi(
     $("#session-chat-mic") as HTMLButtonElement | null,
-    sessionPhase,
+    sessionMicPhase,
     "Talk",
   );
-  applyMicLiveUi($("#chat-mic") as HTMLButtonElement | null, copilotPhase, "Mic", {
+  applyMicLiveUi($("#chat-mic") as HTMLButtonElement | null, copilotMicPhase, "Mic", {
     stickyLabel: true,
   });
+  const stopVisible =
+    phase === "speaking" || phase === "thinking" || winding;
   applyStopSpeechUi(
     $("#chat-stop-speech") as HTMLButtonElement | null,
-    copilotPhase,
-    liveSurface === "copilot" && phase !== "idle",
+    liveSurface === "copilot" && stopVisible,
   );
   applyStopSpeechUi(
     $("#session-chat-stop-speech") as HTMLButtonElement | null,
-    sessionPhase,
-    liveSurface === "session" && phase !== "idle",
+    liveSurface === "session" && stopVisible,
   );
   setCopilotListeningPlaceholder(
     liveSurface === "copilot" &&
@@ -2158,7 +2337,8 @@ function upsertCopilotLiveBubble(role: "user" | "assistant", text: string, isFin
   if (isFinal && role === "assistant") hasChatReply = true;
 }
 
-async function collectCompanionContext(): Promise<CompanionContext> {
+/** Timer/goals only — safe to await before opening Live (no network). */
+function collectCompanionContextFast(): CompanionContext {
   const goals = ($("#session-goals")?.textContent ?? "").trim();
   const timer = $("#session-timer")?.textContent ?? "00:00";
   const [mm, ss] = timer.split(":").map((p) => Number(p));
@@ -2168,7 +2348,7 @@ async function collectCompanionContext(): Promise<CompanionContext> {
     ($("#session-pause") as HTMLButtonElement | null)?.getAttribute("aria-pressed") ===
     "true";
   const inSession = Boolean($("#view-session")?.classList.contains("active"));
-  const context: CompanionContext = {
+  return {
     goals: goals || undefined,
     notes: inSession ? undefined : "Copilot tab live voice (no lock-in session).",
     remaining_mins: inSession ? remainingMins : undefined,
@@ -2178,6 +2358,11 @@ async function collectCompanionContext(): Promise<CompanionContext> {
         : undefined,
     paused: inSession ? paused : false,
   };
+}
+
+async function attachGoogleCompanionContext(
+  context: CompanionContext,
+): Promise<CompanionContext> {
   // Live voice used to omit Google data — same calendar window, Drive inventory,
   // and recent-file excerpts that typed Copilot gets.
   try {
@@ -2212,6 +2397,10 @@ async function collectCompanionContext(): Promise<CompanionContext> {
   return context;
 }
 
+async function collectCompanionContext(): Promise<CompanionContext> {
+  return attachGoogleCompanionContext(collectCompanionContextFast());
+}
+
 function teardownCompanionLive() {
   if (companionLive) {
     companionLive.end(true);
@@ -2228,12 +2417,32 @@ async function ensureCompanionLive(surface: LiveSurface): Promise<CompanionLiveS
   if (companionLive?.active) teardownCompanionLive();
   liveSurface = surface;
   companionLive = new CompanionLiveSession({
-    onPhase: (phase) => setCompanionPhaseUi(phase),
+    onPhase: (phase) => {
+      setCompanionPhaseUi(phase);
+      // Graceful mic-off ends the session after speech drains — clear ownership here.
+      if (phase === "idle" && companionLive && !companionLive.active) {
+        const endedSurface = liveSurface;
+        companionLive = null;
+        liveSurface = null;
+        setCompanionPhaseUi("idle");
+        if (endedSurface) {
+          setComposerMicHint(
+            endedSurface === "copilot"
+              ? COPILOT_IDLE_HINT
+              : "Live voice ended. Tap Talk to start again, or type a turn.",
+            endedSurface === "copilot" ? "chat" : "session",
+          );
+        }
+      }
+    },
     onUser: (text, isFinal) => {
       if (liveSurface === "copilot") {
         if (isFinal) lastLiveCopilotUserFinal = text.trim();
         upsertCopilotLiveBubble("user", text, isFinal);
-      } else upsertSessionLiveBubble("user", text, isFinal);
+      } else {
+        upsertSessionLiveBubble("user", text, isFinal);
+        if (isFinal) maybeOfferBreakFromUserText(text);
+      }
     },
     onAssistant: (text, isFinal) => {
       if (liveSurface === "copilot") {
@@ -2287,12 +2496,19 @@ async function ensureCompanionLive(surface: LiveSurface): Promise<CompanionLiveS
       );
     },
     onError: (message) => {
-      setComposerMicHint(message, liveSurface === "copilot" ? "chat" : "session");
-      liveSurface = null;
-      setCompanionPhaseUi("idle");
+      const target = liveSurface === "copilot" ? "chat" : "session";
+      setComposerMicHint(message, target);
+      // Mic-only failures keep Live open for typing — only clear UI ownership when
+      // the session actually ended (phase idle / socket closed via end()).
+      if (!companionLive?.active) {
+        liveSurface = null;
+        setCompanionPhaseUi("idle");
+      }
     },
   });
-  await companionLive.start(await collectCompanionContext());
+  // Open Live immediately with timer/goals; Google context is enrichment only.
+  // (Awaiting Drive inventory before connect made session Talk feel dead.)
+  await companionLive.start(collectCompanionContextFast());
   return companionLive;
 }
 
@@ -2302,17 +2518,48 @@ async function toggleCompanionLive(surface: LiveSurface): Promise<void> {
     setComposerMicHint(GUEST_LIVE_HINT, hintTarget);
     return;
   }
-  if (chatBusy || companionBusy) return;
+  // Session Talk must stay usable while Copilot typed chat is busy.
+  if (surface === "copilot" && chatBusy) return;
+  if (companionBusy) return;
   // Hold the mutex for the whole start *or* stop so rapid clicks cannot interleave.
   companionBusy = true;
   setChatControlsBusy(chatBusy);
   try {
     if (companionLive?.active && liveSurface === surface) {
-      teardownCompanionLive();
+      // Second click while already winding down → hard end.
+      if (companionLive.windingDown) {
+        teardownCompanionLive();
+        setComposerMicHint(
+          surface === "copilot"
+            ? COPILOT_IDLE_HINT
+            : "Live voice ended. Tap Talk to start again, or type a turn.",
+          hintTarget,
+        );
+        return;
+      }
+      // Mic/Talk off: stop listening, but finish the current spoken reply.
+      const live = companionLive;
+      live.releaseMic({ finishSpeech: true });
+      if (!live.active) {
+        // Ended immediately (nothing to finish). onPhase may already have cleared the ref.
+        if (companionLive === live) {
+          companionLive = null;
+          liveSurface = null;
+        }
+        setCompanionPhaseUi("idle");
+        setComposerMicHint(
+          surface === "copilot"
+            ? COPILOT_IDLE_HINT
+            : "Live voice ended. Tap Talk to start again, or type a turn.",
+          hintTarget,
+        );
+        return;
+      }
+      setCompanionPhaseUi(live.currentPhase);
       setComposerMicHint(
         surface === "copilot"
-          ? COPILOT_IDLE_HINT
-          : "Live voice ended. Tap Talk to start again, or type a turn.",
+          ? "Mic off — finishing reply. Press Stop to cut off."
+          : "Talk off — finishing reply. Press Stop to cut off.",
         hintTarget,
       );
       return;
@@ -2321,7 +2568,7 @@ async function toggleCompanionLive(surface: LiveSurface): Promise<void> {
     setComposerMicHint(
       surface === "copilot"
         ? "Live voice open — speak or type. Click the microphone to end."
-        : "Live voice open — talk freely or type a line. Tap Live to end.",
+        : "Live voice open — talk freely or type a line. Tap Talk to end.",
       hintTarget,
     );
     void renderPermissionsStatus();
@@ -2345,9 +2592,12 @@ async function sendSessionChat() {
   const message = input.value.trim();
   input.value = "";
 
-  // Prefer Live socket when already open (demo-style typed turn).
-  if (companionLive?.active) {
+  // Prefer Live socket only when session owns it (never ride leftover Copilot Live).
+  if (companionLive?.active && liveSurface === "session") {
     companionLive.sendText(message);
+    // Live onUser(final) also runs stress detection; call here too so typed-while-live
+    // still works if the socket omits a user echo.
+    maybeOfferBreakFromUserText(message);
     return;
   }
 
@@ -2357,6 +2607,8 @@ async function sendSessionChat() {
   appendSessionChat("user", message);
   const pending = appendSessionChat("assistant", "");
   if (pending) showThinkingIndicator(pending);
+  // After the turn is on-screen so the Accept/Decline card lands at the log bottom.
+  maybeOfferBreakFromUserText(message);
   const stillTimer = window.setTimeout(() => {
     if (pending?.classList.contains("is-thinking")) {
       markThinkingProlonged(pending, "Still thinking");
@@ -2438,35 +2690,138 @@ function syncBreakCardCopy() {
   }
 }
 
-/** True while Accept/Not now stress-break invite is visible (wins over check-in). */
+/** True while Accept/Decline stress-break invite is visible (wins over check-in). */
 let breakSuggestionActive = false;
+/** Align with backend STRESS_COOLDOWN_MS — avoid chat spam from vitals + language. */
+const BREAK_SUGGEST_COOLDOWN_MS = 180_000;
+let breakSuggestionCooldownUntil = 0;
+let activeBreakSuggestCard: HTMLElement | null = null;
+
+/** Local text/voice cue that the user feels stressed (typed or final Live utterance). */
+function userTextSuggestsStress(text: string): boolean {
+  const t = text.toLowerCase().replace(/\s+/g, " ").trim();
+  if (!t) return false;
+  if (
+    /\b(stressed|stressing|stressful|anxious|anxiety|overwhelmed|overwhelming|panicking|panicked|freaking out|burnt out|burned out)\b/.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  // "im feeling very stressed", "I am so stressed out", etc.
+  return /\b(i'?m|i am|feeling|feel)\b.{0,48}\b(stress|anxious|overwhelm|panic)\w*\b/.test(t);
+}
+
+function canOfferBreakSuggestion(): boolean {
+  if (breakSuggestionActive || breakTimerActive || breakStarting) return false;
+  if (Date.now() < breakSuggestionCooldownUntil) return false;
+  if (!$("#view-session")?.classList.contains("active")) return false;
+  if ($("#session-pause")?.getAttribute("aria-pressed") === "true") return false;
+  return true;
+}
+
+function removeActiveBreakSuggestCard() {
+  activeBreakSuggestCard?.remove();
+  activeBreakSuggestCard = null;
+  document.querySelectorAll(".break-suggest-card").forEach((el) => el.remove());
+}
+
+function appendBreakSuggestionCard(reason?: string) {
+  const log = $("#session-chat-log");
+  if (!log) return null;
+  $("#session-chat-empty")?.remove();
+  removeActiveBreakSuggestCard();
+
+  const stress = (reason ?? "stress").toLowerCase() === "stress" || reason === "vitals" || reason === "chat";
+  const card = document.createElement("div");
+  card.className = "break-suggest-card";
+  card.setAttribute("role", "group");
+  card.setAttribute("aria-label", "Suggested five-minute break");
+
+  const kicker = document.createElement("p");
+  kicker.className = "break-suggest-card__kicker";
+  kicker.textContent = "Break suggested";
+
+  const title = document.createElement("p");
+  title.className = "break-suggest-card__title";
+  title.textContent = "Take a five-minute break?";
+
+  const body = document.createElement("p");
+  body.className = "break-suggest-card__body";
+  body.textContent = stress
+    ? "Looks like a good moment to reset. Your mission pauses for five minutes until you resume."
+    : "Step away for a short reset. Your mission pauses until you resume.";
+
+  const actions = document.createElement("div");
+  actions.className = "break-suggest-card__actions";
+
+  const decline = document.createElement("button");
+  decline.type = "button";
+  decline.className = "ghost break-suggest-card__decline";
+  decline.textContent = "Decline";
+
+  const accept = document.createElement("button");
+  accept.type = "button";
+  accept.className = "primary break-suggest-card__accept";
+  accept.textContent = "Accept — fullscreen break";
+  accept.title = "Opens a fullscreen break timer on your primary display (Resume from here anytime).";
+
+  decline.addEventListener("click", () => {
+    dismissBreakSuggestion();
+  });
+  accept.addEventListener("click", () => {
+    void startBreakTimer();
+  });
+
+  actions.append(decline, accept);
+  card.append(kicker, title, body, actions);
+  log.appendChild(card);
+  log.scrollTop = log.scrollHeight;
+  activeBreakSuggestCard = card;
+
+  window.requestAnimationFrame(() => {
+    accept.focus();
+  });
+  return card;
+}
 
 function setBreakSuggestionUi(active: boolean, reason?: string) {
   breakSuggestionActive = active;
   const view = $("#view-session");
   view?.classList.toggle("is-break-suggested", active);
-  const card = $("#session-break-suggest");
-  const body = $(".session-break-suggest__body");
-  if (body && active) {
-    const stress = reason?.toLowerCase() === "stress";
-    body.textContent = stress
-      ? "Looks like a good moment to reset. Your mission pauses for five minutes until you resume."
-      : "Step away for a short reset. Your mission pauses until you resume.";
+
+  // Keep legacy panel card hidden — invite lives in the chat transcript now.
+  const legacy = $("#session-break-suggest");
+  if (legacy) {
+    legacy.hidden = true;
+    legacy.setAttribute("aria-hidden", "true");
   }
-  if (card) {
-    card.hidden = !active;
-    card.setAttribute("aria-hidden", active ? "false" : "true");
+
+  if (!active) {
+    removeActiveBreakSuggestCard();
+    return;
   }
-  if (active) {
-    // Prefer Accept so the suggestion is keyboard-actionable immediately.
-    window.requestAnimationFrame(() => {
-      ($("#session-break-suggest-accept") as HTMLButtonElement | null)?.focus();
-    });
-  }
+
+  appendBreakSuggestionCard(reason);
+  // Cooldown starts when shown so vitals blips / repeat phrases don't re-stack cards.
+  breakSuggestionCooldownUntil = Date.now() + BREAK_SUGGEST_COOLDOWN_MS;
 }
 
 function dismissBreakSuggestion() {
   setBreakSuggestionUi(false);
+  breakSuggestionCooldownUntil = Date.now() + BREAK_SUGGEST_COOLDOWN_MS;
+}
+
+/** Presage vitals, coach suggest_break, or user stress language → Accept/Decline card. */
+function offerBreakSuggestion(reason?: string) {
+  if (!canOfferBreakSuggestion()) return;
+  setSessionCheckinUi(false);
+  setBreakSuggestionUi(true, reason ?? "stress");
+}
+
+function maybeOfferBreakFromUserText(text: string) {
+  if (!userTextSuggestsStress(text)) return;
+  offerBreakSuggestion("chat");
 }
 
 function setBreakEntryBusy(busy: boolean) {
@@ -2479,6 +2834,14 @@ function setBreakEntryBusy(busy: boolean) {
     const el = $(id) as HTMLButtonElement | null;
     if (el) el.disabled = busy;
   }
+  const cardAccept = activeBreakSuggestCard?.querySelector(
+    ".break-suggest-card__accept",
+  ) as HTMLButtonElement | null;
+  const cardDecline = activeBreakSuggestCard?.querySelector(
+    ".break-suggest-card__decline",
+  ) as HTMLButtonElement | null;
+  if (cardAccept) cardAccept.disabled = busy;
+  if (cardDecline) cardDecline.disabled = busy;
 }
 
 async function refreshBreakTimerActive(): Promise<boolean> {
@@ -2669,8 +3032,8 @@ function syncCopilotPanelAriaLabel() {
 
 function setSessionCheckinUi(active: boolean) {
   const view = $("#view-session");
-  // Stress break invite (Accept/Not now) must stay actionable — don't replace it
-  // with quick check-in chrome (CSS would hide #session-break-suggest).
+  // Stress break invite (Accept/Decline chat card) must stay actionable — don't
+  // replace it with quick check-in chrome.
   if (active && breakSuggestionActive) {
     return;
   }
@@ -2701,6 +3064,66 @@ function currentEarnedFlightMinutes(): number {
   return flightMinutesEarned(currentEndsAt, currentSessionDurationSecs);
 }
 
+let modalFocusReturn: HTMLElement | null = null;
+let modalKeyHandler: ((event: KeyboardEvent) => void) | null = null;
+
+function getFocusable(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((el) => !el.hasAttribute("disabled") && !el.closest("[hidden]"));
+}
+
+function openModal(modal: HTMLElement, focusSelector?: string) {
+  modalFocusReturn =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  modal.hidden = false;
+  const focusables = getFocusable(modal);
+  const preferred = focusSelector
+    ? (modal.querySelector(focusSelector) as HTMLElement | null)
+    : null;
+  (preferred ?? focusables[0])?.focus();
+  if (modalKeyHandler) {
+    document.removeEventListener("keydown", modalKeyHandler, true);
+  }
+  modalKeyHandler = (event: KeyboardEvent) => {
+    if (modal.hidden) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeModal(modal);
+      return;
+    }
+    if (event.key !== "Tab" || focusables.length === 0) return;
+    const live = getFocusable(modal);
+    const first = live[0];
+    const last = live[live.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+    if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first?.focus();
+    }
+  };
+  document.addEventListener("keydown", modalKeyHandler, true);
+}
+
+function closeModal(modal: HTMLElement) {
+  if (modal.id === "end-session-modal") {
+    setSessionEndingUi(false);
+  }
+  modal.hidden = true;
+  if (modalKeyHandler) {
+    document.removeEventListener("keydown", modalKeyHandler, true);
+    modalKeyHandler = null;
+  }
+  const ret = modalFocusReturn;
+  modalFocusReturn = null;
+  ret?.focus();
+}
+
 function openEndSessionModal() {
   const modal = $("#end-session-modal");
   const body = $("#end-session-modal-body");
@@ -2709,13 +3132,13 @@ function openEndSessionModal() {
     body.textContent = `Your ${earned} flight ${earned === 1 ? "minute" : "minutes"} will be saved. You can reflect on your objective next.`;
   }
   setSessionEndingUi(true);
-  if (modal) modal.hidden = false;
+  if (modal) openModal(modal, "#end-session-keep");
 }
 
 function closeEndSessionModal() {
   const modal = $("#end-session-modal");
-  if (modal) modal.hidden = true;
-  setSessionEndingUi(false);
+  if (modal) closeModal(modal);
+  else setSessionEndingUi(false);
 }
 
 function formatPresenceSummary(raw?: string | null): string {
@@ -2784,17 +3207,22 @@ function renderVitals(vitals?: VitalsSnapshot | null) {
   if (line) line.textContent = formatVitals(vitals);
   if (panel) panel.classList.toggle("stressed", Boolean(vitals?.stressed));
   applyCameraPresenceUi(vitals);
+  // Presage / camera stressed flag — same Accept/Decline card as coach suggest_break.
+  if (vitals?.stressed) offerBreakSuggestion("vitals");
 }
 
 function renderWatchingNote(note?: string | null) {
   const el = $("#session-watch-note");
   if (!el) return;
   const raw = (note || "").trim();
-  const text = raw
-    ? raw.replace(/wellness later in background/gi, "camera accountability in background")
-    : "";
-  el.textContent = text;
-  const show = Boolean(text);
+  // Strip debug OCR crumbs — never user-facing (e.g. " · OCR: W&ypolnl").
+  const cleaned = raw
+    .replace(/\s*[·•]\s*OCR:\s*.+$/i, "")
+    .replace(/\bOCR:\s*\S+/gi, "")
+    .replace(/wellness later in background/gi, "camera accountability in background")
+    .trim();
+  el.textContent = cleaned;
+  const show = Boolean(cleaned);
   el.hidden = !show;
   el.classList.toggle("visually-hidden", !show);
   el.setAttribute("aria-hidden", show ? "false" : "true");
@@ -2812,7 +3240,7 @@ function renderSessionCoachLog(prompts: CoachPrompt[]) {
   const recent = prompts.slice(-SESSION_COACH_MAX);
   if (!recent.length) {
     log.innerHTML =
-      '<p class="muted session-coach-empty">Coach messages will show here.</p>';
+      '<p class="muted session-coach-empty">Desktop check-in toasts appear over your other apps. Longer notes show here when available.</p>';
     return;
   }
   log.innerHTML = recent.map((p) => `<div class="prompt">${escapeHtml(p.text)}</div>`).join("");
@@ -2824,12 +3252,18 @@ function renderSessionCoachLog(prompts: CoachPrompt[]) {
  * before a session exists, fall back to the saved prefs.
  */
 function syncSessionSignalPills(session?: Pick<LockInSession, "screen_enabled" | "camera_enabled"> | null) {
-  const cameraOn = session?.camera_enabled ?? readBoolPref(PREF_CAMERA_SIGNALS, false);
+  const optedIn = session?.camera_enabled ?? readBoolPref(PREF_CAMERA_SIGNALS, false);
+  // Unsigned / Guest never run observe — don't claim "Camera on".
+  const cameraOn = optedIn && cloudSignedIn;
   const screenOn = session?.screen_enabled ?? screenSharingEnabled();
   const camera = $("#session-pill-camera");
   const screen = $("#session-pill-screen");
   if (camera) {
-    camera.textContent = cameraOn ? "Camera on" : "Camera off";
+    camera.textContent = !cloudSignedIn
+      ? "Camera unavailable"
+      : cameraOn
+        ? "Camera on"
+        : "Camera off";
     camera.classList.toggle("is-on", cameraOn);
   }
   if (screen) {
@@ -2998,22 +3432,22 @@ function setCameraToggleChecked(on: boolean) {
 
 function showPermissionHandoffModal(_source: CameraHandoffSource) {
   const modal = $("#permission-handoff-modal");
-  if (modal) modal.hidden = false;
+  if (modal) openModal(modal, "#permission-handoff-continue");
 }
 
 function hidePermissionHandoffModal() {
   const modal = $("#permission-handoff-modal");
-  if (modal) modal.hidden = true;
+  if (modal) closeModal(modal);
 }
 
 function showPermissionDeniedModal() {
   const modal = $("#permission-denied-modal");
-  if (modal) modal.hidden = false;
+  if (modal) openModal(modal, "#permission-denied-setup");
 }
 
 function hidePermissionDeniedModal() {
   const modal = $("#permission-denied-modal");
-  if (modal) modal.hidden = true;
+  if (modal) closeModal(modal);
 }
 
 async function continueCameraHandoff() {
@@ -3047,6 +3481,12 @@ function cancelCameraHandoff() {
 function wireCameraPermissionHandoff(inputId: string, source: CameraHandoffSource) {
   $(`#${inputId}`)?.addEventListener("change", (event) => {
     const input = event.target as HTMLInputElement;
+    if (!cloudSignedIn) {
+      input.checked = false;
+      writeBoolPref(PREF_CAMERA_SIGNALS, false);
+      applyCameraGuestLocks();
+      return;
+    }
     if (!input.checked) {
       writeBoolPref(PREF_CAMERA_SIGNALS, false);
       syncMissionSetupLaunchUi();
@@ -3126,7 +3566,12 @@ async function toggleSessionMute() {
   try {
     const settings = await invoke<UserSettings>("get_settings");
     const next = !settings.silent_mode;
+    // Mute also stops the current heads-up TTS; Live Web Audio is unchanged
+    // (use Stop for an in-flight companion reply).
     await invoke("save_settings", { settings: { silent_mode: next } });
+    if (next) {
+      void invoke("voice_stop").catch(() => {});
+    }
     syncSilentModeInputs(next);
     await syncSessionMuteButton();
   } catch (err) {
@@ -3401,6 +3846,7 @@ async function refreshStatus() {
     show("view-home");
     return status;
   }
+  void ensureDailySchoolDigest(status);
   if ($("#view-settings")?.classList.contains("active")) {
     await renderMissionControlSettings(status);
   }
@@ -3711,10 +4157,6 @@ async function bootApp() {
     if (missionLaunchLoading) return;
     const goalsInput = $("#goals") as HTMLTextAreaElement | null;
     const goals = goalsInput?.value.trim() ?? "";
-    if (!goals) {
-      syncMissionSetupLaunchUi();
-      return;
-    }
     const durationInput = $("#duration") as HTMLInputElement | null;
     const rawDuration = durationInput?.value.trim() ?? "";
     const parsedDuration = Number(rawDuration);
@@ -3723,28 +4165,52 @@ async function bootApp() {
       errEl.hidden = true;
       errEl.textContent = "";
     }
-    let duration = Math.min(180, Math.max(1, parsedDuration || 25));
-    let durationAdjusted = false;
-    if (rawDuration === "" || Number.isNaN(parsedDuration)) {
-      duration = 25;
-      durationAdjusted = true;
+    if (rawDuration === "" || Number.isNaN(parsedDuration) || parsedDuration < 1 || parsedDuration > 180) {
       if (errEl) {
         errEl.hidden = false;
-        errEl.textContent = "Enter 1–180 minutes; using 25.";
+        errEl.textContent = "Enter a duration between 1 and 180 minutes.";
       }
-    } else if (parsedDuration < 1 || parsedDuration > 180) {
-      durationAdjusted = true;
+      durationInput?.focus();
+      return;
+    }
+    const duration = Math.min(180, Math.max(1, parsedDuration));
+    const screenAck = $("#lockin-screen-ack") as HTMLInputElement | null;
+    if (!readBoolPref(PREF_SCREEN_WATCH_ACK, false) && !screenAck?.checked) {
       if (errEl) {
         errEl.hidden = false;
-        errEl.textContent = `Duration must be 1–180 minutes; using ${duration}.`;
+        errEl.textContent =
+          "Confirm that missions watch your screen and may scan open browser tabs.";
+      }
+      screenAck?.focus();
+      return;
+    }
+    if (screenAck?.checked) writeBoolPref(PREF_SCREEN_WATCH_ACK, true);
+    if (!goals) {
+      const ok = window.confirm(
+        "Launch without a goal? Coaching is sharper when you name what you want to finish.",
+      );
+      if (!ok) {
+        goalsInput?.focus();
+        return;
       }
     }
-    if (durationInput && durationAdjusted) {
-      durationInput.value = String(duration);
+    try {
+      // TCC preflight alone is unreliable for ad-hoc /Applications rebuilds — don't
+      // hard-block here. Rust start_lock_in prompts + probes real capture.
+      const perms = await invoke<SystemPermissions>("get_system_permissions");
+      if (!perms.accessibility && errEl) {
+        errEl.hidden = false;
+        errEl.textContent =
+          "Accessibility isn’t granted yet — tab coaching may be limited. Continuing launch; grant it in System Settings for full coaching.";
+      }
+    } catch {
+      // Preflight best-effort; Rust still gates capture.
     }
     const missionGoals = goals;
     setMissionLaunchButton(true);
     try {
+      // Mission UI owns Live — drop any Copilot socket before launch.
+      teardownCompanionLive();
       const session = await invoke<LockInSession>("start_lock_in", {
         goals: missionGoals,
         durationMins: duration,
@@ -3963,11 +4429,11 @@ async function bootApp() {
   const deleteModal = $("#delete-data-modal");
   const deleteResult = $("#delete-data-result");
   const closeDeleteModal = () => {
-    if (deleteModal) deleteModal.hidden = true;
+    if (deleteModal) closeModal(deleteModal);
   };
   const openDeleteModal = () => {
     if (deleteResult) deleteResult.textContent = "";
-    if (deleteModal) deleteModal.hidden = false;
+    if (deleteModal) openModal(deleteModal, "#delete-data-cancel");
   };
   $("#delete-data-start")?.addEventListener("click", () => openDeleteModal());
   deleteModal?.querySelectorAll("[data-delete-dismiss]").forEach((el) => {
@@ -4010,7 +4476,12 @@ async function bootApp() {
             : "Deleted and signed out.";
       }
     } catch (err) {
-      if (deleteResult) deleteResult.textContent = `Delete failed: ${String(err)}`;
+      const raw = String(err ?? "");
+      if (deleteResult) {
+        deleteResult.textContent = /cloud delete failed|local data kept|API is reachable/i.test(raw)
+          ? raw
+          : `Cloud delete failed — local data kept. Check Connection, then retry. ${raw}`;
+      }
     } finally {
       if (btn) btn.disabled = false;
     }
@@ -4020,12 +4491,17 @@ async function bootApp() {
     const out = $("#invoke-voice-result");
     const btn = $("#invoke-voice-speak") as HTMLButtonElement | null;
     if (btn) btn.disabled = true;
-    if (out) out.textContent = "Speaking…";
+    if (out) out.textContent = "Speaking with Grok voice…";
     try {
-      await invoke("voice_speak", {
+      const engine = await invoke<string>("voice_speak", {
         text: "Waypoint voice test. Spoken coaching is ready.",
       });
-      if (out) out.textContent = "Speak OK — you should have heard a short test phrase.";
+      if (out) {
+        out.textContent =
+          engine === "grok"
+            ? "Speak OK — Grok voice played a short test phrase."
+            : "Speak OK — used local system voice (Grok TTS unavailable; sign in / check API).";
+      }
     } catch (err) {
       if (out) out.textContent = `Speak failed: ${String(err)}`;
     } finally {
@@ -4057,14 +4533,9 @@ async function bootApp() {
   await listen<VitalsSnapshot>("vitals-update", (event) => renderVitals(event.payload));
   await listen("overlay-prompt", () => setSessionCheckinUi(true));
   await listen("overlay-clear", () => setSessionCheckinUi(false));
-  // Coach / camera stress may suggest a break — never auto-start; Accept / Not now only.
+  // Coach / camera stress may suggest a break — never auto-start; Accept / Decline only.
   await listen<BreakSuggestedPayload>("break-timer-suggested", (event) => {
-    if (!$("#view-session")?.classList.contains("active")) return;
-    if ($("#session-pause")?.getAttribute("aria-pressed") === "true") return;
-    if (breakTimerActive) return;
-    // Clear check-in first, then show invite (breakSuggestionActive blocks re-checkin).
-    setSessionCheckinUi(false);
-    setBreakSuggestionUi(true, event.payload?.reason);
+    offerBreakSuggestion(event.payload?.reason ?? "stress");
   });
   await listen("break-timer-started", () => {
     setBreakTimerActive(true);
@@ -4088,6 +4559,8 @@ async function bootApp() {
     teardownCompanionLive();
     stopTimer();
     setSessionCheckinUi(false);
+    dismissBreakSuggestion();
+    breakSuggestionCooldownUntil = 0;
     setSessionEndingUi(false);
     showSummaryWithCelebration(event.payload);
   });

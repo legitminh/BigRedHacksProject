@@ -19,7 +19,8 @@ use crate::AppState;
 const LOCAL_TICK_SECS: u64 = 1;
 /// Apple Vision OCR on a small window capture (cheap, no cloud).
 const OCR_TICK_SECS: u64 = 3;
-/// Rare tiny local VLM (moondream) when OCR/OS signals are inconclusive.
+/// Rare tiny local VLM (moondream) when OCR/OS screen signals are inconclusive.
+/// Never used on webcam — camera presence/phone is Presage (VIDEOINPUT), not local LLM.
 const LOCAL_VLM_TICK_SECS: u64 = 45;
 /// Ambiguous context judgments per session (local model only — no Gemini in lock-in).
 const MAX_CONTEXT_JUDGMENTS_PER_SESSION: u32 = 120;
@@ -42,6 +43,8 @@ const PRESAGE_FPS: u32 = 12;
 /// instantly (no clip wall-time), so we don't 429-spam. With a 12s clip, successful
 /// observe cadence lands ~38s (target 25–40s).
 const PRESAGE_GAP_SECS: u64 = 26;
+/// Quiet-phase JPEG heartbeats share the observe rate bucket — keep them sparse.
+const PRESAGE_QUIET_GAP_SECS: u64 = 60;
 /// Brief settle so opener / local watch start before the first webcam grab.
 const PRESAGE_START_DELAY_SECS: u64 = 20;
 /// Let the student settle before distraction tracking / nags begin.
@@ -167,9 +170,23 @@ fn distraction_episode_nags(key: &str) -> u32 {
 
 fn claim_ephemeral_slot_keyed(cooldown_secs: i64, key: Option<&str>) -> bool {
     let _ = cooldown_secs;
-    // Non-distraction lines (praise / watching) — global floor only.
+    // Non-distraction lines (praise / watching / camera presence) — global floor only.
+    // Camera kinds must NOT share the Instagram-style episode cap (max 3) or a
+    // left_desk / stressed / obstructed nudge is silently dropped after a few fires.
     if let Some(k) = key {
-        if matches!(k, "encourage" | "watching" | "on_task") {
+        if matches!(
+            k,
+            "encourage"
+                | "watching"
+                | "on_task"
+                | "left_desk"
+                | "left_desk_pause"
+                | "welcome_back"
+                | "camera_obstructed"
+                | "stressed"
+                | "camera"
+                | "suggest_break"
+        ) {
             if matches!(k, "encourage" | "on_task") {
                 clear_distraction_episode();
             }
@@ -332,11 +349,15 @@ async fn run_local_watch_loop(
                 let state = app.state::<AppState>();
                 let mut guard = state.session.lock();
                 if let Some(session) = guard.as_mut() {
-                    session.watching_note = format!("Settling in — tracking in {left}s…");
-                    session.status = SessionStatusKind::OnTask;
-                    let snap = session.clone();
-                    drop(guard);
-                    let _ = app.emit("session-update", &snap);
+                    let note = format!("Settling in — tracking in {left}s…");
+                    // Emit ≤1 Hz during warmup (only when the displayed second changes).
+                    if session.watching_note != note {
+                        session.watching_note = note;
+                        session.status = SessionStatusKind::OnTask;
+                        let snap = session.clone();
+                        drop(guard);
+                        let _ = app.emit("session-update", &snap);
+                    }
                 }
             }
             tokio::time::sleep(Duration::from_millis(500)).await;
@@ -539,18 +560,15 @@ async fn run_local_watch_loop(
                         play_back_on_task_ding(&app);
                     }
                     mark_local_on_task(&app, &info);
-                    // Always show what we think is focused so detection failures are obvious.
+                    // Focused app/title only — never surface raw OCR glyphs in the mission UI.
+                    // Keep Presage/camera presence notes when the student is away/obstructed.
                     let state = app.state::<AppState>();
                     let mut guard = state.session.lock();
                     if let Some(session) = guard.as_mut() {
-                        if matches!(session.status, SessionStatusKind::OnTask) {
-                            let ocr_bit = if last_ocr_snippet.is_empty() {
-                                String::new()
-                            } else {
-                                format!(" · OCR: {}", truncate_note(&last_ocr_snippet, 48))
-                            };
-                            session.watching_note =
-                                format!("On task · {}{ocr_bit}", info.summary());
+                        if matches!(session.status, SessionStatusKind::OnTask)
+                            && !camera_presence_owns_note(&session.vitals.raw_summary)
+                        {
+                            session.watching_note = format!("On task · {}", info.summary());
                             let snap = session.clone();
                             drop(guard);
                             let _ = app.emit("session-update", &snap);
@@ -781,10 +799,19 @@ fn mark_local_on_task(app: &AppHandle, info: &frontmost::FrontmostInfo) {
     session.total_ticks = session.total_ticks.saturating_add(1);
     session.on_task_ticks = session.on_task_ticks.saturating_add(1);
     session.status = SessionStatusKind::OnTask;
-    session.watching_note = format!("Watching full screen · {}", info.summary());
+    // Screen focus note must not erase Presage away/obstructed accountability copy.
+    if !camera_presence_owns_note(&session.vitals.raw_summary) {
+        session.watching_note = format!("Watching full screen · {}", info.summary());
+    }
     let snap = session.clone();
     drop(guard);
     let _ = app.emit("session-update", &snap);
+}
+
+/// Presage/presence summaries that should keep owning the mission status line.
+fn camera_presence_owns_note(raw_summary: &str) -> bool {
+    raw_summary.contains("presence=left_frame")
+        || raw_summary.contains("presence=camera_obstructed")
 }
 
 async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBool>) {
@@ -823,12 +850,29 @@ async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop
         }
 
         // Quiet phases: heartbeat with phase=paused|break (tiny JPEG, no webcam) so the
-        // server refreshes stress cooldown and stays silent. Active: record + upload clip.
+        // server refreshes stress cooldown and stays silent. Active: record + upload clip
+        // for Presage (VIDEOINPUT) — never run local LLM on webcam frames.
+        let mut gap_secs = if paused {
+            PRESAGE_QUIET_GAP_SECS
+        } else {
+            PRESAGE_GAP_SECS
+        };
+
+        enum ObserveOutcome {
+            Ok(camera_observe::ObserveResponse),
+            Stopped,
+            NoClip,
+            Err(crate::api::ApiClientError),
+        }
+
         let observe_result = if paused {
             if stop.load(Ordering::SeqCst) {
-                Err("stopped".into())
+                ObserveOutcome::Stopped
             } else {
-                camera_observe::observe_quiet_phase(&cfg, &session_id, phase).await
+                match camera_observe::observe_quiet_phase(&cfg, &session_id, phase).await {
+                    Ok(r) => ObserveOutcome::Ok(r),
+                    Err(e) => ObserveOutcome::Err(e),
+                }
             }
         } else {
             let dir = match capture::temp_session_dir(&session_id) {
@@ -846,7 +890,7 @@ async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop
                 })
                 .await
                 {
-                    Ok(Ok(path)) => Some(path),
+                    Ok(Ok(clip)) => Some(clip),
                     Ok(Err(e)) => {
                         tracing::warn!("camera clip record: {e}");
                         None
@@ -858,41 +902,65 @@ async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop
                 }
             };
 
-            if let Some(path) = clip {
-                let cleanup = path.clone();
+            if let Some(clip) = clip {
+                let cleanup = clip.path.clone();
+                let brightness = Some(clip.brightness);
                 let result = if stop.load(Ordering::SeqCst) {
-                    Err("stopped".into())
+                    ObserveOutcome::Stopped
                 } else {
-                    camera_observe::observe_clip(&cfg, &session_id, phase, &path).await
+                    match camera_observe::observe_clip(
+                        &cfg,
+                        &session_id,
+                        phase,
+                        &clip.path,
+                        brightness,
+                    )
+                    .await
+                    {
+                        Ok(r) => ObserveOutcome::Ok(r),
+                        Err(e) => ObserveOutcome::Err(e),
+                    }
                 };
                 let _ = tokio::fs::remove_file(&cleanup).await;
+                capture::remove_temp_session_dir(&session_id);
                 result
             } else {
-                Err("no_clip".into())
+                capture::remove_temp_session_dir(&session_id);
+                ObserveOutcome::NoClip
             }
         };
 
         match observe_result {
-            Ok(resp) => {
+            ObserveOutcome::Ok(resp) => {
                 apply_observe_response(&app, &resp, paused);
             }
-            Err(e) if e == "stopped" => break,
-            Err(e) if e == "no_clip" => {
+            ObserveOutcome::Stopped => break,
+            ObserveOutcome::NoClip => {
                 // Clip failed — still wait out the gap so we don't spin the camera.
             }
-            Err(e) if is_quiet_observe_error(&e) => {
+            ObserveOutcome::Err(e) if is_quiet_observe_error(&e.message) => {
                 // 429 / auth: stay quiet; stop on auth so we don't retry-spam.
                 tracing::debug!("camera observe (quiet): {e}");
-                if is_auth_observe_error(&e) {
+                if e.is_rate_limited() {
+                    if let Some(retry) = e.retry_after_secs {
+                        gap_secs = gap_secs.max(retry);
+                    }
+                }
+                if is_auth_observe_error(&e.message) {
                     break;
                 }
             }
-            Err(e) => {
+            ObserveOutcome::Err(e) => {
+                if e.is_rate_limited() {
+                    if let Some(retry) = e.retry_after_secs {
+                        gap_secs = gap_secs.max(retry);
+                    }
+                }
                 tracing::warn!("camera observe: {e}");
             }
         }
 
-        for _ in 0..PRESAGE_GAP_SECS {
+        for _ in 0..gap_secs {
             if stop.load(Ordering::SeqCst) {
                 break;
             }
@@ -931,6 +999,7 @@ fn apply_observe_response(app: &AppHandle, resp: &camera_observe::ObserveRespons
     if let Some(note) = resp.watching_note.as_deref() {
         apply_watching_note(app, note);
     }
+    // Presage scalars + presence ladder (VIDEOINPUT) — sole camera accountability path.
     if let Some(vitals) = resp.to_vitals() {
         store_vitals(app, &vitals, resp.watching_note.as_deref());
         let _ = app.emit("vitals-update", &vitals);
@@ -1040,18 +1109,35 @@ fn store_vitals(app: &AppHandle, vitals: &VitalsSnapshot, watching_note: Option<
 }
 
 fn social_distraction_label(result: &CoachVisionResult) -> Option<&'static str> {
+    // Prefer URL/app/object signals over model distraction guesses when they conflict
+    // (VLM often says "instagram" while objects/frontmost already know it's YouTube).
+    let blob = result.objects.join(" ").to_lowercase();
+    let object_youtube = blob.split_whitespace().any(|w| w == "youtube")
+        || blob.contains("youtube.com")
+        || blob.contains("youtu.be");
+    let object_instagram = blob.split_whitespace().any(|w| w == "instagram")
+        || blob.contains("instagram.com");
+
     // Trust the explicit distraction field first — never scan coach_line prose
     // (that caused false "Instagram" hits from sentences mentioning the brand).
     if let Some(d) = result.distraction.as_deref() {
         if let Some(label) = static_distraction_label(d) {
+            if label == "instagram" && object_youtube && !object_instagram {
+                return if result.on_task {
+                    None
+                } else {
+                    Some("youtube")
+                };
+            }
             if label == "youtube" && result.on_task {
                 return None;
             }
             return Some(label);
         }
     }
-    let blob = result.objects.join(" ").to_lowercase();
     const SITES: &[(&str, &str)] = &[
+        // YouTube before Instagram so object tokens prefer the real surface.
+        ("youtube", "youtube"),
         ("instagram", "instagram"),
         ("tiktok", "tiktok"),
         ("twitter", "twitter"),
@@ -1059,7 +1145,6 @@ fn social_distraction_label(result: &CoachVisionResult) -> Option<&'static str> 
         ("reddit", "reddit"),
         ("discord", "discord"),
         ("snapchat", "snapchat"),
-        ("youtube", "youtube"),
         ("netflix", "netflix"),
         ("twitch", "twitch"),
         ("gmail", "email"),
@@ -1073,6 +1158,9 @@ fn social_distraction_label(result: &CoachVisionResult) -> Option<&'static str> 
     ];
     for (needle, label) in SITES {
         if blob.split_whitespace().any(|w| w == *needle) || blob == *needle {
+            if *label == "instagram" && object_youtube && !object_instagram {
+                continue;
+            }
             if *label == "youtube" && result.on_task {
                 return None;
             }
@@ -1085,6 +1173,7 @@ fn social_distraction_label(result: &CoachVisionResult) -> Option<&'static str> 
 fn static_distraction_label(label: &str) -> Option<&'static str> {
     match label {
         "texting" | "messages" | "whatsapp" | "telegram" | "imessage" => Some("texting"),
+        "phone" | "cellphone" | "smartphone" => Some("phone"),
         "instagram" => Some("instagram"),
         "youtube" => Some("youtube"),
         "tiktok" => Some("tiktok"),
@@ -1133,10 +1222,18 @@ async fn apply_coach_tick(
     }
 
     let objects_lower: Vec<String> = result.objects.iter().map(|o| o.to_lowercase()).collect();
-    let has_phone = objects_lower.iter().any(|o| o.contains("phone"));
+    // Local VLM often puts the label in `distraction` while `objects` stays ["screen"].
+    let has_phone = objects_lower.iter().any(|o| o.contains("phone"))
+        || distraction
+            .as_deref()
+            .is_some_and(|d| d.to_lowercase().contains("phone"));
     let has_calc = objects_lower
         .iter()
-        .any(|o| o.contains("calculator") || o.contains("calc"));
+        .any(|o| o.contains("calculator") || o.contains("calc"))
+        || distraction.as_deref().is_some_and(|d| {
+            let d = d.to_lowercase();
+            d.contains("calculator") || d.contains("calc")
+        });
     if has_phone && !has_calc {
         on_task = false;
         if distraction.is_none() {
@@ -1209,6 +1306,8 @@ async fn apply_coach_tick(
             nag_n,
         )
         .await;
+        // Strip model “take a break” copy on distraction nags (stress breaks use suggest_break).
+        text = local_judge::sanitize_coach_line(&text, kind, label, &goals);
         if (last_vitals.stressed || result.stress_cue)
             && !text.to_lowercase().contains("breath")
         {
@@ -1240,22 +1339,25 @@ async fn apply_coach_tick(
                 session.bump_distraction(d);
             }
             session.status = status;
+            // Prefer Presage/presence vitals over screen-coach soft fallbacks.
             if is_camera_source(&last_vitals.source) || !is_camera_source(&session.vitals.source) {
                 session.vitals = last_vitals.clone();
             } else {
                 *last_vitals = session.vitals.clone();
             }
-            session.watching_note = if on_task {
-                "Watching your screen".into()
+            if on_task {
+                if !camera_presence_owns_note(&session.vitals.raw_summary) {
+                    session.watching_note = "Watching your screen".into();
+                }
             } else {
                 let d = distraction.as_deref().unwrap_or("off-task");
                 let nags = distraction_episode_nags(d);
-                if nags >= MAX_NAGS_PER_EPISODE {
+                session.watching_note = if nags >= MAX_NAGS_PER_EPISODE {
                     format!("Distracted · {d} (quiet until you switch back)")
                 } else {
                     format!("Distracted · {d}")
-                }
-            };
+                };
+            }
             // Ephemeral coach nags stay off the in-app feed — overlay + voice only.
             session.clone()
         } else {
@@ -1292,6 +1394,24 @@ fn play_back_on_task_ding(app: &AppHandle) {
     });
 }
 
+/// Distraction label for sanitize — empty for camera/status kinds so tags like
+/// `left_desk` are never spoken as if they were Instagram/Discord.
+fn sanitize_distraction_arg(kind: &str) -> &str {
+    match kind {
+        "left_desk"
+        | "left_desk_pause"
+        | "welcome_back"
+        | "camera_obstructed"
+        | "camera"
+        | "suggest_break"
+        | "stressed"
+        | "watching"
+        | "encourage"
+        | "on_task" => "",
+        other => other,
+    }
+}
+
 fn push_ephemeral(app: &AppHandle, text: &str, kind: &str) {
     // Praise / watching lines share the same single-slot gate — never stack over a nag.
     if !claim_ephemeral_slot_keyed(EPHEMERAL_FLOOR_SECS, Some(kind)) {
@@ -1305,7 +1425,7 @@ fn push_ephemeral(app: &AppHandle, text: &str, kind: &str) {
         .as_ref()
         .map(|s| s.goals.clone())
         .unwrap_or_default();
-    let safe = local_judge::sanitize_coach_line(text, kind, kind, &goals);
+    let safe = local_judge::sanitize_coach_line(text, kind, sanitize_distraction_arg(kind), &goals);
     let prompt = CoachPrompt {
         id: Uuid::new_v4().to_string(),
         at: chrono::Utc::now().to_rfc3339(),
@@ -1316,8 +1436,28 @@ fn push_ephemeral(app: &AppHandle, text: &str, kind: &str) {
 }
 
 fn deliver_ephemeral(app: &AppHandle, prompt: &CoachPrompt) {
+    // Last defense: never toast “take a break” for distraction / off-task kinds.
+    let goals = app
+        .state::<AppState>()
+        .session
+        .lock()
+        .as_ref()
+        .map(|s| s.goals.clone())
+        .unwrap_or_default();
+    let safe_text = local_judge::sanitize_coach_line(
+        &prompt.text,
+        &prompt.kind,
+        sanitize_distraction_arg(&prompt.kind),
+        &goals,
+    );
+    let prompt = CoachPrompt {
+        id: prompt.id.clone(),
+        at: prompt.at.clone(),
+        text: safe_text,
+        kind: prompt.kind.clone(),
+    };
     // Show the toast first — never wait on TTS teardown before the popup.
-    overlay::show_prompt(app, prompt);
+    overlay::show_prompt(app, &prompt);
     let silent = app.state::<AppState>().silent_mode.load(Ordering::SeqCst);
     if silent {
         return;
@@ -1407,6 +1547,40 @@ pub fn stop_coach(app: &AppHandle) {
 }
 
 #[cfg(test)]
+mod distraction_label_tests {
+    use super::*;
+    use crate::gemini::CoachVisionResult;
+
+    #[test]
+    fn youtube_objects_override_instagram_model_distraction() {
+        let result = CoachVisionResult {
+            on_task: false,
+            objects: vec!["youtube".into(), "Shorts".into()],
+            distraction: Some("instagram".into()),
+            needs_help: false,
+            stress_cue: false,
+            coach_line: "Close Instagram and finish your BIOMG quiz.".into(),
+            modality: Some("computer".into()),
+        };
+        assert_eq!(social_distraction_label(&result), Some("youtube"));
+    }
+
+    #[test]
+    fn youtube_distraction_stays_youtube() {
+        let result = CoachVisionResult {
+            on_task: false,
+            objects: vec!["youtube".into()],
+            distraction: Some("youtube".into()),
+            needs_help: false,
+            stress_cue: false,
+            coach_line: "This YouTube isn’t helping — switch back.".into(),
+            modality: Some("computer".into()),
+        };
+        assert_eq!(social_distraction_label(&result), Some("youtube"));
+    }
+}
+
+#[cfg(test)]
 mod camera_observe_timing_tests {
     use super::*;
 
@@ -1417,6 +1591,11 @@ mod camera_observe_timing_tests {
             PRESAGE_GAP_SECS >= 25,
             "gap {}s must be >= ~25s server observe floor",
             PRESAGE_GAP_SECS
+        );
+        assert!(
+            PRESAGE_QUIET_GAP_SECS >= 60,
+            "quiet gap {}s should stay sparse vs the 3/75s observe bucket",
+            PRESAGE_QUIET_GAP_SECS
         );
     }
 
@@ -1462,5 +1641,21 @@ mod camera_observe_timing_tests {
         assert!(!is_suggest_break_nudge("left_desk_pause"));
         assert!(!is_suggest_break_nudge("welcome_back"));
         assert!(!is_suggest_break_nudge("camera_obstructed"));
+    }
+
+    #[test]
+    fn camera_presence_kinds_use_global_floor_not_episode_cap() {
+        // Regression: left_desk / stressed used claim_distraction_nag and could be
+        // silenced after MAX_NAGS_PER_EPISODE screen-distraction fires.
+        reset_ephemeral_cooldown();
+        assert!(claim_ephemeral_slot_keyed(8, Some("left_desk")));
+        // Immediate re-claim blocked by global floor only (not episode gap/cap).
+        assert!(!claim_ephemeral_slot_keyed(8, Some("left_desk")));
+        reset_ephemeral_cooldown();
+        assert!(claim_ephemeral_slot_keyed(8, Some("stressed")));
+        reset_ephemeral_cooldown();
+        assert!(claim_ephemeral_slot_keyed(8, Some("camera_obstructed")));
+        reset_ephemeral_cooldown();
+        assert!(claim_ephemeral_slot_keyed(8, Some("welcome_back")));
     }
 }

@@ -10,8 +10,10 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "app:dev": "tauri dev",
-    "app:build": "tauri build",
-    "app:build:debug": "tauri build --debug"
+    "app:build": "WAYPOINT_RELEASE=1 tauri build && npm run app:bundle-helpers -- release",
+    "app:build:debug": "tauri build --debug && npm run app:bundle-helpers -- debug",
+    "app:bundle-helpers": "node ./scripts/bundle-helpers.mjs",
+    "app:install": "npm run app:build:debug && ditto src-tauri/target/debug/bundle/macos/Waypoint.app /Applications/Waypoint.app"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

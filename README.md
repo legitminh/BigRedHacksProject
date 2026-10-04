@@ -78,8 +78,8 @@ Google OAuth is configured **only** on the API (Web client + redirect URIs under
 ### 3) Dev or ship
 
 ```bash
-npm run app:dev      # hot reload against secrets.toml
-npm run app:build    # release Waypoint.app
+npm run app:dev      # hot reload against secrets.toml (localhost OK)
+npm run app:build    # release Waypoint.app (WAYPOINT_RELEASE=1; needs https:// API base)
 ```
 
 ```bash
