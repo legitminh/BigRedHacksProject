@@ -4380,24 +4380,110 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Preserve Pause/End on normal active.
 - escalate: scrutinous
 
-## open: fp-permission-handoff-badge-weight
+## done: fp-permission-handoff-badge-weight
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   badge text `7:417` · crop `_verify/tick40-handoff-modal-crop.png`
+- commit: PENDING
+- change: |
+    `.mc-perm-modal__badge` → font-weight 400 (keep 12px / tracking
+    0.08em / `#6750a4` on `#e9ddfd`). Not now · Continue + camera copy +
+    pad 33 kept.
+- escalate: scrutinous
+
+## done: fp-connection-lost-mic-label-type
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  Mic `6:1728` · composer `6:1725` ·
+  crop `_verify/tick41-lost-mic.png` · panel `_verify/tick41-lost-panel-crop.png`
+- commit: PENDING
+- change: |
+    Extended Mic type override to
+    `.view-session .session-copilot-composer .copilot-mic` → Regular 16px /
+    weight 400 / lh 1.4 / `#282237` (match Copilot `5de8f4a`). 52 circle +
+    Mic wiring + Pause/End kept.
+- escalate: scrutinous
+
+## open: fp-relaunch-progress-pill-type
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  pill `6:580` · text `6:581` ·
+  crop `_verify/tick41-relaunch-progress-pill.png`
 - expected: |
-    Live PERMISSION HANDOFF (`7:417`): Regular **12px** / weight **400** /
-    lh 1.4 / purple `#6750a4` on `#e9ddfd` pill (design_context
-    Roboto Regular — not Bold).
+    Live left flight status pill (`6:581`, ~143×31): → + sentence-case
+    **“Ready to relaunch?”** — Bold/Semibold **~11–12px** mint **`#326c78`**
+    on raised `#e9ddfd` (NOT uppercase; NOT purple card-badge type).
 - actual: |
-    Tick39 done `84b0882` set `.mc-perm-modal__badge` to **12px / 700** /
-    tracking 0.08em / `#6750a4`. Not now ink (`#282237` Regular 16) still
-    matches live `7:421` — no regression there. Welcome Email/Password
-    labels still Bold 14 (`84b0882`) matching live `5:64`.
+    Opens lock mint color (`fp-relaunch-progress-pill-mint`) + → glyph
+    (`fp-relaunch-badge-arrow`) + card badge **uppercase** type
+    (`fp-relaunch-badge-type`) — not left-pill **type/casing**. App has no
+    relaunch progress state yet.
 - deviation: |
-    Tick40 spot-check — handoff badge **weight** vs live Regular `7:417`
-    after `84b0882` (live now Regular, app Bold). Distinct from badge-type
-    size/color done; escalate for scrutinous rewrite if needed.
+    Tick41 — left progress pill type/casing vs live `6:581`. Distinct from
+    progress-pill-mint / badge-type (card `8:415` UPPERCASE purple) /
+    badge-arrow; under-covered `2:41`. Spot-check: left Take a break + End.
 - fix_hint: |
-    Set `.mc-perm-modal__badge` to font-weight 400 (keep 12px / `#6750a4`
-    / tracking); leave Not now · Continue + camera copy + pad 33.
+    When mounting relaunch progress pill, set ~11–12px / weight 700 /
+    mint `#326c78` / sentence-case “Ready to relaunch?”; keep card badge
+    UPPERCASE purple. Preserve Pause/End on normal active.
+- escalate: scrutinous
+
+## open: fp-relaunch-flight-take-break-label-type
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  left Take a break `6:644` · End `6:647` ·
+  crop `_verify/tick41-relaunch-live.png`
+- expected: |
+    Live left flight-card “Take a break” (`6:644`, 210×52 filled `#6750a4`):
+    M3 Label Large — Medium **~14px** / weight **500** / white `#fff`
+    (same primary-label token as card Relaunch / welcome Sign in), not
+    Regular 16 dark like the card’s tonal Take a break.
+- actual: |
+    Opens lock left filled hierarchy (`fp-relaunch-cta-hierarchy`) + card
+    tonal Take a break **label** (`fp-relaunch-take-break-label-type`) +
+    card Relaunch primary label — not left filled Take a break **label
+    type**. App has no relaunch left-row swap yet; risk: reuse Pause
+    bold/700 when mounting.
+- deviation: |
+    Tick41 — left filled Take a break label type vs live `6:644`. Distinct
+    from cta-hierarchy / take-break-label-type (card `8:426`) /
+    primary-label-type (card Relaunch); under-covered `2:41`.
+- fix_hint: |
+    When swapping Pause → Take a break on relaunch, set label ~14px /
+    weight 500 / `#fff` on filled `#6750a4` 52px pill; End stays tonal
+    Regular 16. Preserve Pause/End on normal active / lost.
+- escalate: scrutinous
+
+## done: fp-permission-handoff-continue-label-type
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  Continue `7:424` · actions `7:420` ·
+  crop `_verify/tick41-handoff-continue.png` · modal `_verify/tick41-handoff-modal-crop.png`
+- commit: PENDING
+- change: |
+    `.mc-perm-modal__btn--primary` → Medium 14px / weight 500 / white +
+    min-height 52 (override 0.95rem/650). Not now Regular 16 / `#282237`
+    + Continue wiring + camera copy + pad 33 kept.
+- escalate: scrutinous
+
+## open: fp-permissions-choice-sub-type
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  sub `7:396` · intro `7:393` ·
+  crop `_verify/tick41-choice-intro-crop.png`
+- expected: |
+    Live YOUR CHOICE sub (`7:396`): Regular **16px** / lh 1.4 / muted
+    **`#645d73`** — “Optional signals. Clear controls. No recordings.”
+    (title Medium 44 + purple kicker stay on title-size).
+- actual: |
+    Opens lock interstitial existence / title-size (bundles “muted 16”) /
+    intro-gap / art / scrim — not sub **type tokens** (weight/lh/ink).
+    App still has no YOUR CHOICE page under handoff/denied.
+- deviation: |
+    Tick41 — choice sub type vs live `7:396`. Distinct from title-size /
+    intro-gap / choice-surface / art-y / scrim; under-covered YOUR CHOICE.
+- fix_hint: |
+    When adding YOUR CHOICE view, set sub 16px / 400 / lh 1.4 / `#645d73`;
+    keep purple kicker + Medium 44 title + Lock-in nav. Preserve Settings
+    five-tab; do not block Launch.
 - escalate: scrutinous

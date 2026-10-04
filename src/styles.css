@@ -1504,7 +1504,7 @@ body:has(.view-home.view-home--guest.active) .grain {
   background: #e9ddfd;
   color: #6750a4;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 400; /* live 7:417 Regular — not Bold */
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -1542,9 +1542,14 @@ body:has(.view-home.view-home--guest.active) .grain {
   cursor: pointer;
 }
 
+/* Live 17 Continue 7:424 — M3 Label Large Medium ~14 / 500 / white */
 .mc-perm-modal__btn--primary {
+  min-height: 52px;
   background: var(--mc-accent-purple, #6750a4);
   color: #fff;
+  font-size: 0.875rem; /* 14px — override .mc-perm-modal__btn 0.95rem */
+  font-weight: 500; /* override 650 */
+  line-height: 1.4;
 }
 
 .mc-perm-modal__btn--primary:hover {
@@ -2768,8 +2773,9 @@ button:active {
   justify-content: center;
 }
 
-/* Live 03 Mic 5:251 — Regular 16 / 400 / #282237 on tonal circle */
-.view-copilot .copilot-mic {
+/* Live 03 Mic 5:251 + lost/session Mic 6:1728 — Regular 16 / 400 / #282237 */
+.view-copilot .copilot-mic,
+.view-session .session-copilot-composer .copilot-mic {
   font-size: 1rem; /* 16px */
   font-weight: 400;
   line-height: 1.4;
