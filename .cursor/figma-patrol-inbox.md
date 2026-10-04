@@ -3911,25 +3911,98 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Your copilot string + composer. Preserve Pause/End.
 - escalate: scrutinous
 
-## open: fp-welcome-field-label-type
+## done: fp-welcome-field-label-type
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` ·
   Email label `5:64` · Password label `5:68` ·
   crop `_verify/tick34-welcome-card-crop.png`
+- commit: PENDING
+- change: `.welcome-field-label` → 14px / weight 600 / lh 20 / `#2a2440` (Google-only form shell unchanged).
+
+## done: fp-permission-handoff-camera-signals-live
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  modal `7:415` · title `7:418` · body `7:419` · foot `7:427` ·
+  crop `_verify/tick35-handoff-modal-crop.png`
+- commit: PENDING
+- change: Restored handoff modal to live camera-signals copy (title/body/foot); kept PERMISSION HANDOFF badge, Not now · Continue, pad 33 / gap 22.
+
+## done: fp-welcome-placeholder-muted
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` ·
+  Email value `5:66` · Password value `5:70` ·
+  crop `_verify/tick35-welcome-card-crop.png`
+- commit: PENDING
+- change: `.welcome-signin-card input` + `::placeholder` → 16px / `#645d73` (not lilac `#a89cbd`); Google-only form stays open.
+
+## open: fp-connection-lost-seed-type
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  AT LAUNCH body `6:1715` · crop `_verify/tick35-lost-panel-crop.png`
 - expected: |
-    Live Email/Password labels (`5:64`/`5:68`, h=20): Semibold/Medium
-    **14px** / lh 20 / dark `#2a2440` above 64px fields (label→field gap
-    10 already on labeled-field-stack).
+    Live AT LAUNCH seed body (`6:1715`, 386×42): Regular **16px** /
+    leading 1.4 muted **`#645d73`** — “Your mission is to finish calculus
+    problems 1–5. You have 25 minutes.” (two-line wrap) — not lilac and
+    not assistant-card weight.
 - actual: |
-    Opens lock form structure (`fp-welcome-signin-form`) + 64px field
-    height + lead type done — not label type scale. `.welcome-field-label`
-    is `font-size: 0.82rem` (~13.1) when fields mount.
+    Opens lock history presence (`keeps-history`) + meta muted color
+    (`fp-connection-lost-meta-muted`) + Latest type — not the seed body
+    type scale. App still missing lost history mount
+    (`fp-connection-lost-panel`).
 - deviation: |
-    Tick34 — welcome field label type vs live `5:64`/`5:68`. Distinct from
-    signin-form / field-height / lead-type (`8eb02fd`); under-covered
-    welcome form. Spot-check: lead 16/`#645d73` still matches (no reopen).
+    Tick35 — lost AT LAUNCH seed body type vs live `6:1715`. Distinct from
+    meta-muted / history-stack-gap / keeps-history / latest-type /
+    header-type; under-covered `2:48`. Spot-check: Pause/End still on
+    flight card in live frame.
 - fix_hint: |
-    Set `.welcome-field-label` to 14px / weight 600 / lh 20 / `#2a2440`;
-    keep 10px gap + 64px fields + Google wiring until form open lands.
+    When mounting AT LAUNCH seed, style body 16px / 400 / lh 1.4 /
+    `#645d73`; keep meta caps + composer. Preserve Pause/End.
+- escalate: scrutinous
+
+## open: fp-connection-lost-composer-input-height
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  composer input `6:1726` · Mic `6:1728` · send `6:1731` ·
+  crop `_verify/tick35-lost-panel-crop.png`
+- expected: |
+    Live lost Message composer input (`6:1726`, **376×78**): single-line
+    pill with Mic + ↑ circles **52×52** inset (y=13), placeholder
+    “Message your copilot…” — not a ~3.5-row tall textarea wrap.
+- actual: |
+    Opens lock composer stays / hint copy / panel pad — not input height.
+    `.view-session .session-copilot-composer .copilot-input-wrap` uses
+    ~3.5-row textarea min-height (`calc(0.95rem * 1.4 * 3.5)`) + 12px pad
+    — much taller than live 78 when lost reuses session composer.
+- deviation: |
+    Tick35 — lost/session composer input height vs live `6:1726`. Distinct
+    from composer-stays / composer-hint-copy / panel-stack-gap /
+    panel-pad-25; under-covered `2:48`.
+- fix_hint: |
+    Constrain lost (and shared session) composer input wrap to **78px**
+    height with 52px Mic/Send; keep Enter/mic hint + Pause/End.
+- escalate: scrutinous
+
+## open: fp-relaunch-field-value-type
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  value `8:422` · field `8:421` ·
+  crop `_verify/tick35-relaunch-panel-crop.png`
+- expected: |
+    Live Next step editable value (`8:422`, h=22 in 64px field): Regular
+    **~16px** / leading 1.4 muted **`#645d73`** — “Read problem 3 and
+    identify the given values.” — not primary dark and not ~14px denser.
+- actual: |
+    Opens lock 64px field / fill / label type / label gap — not value
+    type. App has no relaunch Next step; risk: inherit denser break/setup
+    input type or primary `#2a2440` when mounting.
+- deviation: |
+    Tick35 — relaunch Next step value type vs live `8:422`. Distinct from
+    next-step-field / field-fill / next-step-label-type /
+    next-step-label-gap; under-covered `2:41`. Spot-check: footer mint +
+    Relaunch primary still as prior opens (no Figma move).
+- fix_hint: |
+    When mounting Next step editable, set value/placeholder 16px / 400 /
+    lh 1.4 / `#645d73`; keep 64px field + Relaunch CTA. Preserve Pause/End
+    on normal active.
 - escalate: scrutinous
 
