@@ -61,15 +61,17 @@ fn ocr_binary() -> Result<PathBuf, String> {
 
 /// Strong site evidence only — never bare brand words.
 /// Mentions like “Instagram’s algorithm” in an article must NOT count.
+/// Host/URL evidence outranks title-chrome brand guesses when they conflict.
 pub fn labels_in_text(text: &str) -> Vec<&'static str> {
     let lower = text.to_lowercase();
     let mut out = Vec::new();
 
     // Prefer host-like tokens OCR actually saw in the address bar / page chrome.
+    // YouTube hosts first so Shorts/watch URLs win ordering over later chrome guesses.
     let hosts: &[(&str, &str)] = &[
-        ("instagram.com", "instagram"),
         ("youtube.com", "youtube"),
         ("youtu.be", "youtube"),
+        ("instagram.com", "instagram"),
         ("tiktok.com", "tiktok"),
         ("reddit.com", "reddit"),
         ("discord.com", "discord"),
@@ -89,10 +91,18 @@ pub fn labels_in_text(text: &str) -> Vec<&'static str> {
         }
     }
 
+    let has_youtube_host = lower.contains("youtube.com") || lower.contains("youtu.be");
+    let has_instagram_host = lower.contains("instagram.com");
+
     // Tab/app chrome titles OCR sometimes reads as their own line.
     for line in lower.lines() {
         let t = line.trim();
-        if title_is_brand_chrome(t, "instagram") && !out.contains(&"instagram") {
+        // YouTube URL/host wins: never add Instagram from a false-positive chrome line
+        // (sidebar/OCR misread) while the address bar clearly says youtube.com.
+        if title_is_brand_chrome(t, "instagram")
+            && !out.contains(&"instagram")
+            && !has_youtube_host
+        {
             out.push("instagram");
         }
         if title_is_brand_chrome(t, "youtube") && !out.contains(&"youtube") {
@@ -101,6 +111,11 @@ pub fn labels_in_text(text: &str) -> Vec<&'static str> {
         if title_is_brand_chrome(t, "tiktok") && !out.contains(&"tiktok") {
             out.push("tiktok");
         }
+    }
+
+    // If host evidence says YouTube and not Instagram, drop Instagram chrome guesses.
+    if has_youtube_host && !has_instagram_host {
+        out.retain(|l| *l != "instagram");
     }
 
     out
@@ -119,4 +134,44 @@ fn title_is_brand_chrome(line: &str, brand: &str) -> bool {
         }
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn youtube_host_beats_instagram_chrome_false_positive() {
+        let text = "\
+https://www.youtube.com/shorts/abc123
+Want to learn how to code? #shorts
+Instagram
+Home
+Shorts
+";
+        let labels = labels_in_text(text);
+        assert!(
+            labels.contains(&"youtube"),
+            "expected youtube from host: {labels:?}"
+        );
+        assert!(
+            !labels.contains(&"instagram"),
+            "Instagram chrome must not win over youtube.com: {labels:?}"
+        );
+        assert_eq!(labels.first().copied(), Some("youtube"));
+    }
+
+    #[test]
+    fn instagram_host_still_labels_instagram() {
+        let labels = labels_in_text("https://www.instagram.com/reel/xyz\nReel title - Instagram");
+        assert_eq!(labels.first().copied(), Some("instagram"));
+    }
+
+    #[test]
+    fn bare_instagram_word_in_article_is_ignored() {
+        let labels = labels_in_text(
+            "Why Instagram changed its algorithm — The Verge\nhttps://www.theverge.com/article",
+        );
+        assert!(!labels.contains(&"instagram"));
+    }
 }

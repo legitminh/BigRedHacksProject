@@ -631,33 +631,22 @@ function setupConsentSummary(): string {
     ? "Screen sharing is on; camera accountability is on."
     : "Screen sharing is on; camera accountability is off.";
 }
-function setupFootEmpty(): string {
-  return `Type an objective to enable launch.<br />${setupConsentSummary()}`;
-}
-function setupFootReady(): string {
+function setupFootText(): string {
   return setupConsentSummary();
 }
 
 let missionLaunchLoading = false;
 
-function goalsHasObjective(): boolean {
-  const goalsInput = $("#goals") as HTMLTextAreaElement | null;
-  return Boolean(goalsInput?.value.trim());
-}
-
 function syncMissionSetupLaunchUi(): void {
   const startBtn = $("#lockin-start") as HTMLButtonElement | null;
   const labelEl = startBtn?.querySelector(".mission-launch-label");
   const foot = $("#mission-setup-foot");
-  const canLaunch = goalsHasObjective() && !missionLaunchLoading;
+  const canLaunch = !missionLaunchLoading;
 
   if (labelEl) labelEl.textContent = missionLaunchLabel(missionLaunchLoading);
   if (startBtn) startBtn.disabled = !canLaunch;
 
-  if (foot) {
-    if (goalsHasObjective()) foot.textContent = setupFootReady();
-    else foot.innerHTML = setupFootEmpty();
-  }
+  if (foot) foot.textContent = setupFootText();
 }
 
 function setMissionLaunchButton(loading: boolean) {
@@ -1908,8 +1897,11 @@ function formatAtLaunchMissionLine(goals: string, durationSecs: number): string 
 function ensureSessionAtLaunchSeed(session: LockInSession): void {
   if (seededAtLaunchSessionId === session.id) return;
   seededAtLaunchSessionId = session.id;
+  dismissBreakSuggestion();
+  breakSuggestionCooldownUntil = 0;
   const log = $("#session-chat-log");
   if (log) log.innerHTML = "";
+  activeBreakSuggestCard = null;
   appendSessionChat(
     "system",
     formatAtLaunchMissionLine(session.goals, session.duration_secs),
@@ -2321,7 +2313,10 @@ async function ensureCompanionLive(surface: LiveSurface): Promise<CompanionLiveS
       if (liveSurface === "copilot") {
         if (isFinal) lastLiveCopilotUserFinal = text.trim();
         upsertCopilotLiveBubble("user", text, isFinal);
-      } else upsertSessionLiveBubble("user", text, isFinal);
+      } else {
+        upsertSessionLiveBubble("user", text, isFinal);
+        if (isFinal) maybeOfferBreakFromUserText(text);
+      }
     },
     onAssistant: (text, isFinal) => {
       if (liveSurface === "copilot") {
@@ -2474,6 +2469,9 @@ async function sendSessionChat() {
   // Prefer Live socket only when session owns it (never ride leftover Copilot Live).
   if (companionLive?.active && liveSurface === "session") {
     companionLive.sendText(message);
+    // Live onUser(final) also runs stress detection; call here too so typed-while-live
+    // still works if the socket omits a user echo.
+    maybeOfferBreakFromUserText(message);
     return;
   }
 
@@ -2483,6 +2481,8 @@ async function sendSessionChat() {
   appendSessionChat("user", message);
   const pending = appendSessionChat("assistant", "");
   if (pending) showThinkingIndicator(pending);
+  // After the turn is on-screen so the Accept/Decline card lands at the log bottom.
+  maybeOfferBreakFromUserText(message);
   const stillTimer = window.setTimeout(() => {
     if (pending?.classList.contains("is-thinking")) {
       markThinkingProlonged(pending, "Still thinking");
@@ -2564,35 +2564,137 @@ function syncBreakCardCopy() {
   }
 }
 
-/** True while Accept/Not now stress-break invite is visible (wins over check-in). */
+/** True while Accept/Decline stress-break invite is visible (wins over check-in). */
 let breakSuggestionActive = false;
+/** Align with backend STRESS_COOLDOWN_MS — avoid chat spam from vitals + language. */
+const BREAK_SUGGEST_COOLDOWN_MS = 180_000;
+let breakSuggestionCooldownUntil = 0;
+let activeBreakSuggestCard: HTMLElement | null = null;
+
+/** Local text/voice cue that the user feels stressed (typed or final Live utterance). */
+function userTextSuggestsStress(text: string): boolean {
+  const t = text.toLowerCase().replace(/\s+/g, " ").trim();
+  if (!t) return false;
+  if (
+    /\b(stressed|stressing|stressful|anxious|anxiety|overwhelmed|overwhelming|panicking|panicked|freaking out|burnt out|burned out)\b/.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  // "im feeling very stressed", "I am so stressed out", etc.
+  return /\b(i'?m|i am|feeling|feel)\b.{0,48}\b(stress|anxious|overwhelm|panic)\w*\b/.test(t);
+}
+
+function canOfferBreakSuggestion(): boolean {
+  if (breakSuggestionActive || breakTimerActive || breakStarting) return false;
+  if (Date.now() < breakSuggestionCooldownUntil) return false;
+  if (!$("#view-session")?.classList.contains("active")) return false;
+  if ($("#session-pause")?.getAttribute("aria-pressed") === "true") return false;
+  return true;
+}
+
+function removeActiveBreakSuggestCard() {
+  activeBreakSuggestCard?.remove();
+  activeBreakSuggestCard = null;
+  document.querySelectorAll(".break-suggest-card").forEach((el) => el.remove());
+}
+
+function appendBreakSuggestionCard(reason?: string) {
+  const log = $("#session-chat-log");
+  if (!log) return null;
+  $("#session-chat-empty")?.remove();
+  removeActiveBreakSuggestCard();
+
+  const stress = (reason ?? "stress").toLowerCase() === "stress" || reason === "vitals" || reason === "chat";
+  const card = document.createElement("div");
+  card.className = "break-suggest-card";
+  card.setAttribute("role", "group");
+  card.setAttribute("aria-label", "Suggested five-minute break");
+
+  const kicker = document.createElement("p");
+  kicker.className = "break-suggest-card__kicker";
+  kicker.textContent = "Break suggested";
+
+  const title = document.createElement("p");
+  title.className = "break-suggest-card__title";
+  title.textContent = "Take a five-minute break?";
+
+  const body = document.createElement("p");
+  body.className = "break-suggest-card__body";
+  body.textContent = stress
+    ? "Looks like a good moment to reset. Your mission pauses for five minutes until you resume."
+    : "Step away for a short reset. Your mission pauses until you resume.";
+
+  const actions = document.createElement("div");
+  actions.className = "break-suggest-card__actions";
+
+  const decline = document.createElement("button");
+  decline.type = "button";
+  decline.className = "ghost break-suggest-card__decline";
+  decline.textContent = "Decline";
+
+  const accept = document.createElement("button");
+  accept.type = "button";
+  accept.className = "primary break-suggest-card__accept";
+  accept.textContent = "Accept";
+
+  decline.addEventListener("click", () => {
+    dismissBreakSuggestion();
+  });
+  accept.addEventListener("click", () => {
+    void startBreakTimer();
+  });
+
+  actions.append(decline, accept);
+  card.append(kicker, title, body, actions);
+  log.appendChild(card);
+  log.scrollTop = log.scrollHeight;
+  activeBreakSuggestCard = card;
+
+  window.requestAnimationFrame(() => {
+    accept.focus();
+  });
+  return card;
+}
 
 function setBreakSuggestionUi(active: boolean, reason?: string) {
   breakSuggestionActive = active;
   const view = $("#view-session");
   view?.classList.toggle("is-break-suggested", active);
-  const card = $("#session-break-suggest");
-  const body = $(".session-break-suggest__body");
-  if (body && active) {
-    const stress = reason?.toLowerCase() === "stress";
-    body.textContent = stress
-      ? "Looks like a good moment to reset. Your mission pauses for five minutes until you resume."
-      : "Step away for a short reset. Your mission pauses until you resume.";
+
+  // Keep legacy panel card hidden — invite lives in the chat transcript now.
+  const legacy = $("#session-break-suggest");
+  if (legacy) {
+    legacy.hidden = true;
+    legacy.setAttribute("aria-hidden", "true");
   }
-  if (card) {
-    card.hidden = !active;
-    card.setAttribute("aria-hidden", active ? "false" : "true");
+
+  if (!active) {
+    removeActiveBreakSuggestCard();
+    return;
   }
-  if (active) {
-    // Prefer Accept so the suggestion is keyboard-actionable immediately.
-    window.requestAnimationFrame(() => {
-      ($("#session-break-suggest-accept") as HTMLButtonElement | null)?.focus();
-    });
-  }
+
+  appendBreakSuggestionCard(reason);
+  // Cooldown starts when shown so vitals blips / repeat phrases don't re-stack cards.
+  breakSuggestionCooldownUntil = Date.now() + BREAK_SUGGEST_COOLDOWN_MS;
 }
 
 function dismissBreakSuggestion() {
   setBreakSuggestionUi(false);
+  breakSuggestionCooldownUntil = Date.now() + BREAK_SUGGEST_COOLDOWN_MS;
+}
+
+/** Presage vitals, coach suggest_break, or user stress language → Accept/Decline card. */
+function offerBreakSuggestion(reason?: string) {
+  if (!canOfferBreakSuggestion()) return;
+  setSessionCheckinUi(false);
+  setBreakSuggestionUi(true, reason ?? "stress");
+}
+
+function maybeOfferBreakFromUserText(text: string) {
+  if (!userTextSuggestsStress(text)) return;
+  offerBreakSuggestion("chat");
 }
 
 function setBreakEntryBusy(busy: boolean) {
@@ -2605,6 +2707,14 @@ function setBreakEntryBusy(busy: boolean) {
     const el = $(id) as HTMLButtonElement | null;
     if (el) el.disabled = busy;
   }
+  const cardAccept = activeBreakSuggestCard?.querySelector(
+    ".break-suggest-card__accept",
+  ) as HTMLButtonElement | null;
+  const cardDecline = activeBreakSuggestCard?.querySelector(
+    ".break-suggest-card__decline",
+  ) as HTMLButtonElement | null;
+  if (cardAccept) cardAccept.disabled = busy;
+  if (cardDecline) cardDecline.disabled = busy;
 }
 
 async function refreshBreakTimerActive(): Promise<boolean> {
@@ -2795,8 +2905,8 @@ function syncCopilotPanelAriaLabel() {
 
 function setSessionCheckinUi(active: boolean) {
   const view = $("#view-session");
-  // Stress break invite (Accept/Not now) must stay actionable — don't replace it
-  // with quick check-in chrome (CSS would hide #session-break-suggest).
+  // Stress break invite (Accept/Decline chat card) must stay actionable — don't
+  // replace it with quick check-in chrome.
   if (active && breakSuggestionActive) {
     return;
   }
@@ -2910,6 +3020,8 @@ function renderVitals(vitals?: VitalsSnapshot | null) {
   if (line) line.textContent = formatVitals(vitals);
   if (panel) panel.classList.toggle("stressed", Boolean(vitals?.stressed));
   applyCameraPresenceUi(vitals);
+  // Presage / camera stressed flag — same Accept/Decline card as coach suggest_break.
+  if (vitals?.stressed) offerBreakSuggestion("vitals");
 }
 
 function renderWatchingNote(note?: string | null) {
@@ -3840,10 +3952,6 @@ async function bootApp() {
     if (missionLaunchLoading) return;
     const goalsInput = $("#goals") as HTMLTextAreaElement | null;
     const goals = goalsInput?.value.trim() ?? "";
-    if (!goals) {
-      syncMissionSetupLaunchUi();
-      return;
-    }
     const durationInput = $("#duration") as HTMLInputElement | null;
     const rawDuration = durationInput?.value.trim() ?? "";
     const parsedDuration = Number(rawDuration);
@@ -4193,14 +4301,9 @@ async function bootApp() {
   await listen<VitalsSnapshot>("vitals-update", (event) => renderVitals(event.payload));
   await listen("overlay-prompt", () => setSessionCheckinUi(true));
   await listen("overlay-clear", () => setSessionCheckinUi(false));
-  // Coach / camera stress may suggest a break — never auto-start; Accept / Not now only.
+  // Coach / camera stress may suggest a break — never auto-start; Accept / Decline only.
   await listen<BreakSuggestedPayload>("break-timer-suggested", (event) => {
-    if (!$("#view-session")?.classList.contains("active")) return;
-    if ($("#session-pause")?.getAttribute("aria-pressed") === "true") return;
-    if (breakTimerActive) return;
-    // Clear check-in first, then show invite (breakSuggestionActive blocks re-checkin).
-    setSessionCheckinUi(false);
-    setBreakSuggestionUi(true, event.payload?.reason);
+    offerBreakSuggestion(event.payload?.reason ?? "stress");
   });
   await listen("break-timer-started", () => {
     setBreakTimerActive(true);
@@ -4224,6 +4327,8 @@ async function bootApp() {
     teardownCompanionLive();
     stopTimer();
     setSessionCheckinUi(false);
+    dismissBreakSuggestion();
+    breakSuggestionCooldownUntil = 0;
     setSessionEndingUi(false);
     showSummaryWithCelebration(event.payload);
   });

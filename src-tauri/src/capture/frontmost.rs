@@ -1065,5 +1065,34 @@ mod tests {
             classify_url_host("https://www.youtube.com/watch?v=1"),
             Some("youtube")
         );
+        assert_eq!(
+            classify_url_host("https://www.youtube.com/shorts/abc123"),
+            Some("youtube")
+        );
+        assert_eq!(
+            classify_url_host("https://youtu.be/abc123"),
+            Some("youtube")
+        );
+        assert_ne!(
+            classify_url_host("https://www.youtube.com/shorts/abc123"),
+            Some("instagram")
+        );
+    }
+
+    #[test]
+    fn youtube_shorts_entertainment_is_hard_off_task() {
+        let page = "Want to learn how to code? #shorts - YouTube\nhttps://www.youtube.com/shorts/xyz\nShorts";
+        assert_eq!(
+            local_context_guess("youtube", page, "coding project"),
+            Some(false)
+        );
+        let hit = DistractionHit {
+            label: "youtube",
+            detail: "YouTube Shorts".into(),
+            focused: true,
+        };
+        let line = distraction_coach_line(&hit);
+        assert!(line.to_lowercase().contains("youtube"));
+        assert!(!line.to_lowercase().contains("instagram"));
     }
 }

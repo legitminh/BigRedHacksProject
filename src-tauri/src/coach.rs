@@ -167,9 +167,23 @@ fn distraction_episode_nags(key: &str) -> u32 {
 
 fn claim_ephemeral_slot_keyed(cooldown_secs: i64, key: Option<&str>) -> bool {
     let _ = cooldown_secs;
-    // Non-distraction lines (praise / watching) — global floor only.
+    // Non-distraction lines (praise / watching / camera presence) — global floor only.
+    // Camera kinds must NOT share the Instagram-style episode cap (max 3) or a
+    // left_desk / stressed / obstructed nudge is silently dropped after a few fires.
     if let Some(k) = key {
-        if matches!(k, "encourage" | "watching" | "on_task") {
+        if matches!(
+            k,
+            "encourage"
+                | "watching"
+                | "on_task"
+                | "left_desk"
+                | "left_desk_pause"
+                | "welcome_back"
+                | "camera_obstructed"
+                | "stressed"
+                | "camera"
+                | "suggest_break"
+        ) {
             if matches!(k, "encourage" | "on_task") {
                 clear_distraction_episode();
             }
@@ -1040,18 +1054,35 @@ fn store_vitals(app: &AppHandle, vitals: &VitalsSnapshot, watching_note: Option<
 }
 
 fn social_distraction_label(result: &CoachVisionResult) -> Option<&'static str> {
+    // Prefer URL/app/object signals over model distraction guesses when they conflict
+    // (VLM often says "instagram" while objects/frontmost already know it's YouTube).
+    let blob = result.objects.join(" ").to_lowercase();
+    let object_youtube = blob.split_whitespace().any(|w| w == "youtube")
+        || blob.contains("youtube.com")
+        || blob.contains("youtu.be");
+    let object_instagram = blob.split_whitespace().any(|w| w == "instagram")
+        || blob.contains("instagram.com");
+
     // Trust the explicit distraction field first — never scan coach_line prose
     // (that caused false "Instagram" hits from sentences mentioning the brand).
     if let Some(d) = result.distraction.as_deref() {
         if let Some(label) = static_distraction_label(d) {
+            if label == "instagram" && object_youtube && !object_instagram {
+                return if result.on_task {
+                    None
+                } else {
+                    Some("youtube")
+                };
+            }
             if label == "youtube" && result.on_task {
                 return None;
             }
             return Some(label);
         }
     }
-    let blob = result.objects.join(" ").to_lowercase();
     const SITES: &[(&str, &str)] = &[
+        // YouTube before Instagram so object tokens prefer the real surface.
+        ("youtube", "youtube"),
         ("instagram", "instagram"),
         ("tiktok", "tiktok"),
         ("twitter", "twitter"),
@@ -1059,7 +1090,6 @@ fn social_distraction_label(result: &CoachVisionResult) -> Option<&'static str> 
         ("reddit", "reddit"),
         ("discord", "discord"),
         ("snapchat", "snapchat"),
-        ("youtube", "youtube"),
         ("netflix", "netflix"),
         ("twitch", "twitch"),
         ("gmail", "email"),
@@ -1073,6 +1103,9 @@ fn social_distraction_label(result: &CoachVisionResult) -> Option<&'static str> 
     ];
     for (needle, label) in SITES {
         if blob.split_whitespace().any(|w| w == *needle) || blob == *needle {
+            if *label == "instagram" && object_youtube && !object_instagram {
+                continue;
+            }
             if *label == "youtube" && result.on_task {
                 return None;
             }
@@ -1085,6 +1118,7 @@ fn social_distraction_label(result: &CoachVisionResult) -> Option<&'static str> 
 fn static_distraction_label(label: &str) -> Option<&'static str> {
     match label {
         "texting" | "messages" | "whatsapp" | "telegram" | "imessage" => Some("texting"),
+        "phone" | "cellphone" | "smartphone" => Some("phone"),
         "instagram" => Some("instagram"),
         "youtube" => Some("youtube"),
         "tiktok" => Some("tiktok"),
@@ -1133,10 +1167,18 @@ async fn apply_coach_tick(
     }
 
     let objects_lower: Vec<String> = result.objects.iter().map(|o| o.to_lowercase()).collect();
-    let has_phone = objects_lower.iter().any(|o| o.contains("phone"));
+    // Local VLM often puts the label in `distraction` while `objects` stays ["screen"].
+    let has_phone = objects_lower.iter().any(|o| o.contains("phone"))
+        || distraction
+            .as_deref()
+            .is_some_and(|d| d.to_lowercase().contains("phone"));
     let has_calc = objects_lower
         .iter()
-        .any(|o| o.contains("calculator") || o.contains("calc"));
+        .any(|o| o.contains("calculator") || o.contains("calc"))
+        || distraction.as_deref().is_some_and(|d| {
+            let d = d.to_lowercase();
+            d.contains("calculator") || d.contains("calc")
+        });
     if has_phone && !has_calc {
         on_task = false;
         if distraction.is_none() {
@@ -1209,6 +1251,8 @@ async fn apply_coach_tick(
             nag_n,
         )
         .await;
+        // Strip model “take a break” copy on distraction nags (stress breaks use suggest_break).
+        text = local_judge::sanitize_coach_line(&text, kind, label, &goals);
         if (last_vitals.stressed || result.stress_cue)
             && !text.to_lowercase().contains("breath")
         {
@@ -1316,8 +1360,24 @@ fn push_ephemeral(app: &AppHandle, text: &str, kind: &str) {
 }
 
 fn deliver_ephemeral(app: &AppHandle, prompt: &CoachPrompt) {
+    // Last defense: never toast “take a break” for distraction / off-task kinds.
+    let goals = app
+        .state::<AppState>()
+        .session
+        .lock()
+        .as_ref()
+        .map(|s| s.goals.clone())
+        .unwrap_or_default();
+    let safe_text =
+        local_judge::sanitize_coach_line(&prompt.text, &prompt.kind, &prompt.kind, &goals);
+    let prompt = CoachPrompt {
+        id: prompt.id.clone(),
+        at: prompt.at.clone(),
+        text: safe_text,
+        kind: prompt.kind.clone(),
+    };
     // Show the toast first — never wait on TTS teardown before the popup.
-    overlay::show_prompt(app, prompt);
+    overlay::show_prompt(app, &prompt);
     let silent = app.state::<AppState>().silent_mode.load(Ordering::SeqCst);
     if silent {
         return;
@@ -1407,6 +1467,40 @@ pub fn stop_coach(app: &AppHandle) {
 }
 
 #[cfg(test)]
+mod distraction_label_tests {
+    use super::*;
+    use crate::gemini::CoachVisionResult;
+
+    #[test]
+    fn youtube_objects_override_instagram_model_distraction() {
+        let result = CoachVisionResult {
+            on_task: false,
+            objects: vec!["youtube".into(), "Shorts".into()],
+            distraction: Some("instagram".into()),
+            needs_help: false,
+            stress_cue: false,
+            coach_line: "Close Instagram and finish your BIOMG quiz.".into(),
+            modality: Some("computer".into()),
+        };
+        assert_eq!(social_distraction_label(&result), Some("youtube"));
+    }
+
+    #[test]
+    fn youtube_distraction_stays_youtube() {
+        let result = CoachVisionResult {
+            on_task: false,
+            objects: vec!["youtube".into()],
+            distraction: Some("youtube".into()),
+            needs_help: false,
+            stress_cue: false,
+            coach_line: "This YouTube isn’t helping — switch back.".into(),
+            modality: Some("computer".into()),
+        };
+        assert_eq!(social_distraction_label(&result), Some("youtube"));
+    }
+}
+
+#[cfg(test)]
 mod camera_observe_timing_tests {
     use super::*;
 
@@ -1462,5 +1556,21 @@ mod camera_observe_timing_tests {
         assert!(!is_suggest_break_nudge("left_desk_pause"));
         assert!(!is_suggest_break_nudge("welcome_back"));
         assert!(!is_suggest_break_nudge("camera_obstructed"));
+    }
+
+    #[test]
+    fn camera_presence_kinds_use_global_floor_not_episode_cap() {
+        // Regression: left_desk / stressed used claim_distraction_nag and could be
+        // silenced after MAX_NAGS_PER_EPISODE screen-distraction fires.
+        reset_ephemeral_cooldown();
+        assert!(claim_ephemeral_slot_keyed(8, Some("left_desk")));
+        // Immediate re-claim blocked by global floor only (not episode gap/cap).
+        assert!(!claim_ephemeral_slot_keyed(8, Some("left_desk")));
+        reset_ephemeral_cooldown();
+        assert!(claim_ephemeral_slot_keyed(8, Some("stressed")));
+        reset_ephemeral_cooldown();
+        assert!(claim_ephemeral_slot_keyed(8, Some("camera_obstructed")));
+        reset_ephemeral_cooldown();
+        assert!(claim_ephemeral_slot_keyed(8, Some("welcome_back")));
     }
 }

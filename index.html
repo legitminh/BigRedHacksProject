@@ -338,10 +338,10 @@
           <form id="lockin-form" class="lockin-form mission-setup-card">
             <p class="mission-setup-step">01 / PREPARE FOR LAUNCH</p>
             <h1 class="mission-setup-title">Where are we headed?</h1>
-            <p class="mission-setup-lead">One clear objective. A little room to focus.</p>
+            <p class="mission-setup-lead">Pick a duration and launch — an objective is optional.</p>
 
             <div class="mission-field mission-field--objective">
-              <label class="mission-field-label" for="goals">What do you want to finish?</label>
+              <label class="mission-field-label" for="goals">What do you want to finish? <span class="mission-field-optional">(optional)</span></label>
               <div class="mission-field-input-wrap">
                 <textarea
                   id="goals"
@@ -374,11 +374,11 @@
             </div>
 
             <p id="lockin-error" class="lockin-error" role="alert" hidden></p>
-            <button id="lockin-start" type="submit" class="primary wide mission-launch" disabled>
+            <button id="lockin-start" type="submit" class="primary wide mission-launch">
               <span class="mission-launch-label">Launch mission →</span>
             </button>
             <p id="mission-setup-foot" class="mission-setup-foot">
-              Type an objective to enable launch.
+              Screen sharing is on; camera accountability is off.
             </p>
           </form>
         </div>
@@ -547,6 +547,14 @@
                 >
                   Pause
                 </button>
+                <button
+                  type="button"
+                  id="session-copilot-suggest"
+                  class="ghost session-control-pill session-control-pill--break"
+                  aria-label="Start a five-minute break"
+                >
+                  Take a 5-minute break
+                </button>
                 <button id="end-session" type="button" class="ghost session-control-pill session-control-pill--end">
                   End mission
                 </button>
@@ -674,14 +682,6 @@
                   </p>
                 </div>
                 <footer class="session-copilot-composer copilot-composer">
-                  <button
-                    type="button"
-                    id="session-copilot-suggest"
-                    class="session-copilot-suggest"
-                    aria-label="Start a five-minute break"
-                  >
-                    Take a 5-minute break
-                  </button>
                   <form id="session-chat-form" class="chat-form copilot-form">
                     <div class="copilot-input-wrap">
                       <textarea
