@@ -1,12 +1,11 @@
 /**
- * Thin Live voice client for Copilot / lock-in.
- * Streams only to Waypoint `/v1/companion/live` — never opens Google sockets.
+ * Copilot / lock-in Live voice client (rebuilt).
  *
- * Audio uses the wp1 binary frame protocol (see backend audioProtocol.ts).
- * Downlink plays through a continuous AudioWorklet queue (silence on underrun)
- * so gaps between paced network slices never tear the AudioBufferSource chain.
- *
- * Live never captures the screen — screencap_request is refused immediately.
+ * - Talks only to Waypoint `/v1/companion/live` (wp1 binary PCM).
+ * - Desktop owns 1× playback from an unbounded worklet queue.
+ * - Opening preroll only — never holds mid-utterance audio as "recovery".
+ * - Mic muted while assistant audio is queued/playing.
+ * - Screencap always refused (voice-only).
  */
 
 import { invoke } from "@tauri-apps/api/core";
@@ -36,28 +35,29 @@ export type CompanionLiveHandlers = {
   onLevel?: (rms: number) => void;
 };
 
-/** ws_url has no query string; protocols = ["waypoint.live.v1", "bearer.<jwt>"]. */
 type LiveInfo = { ws_url: string; protocols: string[] };
-
-const SCREENCAP_REFUSED =
-  "Live Copilot does not use screen capture.";
 
 const AUDIO_PROTOCOL = "wp1";
 const AUDIO_KIND_DOWNLINK = 1;
 const AUDIO_KIND_UPLINK = 2;
 const HEADER_BYTES = 16;
-/**
- * Jitter cushion before the worklet starts draining.
- * Backend paces ~20ms wp1 slices at 1× realtime — keep this low (~80ms) so speech
- * doesn't feel delayed; brief gaps play as silence rather than a huge buffer.
- */
-const PREROLL_SEC = 0.08;
-/** After a long underrun gap, rebuild this much cushion before draining again. */
-const REPREROLL_SEC = 0.06;
-/** Treat an underrun older than this as a real gap worth a gentle re-preroll. */
-const UNDERRUN_GAP_MS = 45;
-/** Keep mic uplink muted briefly after assistant audio drains (echo / barge-in). */
-const POST_PLAYBACK_MUTE_MS = 150;
+const SCREENCAP_REFUSED = "Live Copilot does not use screen capture.";
+
+/** Opening cushion before the worklet starts draining (Bluetooth-friendly). */
+const MIN_PREROLL_SEC = 0.28;
+const MAX_PREROLL_SEC = 0.5;
+/** Flush a short greeting that never fills the full cushion. */
+const PREROLL_IDLE_FLUSH_MS = 90;
+/** Keep uplink muted after the worklet drains. */
+const POST_PLAYBACK_MUTE_MS = 300;
+
+function audioDebugEnabled(): boolean {
+  try {
+    return window.localStorage.getItem("wp.audioDebug") === "1";
+  } catch {
+    return false;
+  }
+}
 
 function encodePcmFrame(
   kind: number,
@@ -69,8 +69,8 @@ function encodePcmFrame(
   const pcmBytes = new Uint8Array(pcm);
   const out = new ArrayBuffer(HEADER_BYTES + pcmBytes.length);
   const view = new DataView(out);
-  view.setUint8(0, 0x57); // W
-  view.setUint8(1, 0x50); // P
+  view.setUint8(0, 0x57);
+  view.setUint8(1, 0x50);
   view.setUint8(2, 1);
   view.setUint8(3, kind);
   view.setUint32(4, epoch >>> 0, false);
@@ -103,35 +103,38 @@ function decodePcmFrame(buffer: ArrayBuffer): {
   };
 }
 
-/** Resample s16le mono @ inputRate → Float32 at outputRate (linear). */
+/** Linear resample with cross-chunk carry so seams stay continuous. */
 function resampleS16leToF32(
   pcm: Uint8Array,
   inputRate: number,
   outputRate: number,
-): Float32Array {
+  carry: number | null,
+): { samples: Float32Array; last: number | null } {
   const inCount = pcm.length >> 1;
-  if (inCount === 0) return new Float32Array(0);
+  if (inCount === 0) return { samples: new Float32Array(0), last: carry };
   const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+  const at = (i: number): number => {
+    if (i < 0) return carry ?? view.getInt16(0, true) / 32768;
+    return view.getInt16(Math.min(inCount - 1, i) * 2, true) / 32768;
+  };
+
   if (inputRate === outputRate) {
     const out = new Float32Array(inCount);
-    for (let i = 0; i < inCount; i += 1) {
-      out[i] = view.getInt16(i * 2, true) / 32768;
-    }
-    return out;
+    for (let i = 0; i < inCount; i += 1) out[i] = at(i);
+    return { samples: out, last: out[out.length - 1] ?? carry };
   }
+
   const outCount = Math.max(1, Math.round((inCount * outputRate) / inputRate));
   const out = new Float32Array(outCount);
-  const ratio = inCount / outCount;
+  const step = inputRate / outputRate;
+  let pos = carry == null ? 0 : -step;
   for (let i = 0; i < outCount; i += 1) {
-    const src = i * ratio;
-    const i0 = Math.min(inCount - 1, Math.floor(src));
-    const i1 = Math.min(inCount - 1, i0 + 1);
-    const frac = src - i0;
-    const s0 = view.getInt16(i0 * 2, true) / 32768;
-    const s1 = view.getInt16(i1 * 2, true) / 32768;
-    out[i] = s0 + (s1 - s0) * frac;
+    const i0 = Math.floor(pos);
+    const frac = pos - i0;
+    out[i] = at(i0) + (at(i0 + 1) - at(i0)) * frac;
+    pos += step;
   }
-  return out;
+  return { samples: out, last: at(inCount - 1) };
 }
 
 export class CompanionLiveSession {
@@ -140,20 +143,27 @@ export class CompanionLiveSession {
   private media: MediaStream | null = null;
   private captureWorklet: AudioWorkletNode | null = null;
   private playbackWorklet: AudioWorkletNode | null = null;
-  private playbackPrimed = false;
-  private pendingPlayback: Float32Array[] = [];
-  private pendingPlaybackSamples = 0;
+
   private phase: CompanionPhase = "idle";
   private epoch = 1;
-  private oddByte: number | null = null;
-  private barged = false;
-  private speaking = false;
-  private underrunAt = 0;
-  private muteUplinkUntil = 0;
-  private handlers: CompanionLiveHandlers;
-  private useBinaryAudio = true;
   private uplinkSeq = 0;
-  private downlinkRate = 24000;
+  private downlinkRate = 24_000;
+  private useBinaryAudio = true;
+
+  private pending: Float32Array[] = [];
+  private pendingSamples = 0;
+  private primed = false;
+  private prerollSec = MIN_PREROLL_SEC;
+  private prerollTimer: number | null = null;
+
+  private speaking = false;
+  private oddByte: number | null = null;
+  private resampleCarry: number | null = null;
+  private queuedSamples = 0;
+  private muteUntil = 0;
+  private debug = false;
+
+  private handlers: CompanionLiveHandlers;
 
   constructor(handlers: CompanionLiveHandlers = {}) {
     this.handlers = handlers;
@@ -173,41 +183,77 @@ export class CompanionLiveSession {
   }
 
   private sendJson(payload: Record<string, unknown>) {
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+    if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(payload));
     }
   }
 
+  /** True while assistant audio is audible or still queued. */
+  private get playbackBusy(): boolean {
+    if (this.muteUntil > 0 && performance.now() < this.muteUntil) return true;
+    if (this.queuedSamples > 0) return true;
+    if (this.pendingSamples > 0) return true;
+    return this.speaking || this.primed;
+  }
+
+  private clearPrerollTimer() {
+    if (this.prerollTimer == null) return;
+    window.clearTimeout(this.prerollTimer);
+    this.prerollTimer = null;
+  }
+
+  private armPrerollFlush() {
+    this.clearPrerollTimer();
+    this.prerollTimer = window.setTimeout(() => {
+      this.prerollTimer = null;
+      if (this.primed || this.pendingSamples === 0) return;
+      this.primed = true;
+      this.flushPending();
+    }, PREROLL_IDLE_FLUSH_MS);
+  }
+
   private stopPlayback() {
-    this.pendingPlayback = [];
-    this.pendingPlaybackSamples = 0;
-    this.playbackPrimed = false;
+    if (this.debug && (this.queuedSamples > 0 || this.pendingSamples > 0)) {
+      const rate = this.audioCtx?.sampleRate ?? 48_000;
+      console.warn(
+        `[live-audio] discard ${((this.queuedSamples + this.pendingSamples) / rate).toFixed(3)}s`,
+      );
+    }
+    this.clearPrerollTimer();
+    this.pending = [];
+    this.pendingSamples = 0;
+    this.primed = false;
     this.speaking = false;
-    this.underrunAt = 0;
-    this.muteUplinkUntil = 0;
     this.oddByte = null;
-    // Keep `barged` so in-flight downlink frames stay dropped until clear_audio /
-    // listening / audio_end resets it. Clearing here let barge-in leak audio.
+    this.resampleCarry = null;
+    this.queuedSamples = 0;
+    this.muteUntil = 0;
     this.playbackWorklet?.port.postMessage({ type: "reset" });
   }
 
-  private pushToPlayback(samples: Float32Array) {
+  private pushToWorklet(samples: Float32Array) {
     if (!this.playbackWorklet || samples.length === 0) return;
-    // Transfer the underlying buffer when possible to avoid copies.
     this.playbackWorklet.port.postMessage({ type: "pcm", samples }, [samples.buffer]);
   }
 
-  private flushPendingPlayback() {
-    if (!this.playbackPrimed || !this.playbackWorklet) return;
-    for (const chunk of this.pendingPlayback) {
-      this.pushToPlayback(chunk);
-    }
-    this.pendingPlayback = [];
-    this.pendingPlaybackSamples = 0;
+  private flushPending() {
+    if (!this.primed || !this.playbackWorklet) return;
+    this.clearPrerollTimer();
+    for (const chunk of this.pending) this.pushToWorklet(chunk);
+    this.pending = [];
+    this.pendingSamples = 0;
   }
 
-  private appendPcmBytes(bytes: Uint8Array) {
-    if (bytes.length === 0 || !this.audioCtx || this.barged) return;
+  private updatePreroll() {
+    const ctx = this.audioCtx;
+    if (!ctx) return;
+    const hw = ctx.outputLatency || ctx.baseLatency || 0;
+    this.prerollSec = Math.min(MAX_PREROLL_SEC, Math.max(MIN_PREROLL_SEC, hw * 0.8 + 0.22));
+  }
+
+  private appendPcm(bytes: Uint8Array) {
+    if (bytes.length === 0 || !this.audioCtx) return;
+
     let input = bytes;
     if (this.oddByte != null) {
       const merged = new Uint8Array(1 + bytes.length);
@@ -222,64 +268,51 @@ export class CompanionLiveSession {
     }
     if (input.length === 0) return;
 
-    const rate = this.downlinkRate > 0 ? this.downlinkRate : 24000;
-    const floats = resampleS16leToF32(input, rate, this.audioCtx.sampleRate);
-    if (floats.length === 0) return;
+    const rate = this.downlinkRate > 0 ? this.downlinkRate : 24_000;
+    const { samples, last } = resampleS16leToF32(
+      input,
+      rate,
+      this.audioCtx.sampleRate,
+      this.resampleCarry,
+    );
+    this.resampleCarry = last;
+    if (samples.length === 0) return;
 
-    const wasSpeaking = this.speaking;
+    if (!this.speaking) this.updatePreroll();
     this.speaking = true;
-    this.muteUplinkUntil = 0;
+    this.muteUntil = 0;
 
-    // After a real gap (not a 1-quantum hiccup), rebuild a small cushion once.
-    if (
-      this.playbackPrimed &&
-      this.underrunAt > 0 &&
-      performance.now() - this.underrunAt >= UNDERRUN_GAP_MS
-    ) {
-      this.playbackPrimed = false;
-    }
-    this.underrunAt = 0;
-
-    if (!this.playbackPrimed) {
-      this.pendingPlayback.push(floats);
-      this.pendingPlaybackSamples += floats.length;
-      // First cushion of an utterance uses PREROLL; mid-turn recovery uses REPREROLL.
-      const targetSec = wasSpeaking ? REPREROLL_SEC : PREROLL_SEC;
-      const target = Math.floor(targetSec * this.audioCtx.sampleRate);
-      if (this.pendingPlaybackSamples >= target) {
-        this.playbackPrimed = true;
-        this.flushPendingPlayback();
+    // Opening cushion only — never re-gate mid-utterance.
+    if (!this.primed) {
+      this.pending.push(samples);
+      this.pendingSamples += samples.length;
+      const target = Math.floor(this.prerollSec * this.audioCtx.sampleRate);
+      if (this.pendingSamples >= target) {
+        this.primed = true;
+        this.flushPending();
+      } else {
+        this.armPrerollFlush();
       }
       return;
     }
-    this.pushToPlayback(floats);
+    this.pushToWorklet(samples);
   }
 
-  private enqueuePcmBase64(base64: string, sampleRate: number, messageEpoch: number) {
+  private enqueueBase64(base64: string, sampleRate: number, messageEpoch: number) {
     if (!this.audioCtx || messageEpoch !== this.epoch) return;
     if (sampleRate > 0) this.downlinkRate = sampleRate;
     const binary = atob(base64);
-    const fresh = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) fresh[i] = binary.charCodeAt(i);
-    this.appendPcmBytes(fresh);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    this.appendPcm(bytes);
   }
 
-  private onLevel(rms: number) {
-    this.handlers.onLevel?.(rms);
-  }
-
-  /** True while assistant audio is queued/playing, or during the post-drain mute hold. */
-  private get playbackBusy(): boolean {
-    if (this.muteUplinkUntil > 0 && performance.now() < this.muteUplinkUntil) return true;
-    return this.speaking || this.playbackPrimed || this.pendingPlaybackSamples > 0;
-  }
-
-  private sendUplinkPcm(pcm: ArrayBuffer) {
+  private sendUplink(pcm: ArrayBuffer) {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
     if (this.useBinaryAudio) {
       const seq = this.uplinkSeq;
       this.uplinkSeq = (this.uplinkSeq + 1) >>> 0;
-      this.socket.send(encodePcmFrame(AUDIO_KIND_UPLINK, this.epoch, 16000, seq, pcm));
+      this.socket.send(encodePcmFrame(AUDIO_KIND_UPLINK, this.epoch, 16_000, seq, pcm));
       return;
     }
     const bytes = new Uint8Array(pcm);
@@ -291,26 +324,26 @@ export class CompanionLiveSession {
     this.sendJson({ type: "audio", pcm: btoa(binary) });
   }
 
-  private async ensurePlaybackWorklet() {
+  private async ensurePlayback() {
     if (!this.audioCtx || this.playbackWorklet) return;
     await this.audioCtx.audioWorklet.addModule("/pcm-playback-worklet.js");
     this.playbackWorklet = new AudioWorkletNode(this.audioCtx, "pcm-playback");
-    // Underrun → silence in the worklet. Mark the time; only a sustained gap triggers
-    // gentle re-preroll on the next packet (see appendPcmBytes). No queue reset/skip.
     this.playbackWorklet.port.onmessage = (event: MessageEvent) => {
-      const data = event.data as { type?: string };
-      if (data?.type !== "underrun" || this.barged) return;
-      this.underrunAt = performance.now();
-      if (!this.speaking) {
-        this.playbackPrimed = false;
-        this.muteUplinkUntil = performance.now() + POST_PLAYBACK_MUTE_MS;
+      const data = event.data as { type?: string; queued?: number };
+      if (typeof data?.queued === "number") this.queuedSamples = data.queued;
+      if (data?.type === "underrun") {
+        if (this.debug) console.warn(`[live-audio] underrun queued=${this.queuedSamples}`);
+        // Only re-arm opening cushion after the reply has fully ended.
+        if (!this.speaking && this.queuedSamples === 0) {
+          this.primed = false;
+          this.muteUntil = performance.now() + POST_PLAYBACK_MUTE_MS;
+        }
       }
     };
     this.playbackWorklet.connect(this.audioCtx.destination);
   }
 
-  private async startMic() {
-    if (!this.audioCtx) return;
+  private async acquireMic() {
     this.media = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
@@ -320,17 +353,19 @@ export class CompanionLiveSession {
       },
       video: false,
     });
+  }
+
+  private async startMic() {
+    if (!this.audioCtx || !this.media) return;
     await this.audioCtx.audioWorklet.addModule("/pcm-worklet.js");
     const source = this.audioCtx.createMediaStreamSource(this.media);
     this.captureWorklet = new AudioWorkletNode(this.audioCtx, "pcm-capture");
     this.captureWorklet.port.onmessage = (event: MessageEvent) => {
       const data = event.data as { pcm?: ArrayBuffer; rms?: number };
-      if (typeof data.rms === "number") this.onLevel(data.rms);
+      if (typeof data.rms === "number") this.handlers.onLevel?.(data.rms);
       if (!data.pcm) return;
-      // Hard-mute uplink while assistant audio is queued/playing (and briefly after).
-      // Speaker echo was reaching Gemini VAD and cutting the reply short.
-      if (this.playbackBusy || this.barged) return;
-      this.sendUplinkPcm(data.pcm);
+      if (this.playbackBusy) return;
+      this.sendUplink(data.pcm);
     };
     source.connect(this.captureWorklet);
   }
@@ -351,7 +386,7 @@ export class CompanionLiveSession {
     if (!frame || frame.kind !== AUDIO_KIND_DOWNLINK) return;
     if (frame.epoch !== this.epoch) return;
     if (frame.sampleRate > 0) this.downlinkRate = frame.sampleRate;
-    this.appendPcmBytes(frame.pcm);
+    this.appendPcm(frame.pcm);
   }
 
   private handleMessage(raw: string) {
@@ -362,19 +397,13 @@ export class CompanionLiveSession {
       return;
     }
     const type = message.type;
+
     if (type === "ready") {
       if (message.audio_protocol === AUDIO_PROTOCOL) this.useBinaryAudio = true;
       return;
     }
     if (type === "status" && typeof message.phase === "string") {
       this.setPhase(message.phase as CompanionPhase);
-      if (message.phase === "listening") {
-        this.barged = false;
-        // Do not clear playbackPrimed here. Server sends listening immediately after
-        // audio_end while the worklet may still be draining; clearing primed early
-        // made playbackBusy false and unmuted the mic into speaker echo.
-        // Underrun (and clear_audio / stopPlayback) re-preroll the next turn.
-      }
       return;
     }
     if (type === "user" && typeof message.text === "string") {
@@ -386,21 +415,20 @@ export class CompanionLiveSession {
       return;
     }
     if (type === "audio" && typeof message.pcm === "string") {
-      const rate =
-        typeof message.sample_rate === "number" ? message.sample_rate : 24000;
-      const messageEpoch =
-        typeof message.epoch === "number" ? message.epoch : this.epoch;
-      this.enqueuePcmBase64(message.pcm, rate, messageEpoch);
+      const rate = typeof message.sample_rate === "number" ? message.sample_rate : 24_000;
+      const messageEpoch = typeof message.epoch === "number" ? message.epoch : this.epoch;
+      this.enqueueBase64(message.pcm, rate, messageEpoch);
       return;
     }
     if (type === "audio_end") {
       if (message.epoch === this.epoch) {
-        this.barged = false;
         this.speaking = false;
-        // Drain any leftover preroll if the utterance was shorter than PREROLL_SEC.
-        if (!this.playbackPrimed && this.pendingPlaybackSamples > 0) {
-          this.playbackPrimed = true;
-          this.flushPendingPlayback();
+        if (!this.primed && this.pendingSamples > 0) {
+          this.primed = true;
+          this.flushPending();
+        }
+        if (this.queuedSamples === 0 && this.pendingSamples === 0) {
+          this.muteUntil = performance.now() + POST_PLAYBACK_MUTE_MS;
         }
       }
       return;
@@ -408,12 +436,10 @@ export class CompanionLiveSession {
     if (type === "clear_audio" && typeof message.epoch === "number") {
       this.epoch = message.epoch;
       this.uplinkSeq = 0;
-      this.barged = false;
       this.stopPlayback();
       return;
     }
     if (type === "screencap_request" && typeof message.id === "string") {
-      // Live never captures the screen — refuse immediately (no permission prompt, no invoke).
       this.sendJson({
         type: "screencap",
         id: message.id,
@@ -430,18 +456,32 @@ export class CompanionLiveSession {
 
   async start(context: CompanionContext): Promise<void> {
     if (this.phase !== "idle") return;
+    this.debug = audioDebugEnabled();
     const info = await invoke<LiveInfo>("companion_live_info");
-    // Prefer the hardware rate so we don't fight the OS resampler on top of ours.
+
+    // Mic before AudioContext so Bluetooth HFP rate is settled first.
+    let micError: unknown = null;
+    try {
+      await this.acquireMic();
+    } catch (err) {
+      micError = err;
+    }
+
     this.audioCtx = new AudioContext();
     if (this.audioCtx.state === "suspended") await this.audioCtx.resume();
-    await this.ensurePlaybackWorklet();
+    await this.ensurePlayback();
+    this.updatePreroll();
+    if (this.debug) {
+      console.info(
+        `[live-audio] ctx ${this.audioCtx.sampleRate}Hz out=${this.audioCtx.outputLatency ?? "?"} preroll=${this.prerollSec.toFixed(3)}s`,
+      );
+    }
+
     this.setPhase("connecting");
     this.useBinaryAudio = true;
     this.uplinkSeq = 0;
     this.epoch = 1;
 
-    // JWT rides in Sec-WebSocket-Protocol (bearer.<jwt>), never the URL. The API selects
-    // "waypoint.live.v1" and does not echo the token. Don't log ws_url/protocols.
     this.socket = new WebSocket(info.ws_url, info.protocols);
     this.socket.binaryType = "arraybuffer";
     await new Promise<void>((resolve, reject) => {
@@ -465,12 +505,11 @@ export class CompanionLiveSession {
     this.socket.onclose = () => {
       if (this.phase !== "idle") this.end(false);
     };
-    this.sendJson({
-      type: "start",
-      context,
-      audio_protocol: AUDIO_PROTOCOL,
-    });
+
+    this.sendJson({ type: "start", context, audio_protocol: AUDIO_PROTOCOL });
+
     try {
+      if (micError) throw micError;
       await this.startMic();
     } catch (err) {
       this.handlers.onError?.(
@@ -488,7 +527,6 @@ export class CompanionLiveSession {
   end(notify = true) {
     if (notify) this.sendJson({ type: "stop" });
     this.stopMic();
-    this.barged = false;
     this.stopPlayback();
     if (this.playbackWorklet) {
       try {

@@ -1,41 +1,51 @@
 /**
- * Continuous PCM playback from an unbounded chunk queue.
- * Never drops oldest samples (that skipped ahead in the reply).
- * Underruns are silence; main thread may gently re-preroll after a sustained gap.
+ * Copilot Live downlink player — unbounded PCM queue, silence on underrun.
+ * Never drops samples (that skipped ahead in the reply).
+ *
+ * Reports {queued, played} so the main thread can mute the mic until drain.
  */
+const REPORT_EVERY = 32 * 128; // ~85ms @ 48kHz
+
 class PcmPlaybackProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-    /** @type {Float32Array[]} */
     this.queue = [];
     this.offset = 0;
     this.available = 0;
+    this.played = 0;
     this.hadAudio = false;
     this.underrunSent = false;
+    this.sinceReport = 0;
     this.port.onmessage = (event) => {
       const data = event.data || {};
       if (data.type === "reset") {
         this.queue = [];
         this.offset = 0;
         this.available = 0;
+        this.played = 0;
         this.hadAudio = false;
         this.underrunSent = false;
+        this.sinceReport = 0;
         return;
       }
       if (data.type === "pcm" && data.samples instanceof Float32Array) {
-        const samples = data.samples;
-        if (samples.length === 0) return;
-        this.queue.push(samples);
-        this.available += samples.length;
+        if (data.samples.length === 0) return;
+        this.queue.push(data.samples);
+        this.available += data.samples.length;
         this.hadAudio = true;
         this.underrunSent = false;
       }
     };
   }
 
+  report(type) {
+    this.port.postMessage({ type, queued: this.available, played: this.played });
+  }
+
   process(_inputs, outputs) {
     const channel = outputs[0] && outputs[0][0];
     if (!channel) return true;
+
     let filled = 0;
     for (let i = 0; i < channel.length; i += 1) {
       if (this.available > 0 && this.queue.length > 0) {
@@ -52,10 +62,20 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
         channel[i] = 0;
       }
     }
-    // Only signal a full-quantum underrun (boundary hiccups stay silent locally).
+
+    this.played += filled;
+
     if (filled === 0 && this.hadAudio && !this.underrunSent) {
       this.underrunSent = true;
-      this.port.postMessage({ type: "underrun" });
+      this.report("underrun");
+      this.sinceReport = 0;
+      return true;
+    }
+
+    this.sinceReport += channel.length;
+    if (this.sinceReport >= REPORT_EVERY) {
+      this.sinceReport = 0;
+      this.report("level");
     }
     return true;
   }
