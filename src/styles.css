@@ -2414,8 +2414,9 @@ button:active {
 
 .copilot-sidebar-body {
   margin: 0;
-  font-size: 0.94rem;
-  line-height: 1.45;
+  font-size: 1rem; /* 16px — live 03 body 5:221 */
+  font-weight: 400;
+  line-height: 1.4;
   color: #645d73; /* live 03 muted 5:221 — not lilac --mc-text-muted */
 }
 
@@ -2440,12 +2441,14 @@ button:active {
   box-shadow: none; /* flat filled — no --mc-shadow-glow-purple */
 }
 
-/* Live 03 Start a mission 5:223 — M3 Label Large Medium ~14 / 500 / white */
+/* Live 03 Start a mission 5:223 — M3 primary #6750a4 + Label Large Medium ~14 / 500 / white */
 #copilot-start-mission.copilot-sidebar-cta.primary,
 .copilot-sidebar-cta.primary {
+  background: #6750a4; /* not --mc-accent-purple #6b4cff */
   font-size: 0.875rem; /* 14px */
   font-weight: 500; /* override .primary 700 */
   color: #fff;
+  box-shadow: none;
 }
 
 .copilot-sidebar-status {
@@ -2831,6 +2834,11 @@ button:active {
   line-height: 1;
   background: var(--mc-accent-purple);
   box-shadow: none;
+}
+
+/* Live 03 Send ↑ 5:254 — solid M3 primary #6750a4 (not brighter #6b4cff) */
+.view-copilot .copilot-send.primary {
+  background: #6750a4;
 }
 
 .view-copilot .copilot-hint {

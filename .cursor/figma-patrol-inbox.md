@@ -4487,3 +4487,86 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     keep purple kicker + Medium 44 title + Lock-in nav. Preserve Settings
     five-tab; do not block Launch.
 - escalate: scrutinous
+
+## done: fp-copilot-send-fill
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  send `5:254` · input `5:249` ·
+  crop `_verify/tick42-copilot-composer-crop.png`
+- commit: PENDING
+- change: |
+    `.view-copilot .copilot-send.primary` → solid `#6750a4` (scoped;
+    session Send left on `--mc-accent-purple`); 52×52 circle + ↑ +
+    send wiring kept.
+- escalate: scrutinous
+
+## done: fp-copilot-sidebar-cta-fill
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  CTA `5:223` · sidebar `5:217` ·
+  crop `_verify/tick42-copilot-sidebar-crop.png`
+- commit: PENDING
+- change: |
+    `#copilot-start-mission` / `.copilot-sidebar-cta.primary` → solid
+    `#6750a4` + no glow; Medium 14 white / full-width / 52px + Launch
+    wiring kept.
+- escalate: scrutinous
+
+## done: fp-copilot-sidebar-body-type
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  body `5:221` · sidebar `5:217` ·
+  crop `_verify/tick42-sidebar-full.png`
+- commit: PENDING
+- change: |
+    `.copilot-sidebar-body` → Regular 16px / weight 400 / lh 1.4 /
+    `#645d73`; Start a mission + planet flow unchanged.
+- escalate: scrutinous
+
+## open: fp-copilot-empty-heading-ink
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  heading `5:238` · card `5:235` ·
+  crop `_verify/tick42-empty-card.png`
+- expected: |
+    Live empty-card heading (`5:238`): Regular 22px ink **`#282237`**
+    (darkest sample rgb 40,34,55) on `#fffbff` — not legacy
+    `--mc-text-primary` `#2a2440`.
+- actual: |
+    Weight/size OK (`fp-copilot-empty-heading-weight` / 22px). 
+    `.copilot-empty-heading` still `color: var(--mc-text-primary)`
+    (`#2a2440`). Page title already hardcoded `#282237` (`070f446`).
+- deviation: |
+    Tick42 — empty heading ink vs live `5:238` `#282237`. Distinct from
+    empty-heading-weight / empty-surface / empty-card-pad-25; Copilot
+    spot-check after title/composer dones.
+- fix_hint: |
+    Set `.copilot-empty-heading` color to `#282237`; leave empty copy
+    `#645d73` + Mic/Send/chip wiring.
+- escalate: scrutinous
+
+## open: fp-relaunch-end-label-type
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  End `6:647` · controls `6:643` ·
+  crop `_verify/tick42-end-mission.png` · panel `_verify/tick42-relaunch-live.png`
+- expected: |
+    Live left “End mission” (`6:647`, 180×52 tonal `#e9ddfd`): Regular
+    **16px** / lh 1.4 ink **`#282237`** (no border stroke) — same
+    secondary-label token as card Take a break / lost Retry.
+- actual: |
+    Opens lock left CTA hierarchy (Take a break filled + End tonal) +
+    flight-take-break **label** — not End **label type**. App
+    `#end-session.session-control-pill--end` is ~0.9rem / weight **600**
+    on bordered lavender (`--mc-surface-lavender`), not 16/400/`#282237`
+    on `#e9ddfd`.
+- deviation: |
+    Tick42 — End mission label type/fill vs live `6:647`. Distinct from
+    flight-take-break-label-type / cta-hierarchy / take-break-label-type /
+    primary-label-type; under-covered `2:41`. Spot-check: handoff
+    Continue/badge (`91131e0`) + session Mic — no live regression.
+- fix_hint: |
+    Align `.session-control-pill--end` to 16px / 400 / `#282237` on
+    `#e9ddfd` 52px (drop border); keep End wiring. Preserve Pause/End on
+    normal active / lost.
+- escalate: scrutinous
