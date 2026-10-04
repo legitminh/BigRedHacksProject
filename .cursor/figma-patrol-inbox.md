@@ -4221,31 +4221,15 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Mic/Send + Pause/End.
 - escalate: scrutinous
 
-## open: fp-welcome-kicker-type
+## done: fp-welcome-kicker-type
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` ·
   kicker `5:59`/`5:60` · crop `_verify/tick38-welcome-kicker-crop.png`
-- expected: |
-    Live WELCOME ABOARD kicker label (`5:60`, glyph ~9–10 in 31×147
-    pill): Bold **~11px** / tracking uppercase mint **`#326c78`** on
-    `#e9ddfd` — not denser ~10px with heavy 0.12em tracking drift.
-- actual: |
-    Kicker **mint fill/color** verified (`fp-welcome-signin-kicker-mint`).
-    `.welcome-signin-kicker` is `font-size: 0.62rem` (~9.9) /
-    `letter-spacing: 0.12em` / weight 700 — undersized/tracking vs live
-    ~11 caps. Foot align + card shadow (`f5cd1e8`) still match live
-    (no regression). Form shell still Google-only
-    (`fp-welcome-signin-form`).
-- deviation: |
-    Tick38 — welcome kicker type/tracking vs live `5:60`. Distinct from
-    kicker-mint / form / field-height / foot-align / card-shadow;
-    under-covered welcome sign-in.
-- fix_hint: |
-    Set `.welcome-signin-kicker` to ~11px / weight 700 / tighter tracking
-    (~0.08em) / keep mint `#326c78` on `#e9ddfd`; leave Google wiring
-    until form open lands Email/Password.
+- commit: PENDING
+- change: |
+    Superseded by `fp-welcome-kicker-regular-12` (tick43 Regular 12 /
+    lh 1.4 / `#326c78` is source of truth; not Bold ~11 / 0.08em).
 - escalate: scrutinous
-
 ## done: fp-permission-handoff-badge-type
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
@@ -4569,4 +4553,85 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Align `.session-control-pill--end` to 16px / 400 / `#282237` on
     `#e9ddfd` 52px (drop border); keep End wiring. Preserve Pause/End on
     normal active / lost.
+- escalate: scrutinous
+
+## open: fp-relaunch-timer-caption-type
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  caption `6:642` · countdown `6:640` ·
+  crop `_verify/tick43-relaunch-caption-crop.png` · panel `_verify/tick43-relaunch-full.png`
+- expected: |
+    Live relaunch timer caption (`6:642`): Regular **11px** / weight **400** /
+    lh 1.4 muted **`#645d73`** — “REMAINING · TIMER PAUSED” (no heavy
+    tracking / semibold). Digits stay Bold 86 (`6:641`).
+- actual: |
+    Opens lock caption **string** (`fp-relaunch-live-panel-copy`) only.
+    `.session-timer-caption` is ~0.72rem / weight **600** /
+    `letter-spacing: 0.12em` uppercase — denser than live 11/400.
+- deviation: |
+    Tick43 — relaunch timer caption type vs live `6:642`. Distinct from
+    live-panel-copy / end-label-type / progress-pill-type / earned-type;
+    under-covered `2:41`. Spot-check: Copilot Send/CTA `#6750a4`
+    (`97e3086`) — no regression on 03.
+- fix_hint: |
+    Set `.session-timer-caption` (relaunch/paused) to 11px / 400 / lh 1.4 /
+    `#645d73` / light tracking; keep TIMER PAUSED string + Pause/End swap.
+- escalate: scrutinous
+
+## open: fp-relaunch-earned-type
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  earned `6:650` · line `6:651` · hint `6:652` ·
+  crop `_verify/tick43-relaunch-earned-crop.png`
+- expected: |
+    Live earned block (`6:650`): stack gap **6px** — primary Regular
+    **15px** mint **`#326c78`** “{n} of {m} flight minutes earned”
+    (`6:651`) + hint Regular **12px** muted **`#645d73`** “Time in
+    session, excluding breaks and resets.” (`6:652`).
+- actual: |
+    `#session-flight-minutes` is sole line — `0.92rem` / weight **600** /
+    `var(--mc-accent-green-dim)` — no hint subline. Opens lock relaunch
+    panel/chrome only, not earned type tokens.
+- deviation: |
+    Tick43 — earned minutes type + missing hint vs live `6:651`/`6:652`.
+    Distinct from live-panel-copy / timer-caption-type / flight CTA
+    labels; under-covered `2:41` (also on lost `2:48` flight card).
+- fix_hint: |
+    Style `.session-flight-minutes` 15px / 400 / `#326c78`; add muted
+    12px hint under it; keep earned wiring. Preserve Pause/End.
+- escalate: scrutinous
+
+## done: fp-welcome-title-ink
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` ·
+  title `5:61` · card `5:58` ·
+  crop `_verify/tick43-welcome-title-crop.png`
+- commit: PENDING
+- change: |
+    `.welcome-signin-title` → ink `#282237` (Medium 32 / lh 1.4 kept);
+    Google/guest wiring unchanged.
+- escalate: scrutinous
+
+## done: fp-welcome-kicker-regular-12
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` ·
+  kicker `5:59`/`5:60` ·
+  crop `_verify/tick43-welcome-kicker-crop.png`
+- commit: PENDING
+- change: |
+    `.welcome-signin-kicker` → Regular 12px / weight 400 / lh 1.4 /
+    mint `#326c78` on `#e9ddfd` (drop Bold 700 + 0.12em tracking).
+    Supersedes `fp-welcome-kicker-type`. Google wiring kept.
+- escalate: scrutinous
+
+## done: fp-connection-lost-send-fill
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  send `6:1731` · composer `6:1726` ·
+  crop `_verify/tick43-lost-composer-crop.png` · full `_verify/tick43-lost-full.png`
+- commit: PENDING
+- change: |
+    `.view-session .session-copilot-composer .copilot-send.primary` →
+    solid `#6750a4` (match Copilot Send after `97e3086`); 52 circle + ↑
+    + Enter/mic + Pause/End kept.
 - escalate: scrutinous

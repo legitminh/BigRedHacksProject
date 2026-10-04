@@ -898,6 +898,7 @@ body:has(.view-home.view-home--guest.active) .grain {
   gap: 24px;
 }
 
+/* Live 01 kicker 5:60 — Regular 12 / lh 1.4 mint #326c78 (tick43; not Bold/0.12em) */
 .welcome-signin-kicker {
   display: inline-flex;
   align-items: center;
@@ -905,9 +906,10 @@ body:has(.view-home.view-home--guest.active) .grain {
   align-self: flex-start;
   margin: 0;
   padding: 0.35rem 0.65rem;
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: normal;
   text-transform: uppercase;
   color: #326c78;
   background: #e9ddfd;
@@ -921,7 +923,8 @@ body:has(.view-home.view-home--guest.active) .grain {
   font-weight: 500;
   line-height: 1.4;
   letter-spacing: -0.02em;
-  color: #2a2440;
+  /* Live 01 title 5:61 — Medium 32 / lh 1.4 ink #282237 */
+  color: #282237;
 }
 
 .welcome-signin-lead {
@@ -2836,8 +2839,9 @@ button:active {
   box-shadow: none;
 }
 
-/* Live 03 Send ↑ 5:254 — solid M3 primary #6750a4 (not brighter #6b4cff) */
-.view-copilot .copilot-send.primary {
+/* Live 03 Send ↑ 5:254 / lost 6:1731 — solid M3 primary #6750a4 (not brighter #6b4cff) */
+.view-copilot .copilot-send.primary,
+.view-session .session-copilot-composer .copilot-send.primary {
   background: #6750a4;
 }
 
