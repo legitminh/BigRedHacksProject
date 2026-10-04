@@ -2675,14 +2675,14 @@ button:active {
   height: 4.875rem; /* 78px */
   min-height: 4.875rem;
   max-height: 4.875rem;
-  border-radius: 16px; /* live 5:249 — not pill; session/lost keep 1rem */
+  border-radius: 16px; /* live 5:249 — not pill */
 }
 
-/* Session / lost keep taller multi-row wrap */
+/* Session / lost: same 16px rect as Copilot / live lost 6:1726 (not stadium) */
 .view-session .session-copilot-composer .copilot-input-wrap {
   align-items: flex-end;
   /* ~3.5 text rows + 52px Mic/Send */
-  border-radius: 1rem;
+  border-radius: 16px;
 }
 
 .copilot-input-wrap {
@@ -4019,11 +4019,13 @@ body:has(.view-mission-setup.active) .grain {
 
 .session-chat-meta {
   margin: 0;
-  font-size: 0.62rem;
-  font-weight: 700;
+  /* Live lost history metas 6:1714 / 6:1717: Regular 10 / lh 1.4 / #645d73 */
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.4;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--mc-text-muted, #8a7fa8);
+  color: #645d73;
 }
 
 .session-copilot-log .bubble {
@@ -4402,9 +4404,13 @@ body:has(.view-session.active) .grain {
 }
 
 .session-control-pill--end {
-  background: var(--mc-surface-lavender);
-  color: var(--mc-text-primary);
-  border: 1px solid var(--mc-border-default);
+  /* Live End mission 6:647: Regular 16 / 400 / #282237 on tonal #e9ddfd */
+  background: #e9ddfd;
+  color: #282237;
+  border: none;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.4;
 }
 
 .session-pause-note {
