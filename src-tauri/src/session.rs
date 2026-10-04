@@ -46,7 +46,7 @@ pub struct LockInSession {
     /// User consented to screen-based watching (app/title/URL, OCR, local VLM) for this mission.
     #[serde(default)]
     pub screen_enabled: bool,
-    /// User consented to camera wellness signals for this mission.
+    /// User consented to camera accountability for this mission.
     #[serde(default)]
     pub camera_enabled: bool,
     pub watching_note: String,
@@ -82,7 +82,7 @@ impl LockInSession {
         let watching_note = if !screen_enabled {
             "Screen sharing off · timer and check-ins only".into()
         } else if camera_ready && presage_ready {
-            "Watching your screen · wellness later in background".into()
+            "Watching your screen · camera accountability in background".into()
         } else {
             "Watching your screen".into()
         };
@@ -229,7 +229,7 @@ impl LockInSession {
             prompts: self.prompts.clone(),
             closing_note,
             vitals_summary: if self.vitals.raw_summary.is_empty() {
-                "No wellness reading this session.".into()
+                "Camera accountability was off for this mission.".into()
             } else {
                 self.vitals.raw_summary.clone()
             },

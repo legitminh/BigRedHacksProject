@@ -5,12 +5,13 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use uuid::Uuid;
 
+use crate::camera_observe;
 use crate::capture::{self, camera, frontmost};
 use crate::gemini::CoachVisionResult;
 use crate::local_judge;
 use crate::local_vision;
 use crate::overlay;
-use crate::presage::{self, PresageClient, VitalsSnapshot};
+use crate::presage::{self, VitalsSnapshot};
 use crate::session::{CoachPrompt, SessionStatusKind};
 use crate::AppState;
 
@@ -255,13 +256,15 @@ pub fn spawn_coach_loop(
         run_local_watch_loop(local_app, local_id, local_stop, use_screen).await;
     });
 
-    // Presage only with camera consent + permission (use_camera already folds both in).
-    if use_camera && use_presage {
+    // Camera accountability: capture locally, analyze on the API (Presage + presence).
+    // `use_presage` is legacy (local key); loop runs whenever camera is opted in.
+    if use_camera {
+        let _ = use_presage;
         let vitals_app = app;
         let vitals_id = session_id;
         let vitals_stop = stop;
         tauri::async_runtime::spawn(async move {
-            run_presage_loop(vitals_app, vitals_id, vitals_stop).await;
+            run_camera_accountability_loop(vitals_app, vitals_id, vitals_stop).await;
         });
     }
 }
@@ -770,10 +773,9 @@ fn mark_local_on_task(app: &AppHandle, info: &frontmost::FrontmostInfo) {
     let _ = app.emit("session-update", &snap);
 }
 
-async fn run_presage_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBool>) {
+async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBool>) {
     // Fully deferred — never blocks coaching / Instagram catch at session start.
     tokio::time::sleep(Duration::from_secs(PRESAGE_START_DELAY_SECS)).await;
-    let mut last_stress_prompt = chrono::Utc::now() - chrono::Duration::minutes(10);
 
     while !stop.load(Ordering::SeqCst) {
         let (active, paused) = {
@@ -793,15 +795,27 @@ async fn run_presage_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBo
         if !active {
             break;
         }
+
+        let phase = if paused { "paused" } else { "active" };
+
+        // Still sample during pause so the server knows phase, but skip recording if paused
+        // to avoid needless camera use — just wait.
         if paused {
             tokio::time::sleep(Duration::from_secs(2)).await;
             continue;
         }
 
+        // Bail before touching the camera when signed out (no error spam / wasted clips).
+        let cfg = app.state::<AppState>().config.lock().clone();
+        if crate::auth::load_tokens(&cfg).is_none() {
+            tracing::debug!("camera accountability idle — not signed in");
+            break;
+        }
+
         let dir = match capture::temp_session_dir(&session_id) {
             Ok(d) => d,
             Err(e) => {
-                tracing::warn!("wellness temp dir: {e}");
+                tracing::warn!("camera accountability temp dir: {e}");
                 break;
             }
         };
@@ -815,40 +829,58 @@ async fn run_presage_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBo
             {
                 Ok(Ok(path)) => Some(path),
                 Ok(Err(e)) => {
-                    tracing::warn!("presage record: {e}");
+                    tracing::warn!("camera clip record: {e}");
                     None
                 }
                 Err(e) => {
-                    tracing::warn!("presage record join: {e}");
+                    tracing::warn!("camera clip join: {e}");
                     None
                 }
             }
         };
 
-        if stop.load(Ordering::SeqCst) {
-            break;
-        }
-
         if let Some(path) = clip {
-            if let Some(vitals) = upload_presage(&app, &path).await {
-                store_vitals(&app, &vitals);
-                let _ = app.emit("vitals-update", &vitals);
-                // Only interrupt when stress is up — and at most every few minutes.
-                if vitals.stressed {
-                    let now = chrono::Utc::now();
-                    if now.signed_duration_since(last_stress_prompt).num_seconds() >= 180 {
-                        last_stress_prompt = now;
-                        push_prompt(
-                            &app,
-                            "Stress looks elevated — one slow breath, then back to the work on screen.",
-                            "stressed",
-                        );
+            // Always delete local clip after attempt (upload, stop, or error).
+            let cleanup = path.clone();
+            let observe_result = if stop.load(Ordering::SeqCst) {
+                Err("stopped".into())
+            } else {
+                camera_observe::observe_clip(&cfg, &session_id, phase, &path).await
+            };
+            let _ = tokio::fs::remove_file(&cleanup).await;
+
+            match observe_result {
+                Ok(resp) => {
+                    if let Some(note) = resp.watching_note.as_deref() {
+                        apply_watching_note(&app, note);
                     }
+                    if let Some(vitals) = resp.to_vitals() {
+                        store_vitals(&app, &vitals, resp.watching_note.as_deref());
+                        let _ = app.emit("vitals-update", &vitals);
+                    }
+                    if let Some(nudge) = resp.nudge.as_ref() {
+                        let kind = if nudge.kind.trim().is_empty() {
+                            "camera"
+                        } else {
+                            nudge.kind.as_str()
+                        };
+                        push_prompt(&app, &nudge.text, kind);
+                    }
+                }
+                Err(e) if e == "stopped" => break,
+                Err(e) if is_quiet_observe_error(&e) => {
+                    // 429 / auth: stay quiet; stop on auth so we don't retry-spam.
+                    tracing::debug!("camera observe (quiet): {e}");
+                    if is_auth_observe_error(&e) {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("camera observe: {e}");
                 }
             }
         }
 
-        // Wait between silent clips; wake early if session ends.
         for _ in 0..PRESAGE_GAP_SECS {
             if stop.load(Ordering::SeqCst) {
                 break;
@@ -868,37 +900,33 @@ async fn run_presage_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBo
     }
 }
 
-async fn upload_presage(app: &AppHandle, video_path: &std::path::Path) -> Option<VitalsSnapshot> {
-    let cfg = app.state::<AppState>().config.lock().clone();
-    if !PresageClient::configured(&cfg) {
-        return None;
-    }
-    let client = match PresageClient::from_config(&cfg) {
-        Ok(c) => c,
-        Err(_e) => {
-            let _ = app.emit("coach-error", "Wellness check unavailable right now.");
-            return None;
-        }
-    };
-    let id = match client.queue_video_hr_rr(video_path).await {
-        Ok(id) => id,
-        Err(e) => {
-            tracing::warn!("presage upload: {e}");
-            let _ = app.emit("coach-error", "Wellness check couldn’t start. Trying again later.");
-            return None;
-        }
-    };
-    match client.retrieve_result(&id, 45).await {
-        Ok(data) => Some(PresageClient::vitals_from_result(&data)),
-        Err(e) => {
-            tracing::warn!("presage retrieve: {e}");
-            let _ = app.emit("coach-error", "Wellness check timed out. Continuing without it.");
-            None
-        }
+fn is_quiet_observe_error(err: &str) -> bool {
+    let lower = err.to_lowercase();
+    lower.contains("429")
+        || lower.contains("rate limit")
+        || lower.contains("too many")
+        || is_auth_observe_error(err)
+}
+
+fn is_auth_observe_error(err: &str) -> bool {
+    let lower = err.to_lowercase();
+    lower.contains("401")
+        || lower.contains("unauthorized")
+        || lower.contains("sign in")
+}
+
+fn apply_watching_note(app: &AppHandle, note: &str) {
+    let state = app.state::<AppState>();
+    let mut guard = state.session.lock();
+    if let Some(session) = guard.as_mut() {
+        session.watching_note = note.to_string();
+        let snap = session.clone();
+        drop(guard);
+        let _ = app.emit("session-update", &snap);
     }
 }
 
-fn store_vitals(app: &AppHandle, vitals: &VitalsSnapshot) {
+fn store_vitals(app: &AppHandle, vitals: &VitalsSnapshot, watching_note: Option<&str>) {
     let state = app.state::<AppState>();
     let mut guard = state.session.lock();
     if let Some(session) = guard.as_mut() {
@@ -907,16 +935,20 @@ fn store_vitals(app: &AppHandle, vitals: &VitalsSnapshot) {
             session.status = SessionStatusKind::Stressed;
         }
         session.vitals = vitals.clone();
-        let prefix = if session.screen_enabled {
-            "Screen watch active"
+        if let Some(note) = watching_note {
+            session.watching_note = note.to_string();
         } else {
-            "Camera wellness on"
-        };
-        session.watching_note = if vitals.stressed {
-            format!("{prefix} · Presage: stress elevated")
-        } else {
-            format!("{prefix} · Presage: steady")
-        };
+            let prefix = if session.screen_enabled {
+                "Screen watch active"
+            } else {
+                "Camera accountability on"
+            };
+            session.watching_note = if vitals.stressed {
+                format!("{prefix} · stress elevated")
+            } else {
+                format!("{prefix} · steady")
+            };
+        }
         let snap = session.clone();
         drop(guard);
         let _ = app.emit("session-update", &snap);
@@ -985,13 +1017,17 @@ fn static_distraction_label(label: &str) -> Option<&'static str> {
     }
 }
 
+fn is_camera_source(source: &str) -> bool {
+    source == "presage" || source == "presence"
+}
+
 async fn apply_coach_tick(
     app: &AppHandle,
     result: &CoachVisionResult,
     last_vitals: &mut VitalsSnapshot,
 ) {
-    // Prefer real Presage readings; otherwise soft-fallback from vision stress cue.
-    if last_vitals.source != "presage" {
+    // Prefer real Presage/presence readings; otherwise soft-fallback from vision stress cue.
+    if !is_camera_source(&last_vitals.source) {
         *last_vitals = presage::fallback_vitals(result.stress_cue);
     } else if result.stress_cue {
         last_vitals.stressed = true;
@@ -1112,15 +1148,15 @@ async fn apply_coach_tick(
             if on_task {
                 session.on_task_ticks += 1;
             }
-            if (last_vitals.stressed || result.stress_cue) && last_vitals.source != "presage" {
-                // Presage path increments stress_spikes when a reading arrives.
+            if (last_vitals.stressed || result.stress_cue) && !is_camera_source(&last_vitals.source) {
+                // Presage / camera path increments stress_spikes when a reading arrives.
                 session.stress_spikes += 1;
             }
             if let Some(d) = &distraction {
                 session.bump_distraction(d);
             }
             session.status = status;
-            if last_vitals.source == "presage" || session.vitals.source != "presage" {
+            if is_camera_source(&last_vitals.source) || !is_camera_source(&session.vitals.source) {
                 session.vitals = last_vitals.clone();
             } else {
                 *last_vitals = session.vitals.clone();

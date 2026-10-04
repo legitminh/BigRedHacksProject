@@ -353,8 +353,8 @@
             <div class="mission-setup-toggles">
               <label class="mission-toggle-row">
                 <span class="mission-toggle-copy">
-                  <strong>Camera signals</strong>
-                  <small>Short webcam clips for wellness estimates (sent to Presage).</small>
+                  <strong>Camera accountability</strong>
+                  <small>Optional. Holds you present at your desk — screen sharing stays required.</small>
                 </span>
                 <input id="lockin-camera" type="checkbox" class="mission-toggle-input" />
                 <span class="mission-toggle-switch" aria-hidden="true"></span>
@@ -679,7 +679,7 @@
         ></div>
         <p id="session-watch-note" class="session-watch-note visually-hidden"></p>
         <div id="session-vitals" class="vitals-panel visually-hidden" hidden aria-hidden="true">
-          <p class="vitals-label">Wellness</p>
+          <p class="vitals-label">Camera accountability</p>
           <p id="vitals-line">Running quietly in the background.</p>
         </div>
       </section>
@@ -851,13 +851,13 @@
                     </li>
                     <li class="settings-toggle-row">
                       <div class="settings-toggle-copy">
-                        <strong>Camera signals</strong>
-                        <span>Optional. Records short webcam clips during a mission and uploads them to Presage for wellness estimates.</span>
+                        <strong>Camera accountability</strong>
+                        <span>Optional. Short clips check that you’re still at your desk. Screen sharing stays on either way.</span>
                       </div>
                       <label class="mc-switch">
                         <input id="setting-camera-signals" type="checkbox" />
                         <span class="mc-switch-track" aria-hidden="true"></span>
-                        <span class="visually-hidden">Camera signals</span>
+                        <span class="visually-hidden">Camera accountability</span>
                       </label>
                     </li>
                     <li class="settings-toggle-row">
@@ -873,7 +873,7 @@
                     </li>
                   </ul>
                   <p class="settings-mission-foot">
-                    Screen sharing stays on for every mission. Camera signals stay off until you turn them on here or when you plan a mission.
+                    Screen sharing stays on for every mission. Camera accountability stays off until you turn it on.
                   </p>
                   <p id="settings-save-status" class="settings-save-hint" aria-live="polite"></p>
                   <input id="setting-silent-mode" type="checkbox" hidden aria-hidden="true" tabindex="-1" />
@@ -884,8 +884,8 @@
                   <p class="settings-privacy-copy">
                     Mission summaries and study notes are saved to your account. Screen text and window checks stay on
                     your Mac during missions. When Copilot Live asks to see your screen, Waypoint sends a screenshot to
-                    Google Gemini through the Waypoint API. If Camera signals is on, short webcam clips are uploaded to
-                    Presage for wellness estimates.
+                    Google Gemini through the Waypoint API. If Camera accountability is on, short webcam clips go to the
+                    Waypoint API for presence — then discarded. They never prove you’re distracted.
                   </p>
                 </section>
               </div>
@@ -917,7 +917,7 @@
                     <li class="mc-perm-row">
                       <div class="mc-perm-copy">
                         <strong>Camera</strong>
-                        <span>Optional — only used when Camera signals is on (short clips for wellness estimates).</span>
+                        <span>Optional — only when Camera accountability is on (short clips for desk presence).</span>
                       </div>
                       <span id="perm-camera" class="mc-perm-badge" data-state="unknown">Checking…</span>
                     </li>

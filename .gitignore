@@ -37,3 +37,6 @@ src/assets/figma/from-export/
 # Local agent audit reports (never commit)
 *.local.md
 AUDIT-*.local.md
+
+.tmp-VIDEOINPUT/
+.tmp-gemini_live_demo/

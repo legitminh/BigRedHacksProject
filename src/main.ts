@@ -625,8 +625,8 @@ function missionLaunchLabel(loading: boolean) {
 function setupConsentSummary(): string {
   const camera = readBoolPref(PREF_CAMERA_SIGNALS, false);
   return camera
-    ? "Screen sharing is on; camera is on for this mission."
-    : "Screen sharing is on; camera is off.";
+    ? "Screen sharing is on; camera accountability is on."
+    : "Screen sharing is on; camera accountability is off.";
 }
 function setupFootEmpty(): string {
   return `Type an objective to enable launch.<br />${setupConsentSummary()}`;
@@ -1053,7 +1053,7 @@ async function renderPermissionsStatus() {
     });
     setPermissionBadge("perm-camera", perms.camera, {
       on: "Enabled",
-      off: "Optional — grant for wellness",
+      off: "Optional — grant for accountability",
     });
     setPermissionBadge("perm-accessibility", perms.accessibility, {
       on: "Enabled",
@@ -1646,7 +1646,7 @@ async function dispatchChatMessage(
     const reply = await retryChat(message, (original) =>
       invoke<ChatMessage>("chat_send", { message: original }),
     () => {
-      if (pending) markThinkingProlonged(pending, "Still thinking");
+      if (pending) markThinkingProlonged(pending, "slight delay — retrying");
     });
     if (pending) {
       clearThinkingIndicator(pending);
@@ -2362,8 +2362,23 @@ function closeEndSessionModal() {
   setSessionEndingUi(false);
 }
 
+function formatPresenceSummary(raw?: string | null): string {
+  if (!raw) return "";
+  if (raw.includes("presence=present")) return "Present at desk";
+  if (raw.includes("presence=left_frame")) return "Away from desk";
+  if (raw.includes("presence=camera_obstructed")) return "Camera obstructed";
+  if (raw.includes("presence=uncertain")) return "Presence uncertain";
+  return raw.replace(/wellness/gi, "accountability");
+}
+
 function formatVitals(vitals?: VitalsSnapshot | null): string {
-  if (!vitals || (!vitals.raw_summary && vitals.source !== "presage" && vitals.source !== "fallback")) {
+  if (
+    !vitals ||
+    (!vitals.raw_summary &&
+      vitals.source !== "presage" &&
+      vitals.source !== "fallback" &&
+      vitals.source !== "presence")
+  ) {
     return "Running quietly in the background.";
   }
   const bits: string[] = [];
@@ -2372,13 +2387,17 @@ function formatVitals(vitals?: VitalsSnapshot | null): string {
   if (typeof vitals.stress_index === "number") bits.push(`stress ${Math.round(vitals.stress_index)}`);
   const state = vitals.stressed ? "elevated stress" : "steady";
   const source =
-    vitals.source === "presage"
+    vitals.source === "presage" || vitals.source === "presence"
       ? "camera"
       : vitals.source === "fallback"
         ? "camera estimate"
         : vitals.source || "—";
   if (bits.length) return `${bits.join(" · ")} · ${state} (${source})`;
-  return vitals.raw_summary || `${state} (${source})`;
+  if (vitals.raw_summary) {
+    const presenceText = formatPresenceSummary(vitals.raw_summary);
+    if (presenceText) return presenceText;
+  }
+  return `${state} (${source})`;
 }
 
 function renderVitals(vitals?: VitalsSnapshot | null) {
@@ -2495,7 +2514,10 @@ function renderSession(session: LockInSession) {
     goals.textContent = session.goals || "Your mission";
     goals.hidden = false;
   }
-  if (note) note.textContent = session.watching_note || "Watching your screen";
+  if (note) {
+    const rawNote = session.watching_note || "Watching your screen";
+    note.textContent = rawNote.replace(/wellness later in background/gi, "camera accountability in background");
+  }
   syncPauseControls(Boolean(session.paused));
   if (session.paused) pauseNextStepTimer();
   else if (nextStepPaused) resumeNextStepTimer();
@@ -2687,6 +2709,29 @@ async function toggleSessionMute() {
   }
 }
 
+function formatAccountabilitySummary(vitalsSummary?: string): string {
+  if (
+    !vitalsSummary ||
+    vitalsSummary === "No wellness reading this session." ||
+    vitalsSummary === "Camera accountability was off for this mission."
+  ) {
+    return "Camera accountability was off for this mission.";
+  }
+  if (vitalsSummary.includes("presence=present")) {
+    return "Present at desk during session checks.";
+  }
+  if (vitalsSummary.includes("presence=left_frame")) {
+    return "Away from desk during session checks.";
+  }
+  if (vitalsSummary.includes("presence=camera_obstructed")) {
+    return "Camera was obstructed during checks.";
+  }
+  if (vitalsSummary.includes("presence=uncertain")) {
+    return "Desk presence was uncertain during checks.";
+  }
+  return vitalsSummary.replace(/wellness/gi, "accountability");
+}
+
 function renderSummary(summary: SessionSummary) {
   lastSummaryGoals = summary.goals;
   lastSessionSummary = summary;
@@ -2768,8 +2813,8 @@ function renderSummary(summary: SessionSummary) {
       <p class="flight-log-modality muted">${escapeHtml(summary.modality)}</p>
     </article>
     <article class="flight-log-card">
-      <h3 class="flight-log-card-title">Wellness</h3>
-      <p>${escapeHtml(summary.vitals_summary || "No wellness reading this session.")}</p>
+      <h3 class="flight-log-card-title">Camera accountability</h3>
+      <p>${escapeHtml(formatAccountabilitySummary(summary.vitals_summary))}</p>
     </article>
     <article class="flight-log-card">
       <h3 class="flight-log-card-title">Distractions</h3>
@@ -3580,7 +3625,7 @@ async function bootApp() {
   await listen("overlay-clear", () => setSessionCheckinUi(false));
   await listen<string>("coach-error", (event) => {
     const note = $("#session-watch-note");
-    if (note) note.textContent = `Wellness check: ${event.payload}`;
+    if (note) note.textContent = `Camera check: ${event.payload}`;
   });
   await listen<SessionSummary>("session-ended", (event) => {
     teardownCompanionLive();

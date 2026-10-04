@@ -1,5 +1,6 @@
 mod api;
 mod auth;
+mod camera_observe;
 mod capture;
 mod coach;
 mod companion;
@@ -531,6 +532,10 @@ async fn chat_send(state: State<'_, AppState>, message: String) -> Result<ChatMe
          from Drive (assignments, exams, reading due soon). Prefer this week’s coursework over distant \
          applications, career plans, or multi-year goals (e.g. MD-PhD, med school, internships) unless the \
          calendar/syllabus shows a near-term deadline for that item or the student explicitly asks about it.\n\
+         When syllabus or course-file excerpts are in CONTEXT, read them yourself and cite concrete due dates, \
+         readings, and assignments from those excerpts — do not tell the student to check or look through \
+         the syllabus when that content is already available. If syllabi or needed course files are missing, \
+         invite them to add or upload those files to Google Drive so you can use them next time.\n\
          Distinguish actual deadlines from suggested study times. Attribute course-specific claims to the \
          supplied file title or calendar event. If calendar and syllabi do not support a suggested task, say \
          what is actually due soon — or ask one clarifying question — instead of inventing work from STUDY MEMORY.\n\
@@ -797,8 +802,9 @@ async fn start_lock_in(
     }
 
     let cfg = state.config.lock().clone();
-    // Lock-in coaching is local/API only — Gemini is not required to start.
-    let presage_ready = PresageClient::configured(&cfg);
+    // Camera accountability runs through the API; local PRESAGE_API_KEY is optional/legacy.
+    // Mark ready when signed in so the session UI reflects that server analysis can run.
+    let presage_ready = auth::load_tokens(&cfg).is_some() || PresageClient::configured(&cfg);
 
     // Screen watching is required. Probe Screen Recording on launch;
     // timeout so a stuck permission prompt can't freeze the UI.
@@ -829,7 +835,7 @@ async fn start_lock_in(
                 .await
                 .is_ok());
     if camera_enabled && !camera_ready {
-        tracing::info!("camera signals on but unavailable; Presage wellness will stay offline");
+        tracing::info!("camera accountability on but camera unavailable; presence checks will stay offline");
     }
 
     let modality = gemini::infer_modality(&goals);

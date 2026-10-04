@@ -262,7 +262,7 @@ test('overload keeps one thinking bubble and silently retries the original messa
   await new Promise(resolve => setTimeout(resolve, 2100));
   const attempts = calls.filter(c => c.command === 'chat_send').slice(before);
   assert.equal(attempts.length, 2);
-  assert.equal(attempts[0].args.message, '  Explain $x$\nplease  ');
+  assert.equal(attempts[0].args.message, 'Explain $x$\nplease');
   assert.equal(attempts[1].args.message, attempts[0].args.message);
   assert.equal(document.querySelectorAll('.bubble.user').length, 1);
   assert.equal(document.querySelectorAll('.bubble.assistant').length, 1);
