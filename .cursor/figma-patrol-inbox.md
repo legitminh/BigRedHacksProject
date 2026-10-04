@@ -4086,7 +4086,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · foot `5:77` ·
   card `5:58` · crop `_verify/tick37-welcome-card-crop.png`
-- commit: PENDING
+- commit: f5cd1e8
 - change: |
     `.welcome-signin-foot` → `text-align: left` (kept 13px / lh 1.4 /
     `#645d73`). Google-only form shell unchanged.
@@ -4096,7 +4096,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · card `5:58` ·
   crop `_verify/tick37-welcome-card-crop.png`
-- commit: PENDING
+- commit: f5cd1e8
 - change: |
     `.welcome-signin-card` → `box-shadow: none` (flat `#fffbff` /
     `#c8bfd7` / 28 / 37 / 510). Guest Quiet + Sign in wiring unchanged.
@@ -4154,7 +4154,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   body `7:419` · foot `7:427` · modal `7:415` ·
   crop `_verify/tick37-handoff-modal-crop.png`
-- commit: PENDING
+- commit: f5cd1e8
 - change: |
     `.mc-perm-modal__body` → Regular 16px / lh 1.4 / `#645d73`;
     `__foot` → Regular 12px / lh 1.4 / `#645d73`. Camera copy + pad 33 /
