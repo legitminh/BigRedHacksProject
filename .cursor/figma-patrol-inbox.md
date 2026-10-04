@@ -4010,7 +4010,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · title `5:233` ·
   crop `_verify/tick36-copilot-live.png`
-- commit: PENDING
+- commit: 070f446
 - change: |
     `.copilot-page-title` → Medium 38px / lh 1.4 / `#282237` (was 36px).
     Chips→composer air + Mic/Send wiring unchanged.
@@ -4020,7 +4020,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · status `5:226` ·
   crop `_verify/tick36-copilot-sidebar-crop.png`
-- commit: PENDING
+- commit: 070f446
 - change: |
     `.copilot-sidebar-status` → Regular 12px / `#645d73` (corrects
     c0bb46e 14px overshoot); planet stays 20px under status.
@@ -4031,7 +4031,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · input `5:249` ·
   crop `_verify/tick36-copilot-composer-crop.png`
-- commit: PENDING
+- commit: 070f446
 - change: |
     `#view-chat` composer → single-line ~78px pill (`rows="1"`, fixed
     wrap height, Mic+↑ 52×52); session/lost taller chrome left alone.
