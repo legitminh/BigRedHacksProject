@@ -366,9 +366,51 @@ struct SchoolDigestResp {
     digest: Option<String>,
     #[serde(default, alias = "date", alias = "built_at")]
     digest_date: Option<String>,
+    #[serde(default)]
+    manual_refresh_available: Option<bool>,
+    #[serde(default)]
+    last_manual_refresh_at: Option<String>,
+    #[serde(default)]
+    next_manual_refresh_at: Option<String>,
 }
 
-async fn fetch_school_digest(cfg: &config::AppConfig) -> (String, String) {
+struct SchoolDigestFetch {
+    digest: String,
+    digest_date: String,
+    manual_refresh_available: bool,
+    last_manual_refresh_at: String,
+    next_manual_refresh_at: String,
+}
+
+fn empty_school_digest_fetch() -> SchoolDigestFetch {
+    SchoolDigestFetch {
+        digest: String::new(),
+        digest_date: String::new(),
+        manual_refresh_available: false,
+        last_manual_refresh_at: String::new(),
+        next_manual_refresh_at: String::new(),
+    }
+}
+
+fn school_digest_from_resp(resp: SchoolDigestResp) -> SchoolDigestFetch {
+    SchoolDigestFetch {
+        digest: resp.digest.unwrap_or_default(),
+        digest_date: resp.digest_date.unwrap_or_default(),
+        manual_refresh_available: resp.manual_refresh_available.unwrap_or(false),
+        last_manual_refresh_at: resp
+            .last_manual_refresh_at
+            .unwrap_or_default()
+            .trim()
+            .to_string(),
+        next_manual_refresh_at: resp
+            .next_manual_refresh_at
+            .unwrap_or_default()
+            .trim()
+            .to_string(),
+    }
+}
+
+async fn fetch_school_digest(cfg: &config::AppConfig) -> SchoolDigestFetch {
     let tz = urlencoding::encode(&google::local_timezone()).into_owned();
     let path = format!("/v1/school-digest?tz={tz}");
     let Ok(resp) = api::authed_json::<SchoolDigestResp>(
@@ -379,11 +421,9 @@ async fn fetch_school_digest(cfg: &config::AppConfig) -> (String, String) {
     )
     .await
     else {
-        return (String::new(), String::new());
+        return empty_school_digest_fetch();
     };
-    let digest = resp.digest.unwrap_or_default();
-    let date = resp.digest_date.unwrap_or_default();
-    (digest, date)
+    school_digest_from_resp(resp)
 }
 
 fn school_digest_context_block(digest: &str, date: &str) -> String {
@@ -418,6 +458,9 @@ async fn get_google_context(state: State<'_, AppState>) -> Result<GoogleContext,
                 drive_inventory: String::new(),
                 school_digest: String::new(),
                 school_digest_date: String::new(),
+                manual_refresh_available: false,
+                last_manual_refresh_at: String::new(),
+                next_manual_refresh_at: String::new(),
             });
         }
         let calendar_summary = google::calendar::upcoming_events_summary(&cfg, 8)
@@ -433,6 +476,9 @@ async fn get_google_context(state: State<'_, AppState>) -> Result<GoogleContext,
             drive_inventory: String::new(),
             school_digest: String::new(),
             school_digest_date: String::new(),
+            manual_refresh_available: false,
+            last_manual_refresh_at: String::new(),
+            next_manual_refresh_at: String::new(),
         });
     }
 
@@ -450,6 +496,9 @@ async fn get_google_context(state: State<'_, AppState>) -> Result<GoogleContext,
             drive_inventory: String::new(),
             school_digest: String::new(),
             school_digest_date: String::new(),
+            manual_refresh_available: false,
+            last_manual_refresh_at: String::new(),
+            next_manual_refresh_at: String::new(),
         });
     }
     #[derive(serde::Deserialize)]
@@ -490,14 +539,38 @@ async fn get_google_context(state: State<'_, AppState>) -> Result<GoogleContext,
     .unwrap_or_else(|e| Summary {
         summary: format!("Drive unavailable: {e}"),
     });
-    let (school_digest, school_digest_date) = fetch_school_digest(&cfg).await;
+    let digest = fetch_school_digest(&cfg).await;
     Ok(GoogleContext {
         connected: true,
         calendar_summary: calendar.summary,
         drive_summary: drive.summary,
         drive_inventory: inventory,
-        school_digest,
-        school_digest_date,
+        school_digest: digest.digest,
+        school_digest_date: digest.digest_date,
+        manual_refresh_available: digest.manual_refresh_available,
+        last_manual_refresh_at: digest.last_manual_refresh_at,
+        next_manual_refresh_at: digest.next_manual_refresh_at,
+    })
+}
+
+/// Ensure today's school digest exists (cheap when already cached). Called on app launch.
+#[tauri::command]
+async fn ensure_school_digest(state: State<'_, AppState>) -> Result<GoogleContext, String> {
+    let cfg = state.config.lock().clone();
+    if auth::load_tokens(&cfg).is_none() {
+        return Err("Sign in to load today’s school digest.".into());
+    }
+    let digest = fetch_school_digest(&cfg).await;
+    Ok(GoogleContext {
+        connected: true,
+        calendar_summary: String::new(),
+        drive_summary: String::new(),
+        drive_inventory: String::new(),
+        school_digest: digest.digest,
+        school_digest_date: digest.digest_date,
+        manual_refresh_available: digest.manual_refresh_available,
+        last_manual_refresh_at: digest.last_manual_refresh_at,
+        next_manual_refresh_at: digest.next_manual_refresh_at,
     })
 }
 
@@ -509,8 +582,20 @@ async fn refresh_school_digest(state: State<'_, AppState>) -> Result<GoogleConte
     }
     let tz = urlencoding::encode(&google::local_timezone()).into_owned();
     let path = format!("/v1/school-digest/refresh?tz={tz}");
-    api::authed_empty(&cfg, reqwest::Method::POST, &path, None).await?;
-    get_google_context(state).await
+    let resp: SchoolDigestResp =
+        api::authed_json(&cfg, reqwest::Method::POST, &path, None).await?;
+    let digest = school_digest_from_resp(resp);
+    Ok(GoogleContext {
+        connected: true,
+        calendar_summary: String::new(),
+        drive_summary: String::new(),
+        drive_inventory: String::new(),
+        school_digest: digest.digest,
+        school_digest_date: digest.digest_date,
+        manual_refresh_available: digest.manual_refresh_available,
+        last_manual_refresh_at: digest.last_manual_refresh_at,
+        next_manual_refresh_at: digest.next_manual_refresh_at,
+    })
 }
 
 #[tauri::command]
@@ -1440,6 +1525,7 @@ pub fn run() {
             connect_google,
             disconnect_google,
             get_google_context,
+            ensure_school_digest,
             refresh_school_digest,
             chat_send,
             clear_chat,

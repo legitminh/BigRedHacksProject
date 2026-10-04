@@ -50,4 +50,13 @@ pub struct GoogleContext {
     /// Local date label for the cached digest (YYYY-MM-DD), when known.
     #[serde(default)]
     pub school_digest_date: String,
+    /// Whether POST /v1/school-digest/refresh is allowed (one manual rebuild / 24h).
+    #[serde(default)]
+    pub manual_refresh_available: bool,
+    /// ISO timestamp of the last manual refresh, when any.
+    #[serde(default)]
+    pub last_manual_refresh_at: String,
+    /// ISO timestamp when the next manual refresh unlocks (empty when available).
+    #[serde(default)]
+    pub next_manual_refresh_at: String,
 }

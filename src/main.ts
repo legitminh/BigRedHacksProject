@@ -1015,6 +1015,9 @@ type GoogleContextPayload = {
   drive_inventory?: string;
   school_digest?: string;
   school_digest_date?: string;
+  manual_refresh_available?: boolean;
+  last_manual_refresh_at?: string;
+  next_manual_refresh_at?: string;
 };
 
 function formatSchoolDigestDate(raw: string | undefined): string | null {
@@ -1031,6 +1034,48 @@ function formatSchoolDigestDate(raw: string | undefined): string | null {
   return trimmed;
 }
 
+function formatDigestDateTime(raw: string | undefined): string | null {
+  const trimmed = raw?.trim();
+  if (!trimmed) return null;
+  const parsed = Date.parse(trimmed);
+  if (!Number.isFinite(parsed)) return trimmed;
+  return new Date(parsed).toLocaleString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function schoolDigestStatusCopy(google: GoogleContextPayload): string {
+  const when = formatSchoolDigestDate(google.school_digest_date);
+  const ready = google.school_digest?.trim()
+    ? when
+      ? `School digest ready for ${when}.`
+      : "School digest is ready for today."
+    : "No digest yet — Copilot still uses Calendar and Drive.";
+  if (google.manual_refresh_available) {
+    return `${ready} You can manually refresh once every 24 hours.`;
+  }
+  const next = formatDigestDateTime(google.next_manual_refresh_at);
+  return next
+    ? `${ready} Next manual refresh available ${next}.`
+    : `${ready} Manual refresh is on cooldown (once every 24 hours).`;
+}
+
+/** Build today’s digest on launch if missing (server no-ops when already cached). */
+async function ensureDailySchoolDigest(status?: StatusPayload | null) {
+  const current = status ?? lastHomeStatus;
+  if (!current?.signed_in || !current.google_connected) return;
+  try {
+    await invoke<GoogleContextPayload>("ensure_school_digest");
+    await updateCopilotDigestHint();
+  } catch (e) {
+    console.warn("ensure_school_digest:", e);
+  }
+}
+
 async function renderSchoolDigestSettings(status: StatusPayload) {
   const block = $("#account-school-digest-block");
   const statusEl = $("#account-school-digest-status");
@@ -1044,34 +1089,33 @@ async function renderSchoolDigestSettings(status: StatusPayload) {
   block.hidden = false;
   statusEl.textContent = "Loading digest status…";
   try {
-    const google = await invoke<GoogleContextPayload>("get_google_context");
-    if (!google.school_digest?.trim()) {
-      statusEl.textContent =
-        "No digest yet — Copilot still uses Calendar and Drive. Refresh rebuilds today’s digest on the server.";
-    } else {
-      const when = formatSchoolDigestDate(google.school_digest_date);
-      statusEl.textContent = when
-        ? `School digest updated ${when}.`
-        : "School digest is ready for today.";
-    }
+    const google = await invoke<GoogleContextPayload>("ensure_school_digest");
+    statusEl.textContent = schoolDigestStatusCopy(google);
     const refresh = document.createElement("button");
     refresh.className = "ghost pill";
     refresh.type = "button";
-    refresh.textContent = "Refresh digest";
+    const canRefresh = Boolean(google.manual_refresh_available);
+    refresh.textContent = canRefresh ? "Refresh digest" : "Refresh on cooldown";
+    refresh.disabled = !canRefresh;
+    refresh.title = canRefresh
+      ? "Rebuild today’s school digest (once every 24 hours)."
+      : "Manual refresh is limited to once every 24 hours.";
     refresh.addEventListener("click", async () => {
+      if (refresh.disabled) return;
       refresh.disabled = true;
       refresh.textContent = "Refreshing…";
       try {
-        await invoke<GoogleContextPayload>("refresh_school_digest");
+        const updated = await invoke<GoogleContextPayload>("refresh_school_digest");
+        statusEl.textContent = schoolDigestStatusCopy(updated);
         await renderSchoolDigestSettings(status);
         await updateCopilotDigestHint();
       } catch (e) {
         console.warn("refresh_school_digest:", e);
-        statusEl.textContent =
-          "Could not refresh digest — try again later or keep using Calendar/Drive.";
-      } finally {
-        refresh.disabled = false;
-        refresh.textContent = "Refresh digest";
+        const msg = String(e);
+        statusEl.textContent = /digest_manual_refresh_cooldown|once every 24 hours/i.test(msg)
+          ? "Manual refresh is limited to once every 24 hours. Try again later."
+          : "Could not refresh digest — try again later or keep using Calendar/Drive.";
+        await renderSchoolDigestSettings(status);
       }
     });
     actions.appendChild(refresh);
@@ -3484,6 +3528,7 @@ async function refreshStatus() {
     show("view-home");
     return status;
   }
+  void ensureDailySchoolDigest(status);
   if ($("#view-settings")?.classList.contains("active")) {
     await renderMissionControlSettings(status);
   }
