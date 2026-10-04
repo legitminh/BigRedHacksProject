@@ -4251,7 +4251,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   badge `7:416` · text `7:417` ·
   crop `_verify/tick39-handoff-modal-crop.png`
-- commit: PENDING
+- commit: 84b0882
 - change: |
     `.mc-perm-modal__badge` → 12px / weight 700 / tracking 0.08em /
     `#6750a4` on `#e9ddfd`. Camera copy + pad 33 / Not now · Continue kept.
@@ -4262,7 +4262,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   Not now `7:421` · actions `7:420` ·
   crop `_verify/tick39-handoff-modal-crop.png`
-- commit: PENDING
+- commit: 84b0882
 - change: |
     `.mc-perm-modal__btn--secondary` → Regular 16px / lh 1.4 / `#282237`
     on `#e9ddfd` (not purple `#4a3d78`). Continue primary + dismiss wiring kept.
@@ -4273,7 +4273,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` ·
   Email label `5:64` · Password label `5:68` ·
   crop `_verify/tick39-welcome-card-crop.png`
-- commit: PENDING
+- commit: 84b0882
 - change: |
     `.welcome-field-label` → font-weight 700 / 14px / lh 20 / `#282237`.
     Google-only form shell unchanged.
