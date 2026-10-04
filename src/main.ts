@@ -773,7 +773,8 @@ function renderGuestNav() {
   nav?.classList.add("mc-nav-actions");
   if (brand) {
     brand.className = "mc-nav-brand";
-    brand.innerHTML = '<span class="welcome-brand-star" aria-hidden="true">✦</span> Waypoint';
+    brand.innerHTML =
+      '<img class="brand-mark" src="/src/assets/branding/ship-icon.png" width="28" height="28" alt="" aria-hidden="true" /><span class="welcome-brand-star" aria-hidden="true">✦</span> Waypoint';
   }
   if (nav) {
     nav.innerHTML = "";
@@ -805,7 +806,7 @@ function renderHomeNav(status: StatusPayload) {
   if (brand) {
     brand.className = "settings-brand";
     brand.innerHTML =
-      '<span class="settings-brand-star" aria-hidden="true">✦</span> Waypoint';
+      '<img class="brand-mark" src="/src/assets/branding/ship-icon.png" width="28" height="28" alt="" aria-hidden="true" /><span class="settings-brand-star" aria-hidden="true">✦</span> Waypoint';
   }
   if (center) {
     center.className = "settings-nav";
