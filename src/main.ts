@@ -294,6 +294,7 @@ async function applyAccountLocalScope(status: StatusPayload): Promise<void> {
     try {
       const stats = await invoke<{
         total_sessions?: number;
+        total_flight_minutes?: number;
         total_on_task_minutes?: number;
         longest_flight_minutes?: number;
       }>("study_memory_stats");

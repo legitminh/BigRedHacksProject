@@ -36,19 +36,21 @@ pub struct HeadsUpAudio {
 
 /// Fetch Grok/xAI TTS audio for a study heads-up via the API proxy (`POST /v1/voice/tts`).
 /// Auth: signed-in JWT preferred, else baked `coach_api_token`.
+/// Voice id is omitted so the API applies `XAI_TTS_VOICE` (default `eve`) — same as Live.
 pub async fn fetch_heads_up_tts(cfg: &AppConfig, text: &str) -> Result<HeadsUpAudio, String> {
-    fetch_grok_tts(cfg, text, HEADS_UP_TTS_TIMEOUT).await
+    fetch_grok_tts(cfg, text, HEADS_UP_TTS_TIMEOUT, false).await
 }
 
-/// Same Grok proxy as heads-ups, with a longer timeout for Settings “Test speak”.
+/// Same Grok proxy / voice as Live + heads-ups, with a longer cold-start budget for Settings “Test speak”.
 pub async fn fetch_test_speak_tts(cfg: &AppConfig, text: &str) -> Result<HeadsUpAudio, String> {
-    fetch_grok_tts(cfg, text, TEST_SPEAK_TTS_TIMEOUT).await
+    fetch_grok_tts(cfg, text, TEST_SPEAK_TTS_TIMEOUT, true).await
 }
 
 async fn fetch_grok_tts(
     cfg: &AppConfig,
     text: &str,
     timeout: Duration,
+    extended_wait: bool,
 ) -> Result<HeadsUpAudio, String> {
     let snippet: String = text.trim().chars().take(160).collect();
     if snippet.is_empty() {
@@ -58,10 +60,16 @@ async fn fetch_grok_tts(
         .coach_auth_header()
         .ok_or_else(|| "Sign in with Google to use Grok voice.".to_string())?;
     let url = format!("{}/v1/voice/tts", cfg.api_base().trim_end_matches('/'));
+    // No voice_id → API `XAI_TTS_VOICE` (default eve), same as Live `connectGrokTts`.
+    let body = if extended_wait {
+        json!({ "text": snippet, "language": "en", "extended_wait": true })
+    } else {
+        json!({ "text": snippet, "language": "en" })
+    };
     let res = http_tts(timeout)
         .post(url)
         .header(auth.0, auth.1)
-        .json(&json!({ "text": snippet, "language": "en" }))
+        .json(&body)
         .send()
         .await
         .map_err(|e| e.to_string())?;

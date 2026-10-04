@@ -5,6 +5,7 @@ import shipAssetUrl from "./assets/figma/ship.svg?url";
 export interface ShipProgress {
   completedMissions: number;
   onTaskMinutes: number;
+  totalFlightMinutes: number;
   longestFlightMinutes: number;
   firstFlightCelebrated: boolean;
 }
@@ -16,6 +17,7 @@ export interface MissionCompleteInput {
 
 export type StudyStatsLite = {
   total_sessions?: number;
+  total_flight_minutes?: number;
   total_on_task_minutes?: number;
   longest_flight_minutes?: number;
 };
@@ -62,6 +64,7 @@ function emptyProgress(): ShipProgress {
   return {
     completedMissions: 0,
     onTaskMinutes: 0,
+    totalFlightMinutes: 0,
     longestFlightMinutes: 0,
     firstFlightCelebrated: false,
   };
@@ -75,6 +78,7 @@ function loadProgress(): ShipProgress {
     return {
       completedMissions: Number(parsed.completedMissions) || 0,
       onTaskMinutes: Number(parsed.onTaskMinutes) || 0,
+      totalFlightMinutes: Number(parsed.totalFlightMinutes) || 0,
       longestFlightMinutes: Number(parsed.longestFlightMinutes) || 0,
       firstFlightCelebrated: Boolean(parsed.firstFlightCelebrated),
     };
@@ -110,6 +114,10 @@ export function hydrateShipFromStudyStats(stats: StudyStatsLite | null | undefin
     onTaskMinutes: Math.max(
       local.onTaskMinutes,
       Math.max(0, Number(stats.total_on_task_minutes) || 0),
+    ),
+    totalFlightMinutes: Math.max(
+      local.totalFlightMinutes,
+      Math.max(0, Number(stats.total_flight_minutes) || 0),
     ),
     longestFlightMinutes: Math.max(
       local.longestFlightMinutes,
@@ -206,11 +214,13 @@ export function onMissionStarted(durationSecs: number) {
 export function onMissionCompleted(summary: MissionCompleteInput, elapsedSecs: number) {
   const p = loadProgress();
   const mins = Math.max(0, elapsedSecs) / 60;
+  const flightMins = Math.round(mins);
   const checks = summary.screen_checks ?? 0;
   // Ship "on-task" credit only (never flight minutes / PB, which use active elapsed time).
   // With no verified screen checks we give a conservative estimate rather than 0.
   const ratio = checks === 0 ? 0.35 : Math.min(1, Math.max(0, summary.on_task_ratio));
   p.onTaskMinutes += mins * ratio;
+  p.totalFlightMinutes = (p.totalFlightMinutes || 0) + Math.max(0, flightMins);
   // Personal-best minutes are recorded separately via recordLongestFlightMinutes
   // (must run before this so "new PB" compares against the prior value).
   p.completedMissions += 1;
@@ -253,10 +263,17 @@ function refreshHomeHangar() {
 }
 
 export function refreshHomePersonalBest() {
-  const el = document.getElementById("home-longest-minutes");
-  if (!el) return;
-  const mins = loadProgress().longestFlightMinutes || 0;
-  el.textContent = mins > 0 ? String(mins) : "0";
+  const p = loadProgress();
+  const longestEl = document.getElementById("home-longest-minutes");
+  if (longestEl) {
+    const mins = p.longestFlightMinutes || 0;
+    longestEl.textContent = mins > 0 ? String(mins) : "0";
+  }
+  const totalEl = document.getElementById("home-total-minutes");
+  if (totalEl) {
+    const total = p.totalFlightMinutes || 0;
+    totalEl.textContent = total > 0 ? String(total) : "0";
+  }
 }
 
 export function refreshSessionFlight() {

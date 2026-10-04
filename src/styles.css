@@ -630,12 +630,22 @@ body:has(.view-home.view-home--guest.active) .grain {
   background: var(--mc-bg-card);
 }
 
+.mc-home-best-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+}
+
 .mc-home-best-stat {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.35rem 0.5rem;
-  margin-bottom: 0.85rem;
+}
+
+.mc-home-best-stat--secondary {
+  padding-top: 0.15rem;
 }
 
 .mc-home-best-num {
@@ -644,6 +654,12 @@ body:has(.view-home.view-home--guest.active) .grain {
   line-height: 1;
   letter-spacing: -0.03em;
   color: var(--mc-text-primary);
+}
+
+.mc-home-best-num--sm {
+  font-size: clamp(1.45rem, 3vw, 1.85rem);
+  font-weight: 650;
+  color: var(--mc-text-secondary);
 }
 
 .mc-home-best-unit {
