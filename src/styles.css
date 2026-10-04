@@ -2417,7 +2417,7 @@ button:active {
 
 .copilot-sidebar-body {
   margin: 0;
-  font-size: 1rem; /* 16px — live 03 body 5:221 */
+  font-size: 0.9375rem; /* 15px — live 03 body 5:221 */
   font-weight: 400;
   line-height: 1.4;
   color: #645d73; /* live 03 muted 5:221 — not lilac --mc-text-muted */
@@ -2669,13 +2669,13 @@ button:active {
   box-sizing: border-box;
 }
 
-/* Live 03 Composer input 5:249 (~868×78): single-line pill, Mic+↑ 52×52 */
+/* Live 03 Composer input 5:249 (~868×78): rounded 16px rect, Mic+↑ 52×52 */
 .view-copilot .copilot-input-wrap {
   align-items: center;
   height: 4.875rem; /* 78px */
   min-height: 4.875rem;
   max-height: 4.875rem;
-  border-radius: var(--radius-pill);
+  border-radius: 16px; /* live 5:249 — not pill; session/lost keep 1rem */
 }
 
 /* Session / lost keep taller multi-row wrap */
@@ -3635,11 +3635,11 @@ body:has(.view-mission-setup.active) .grain {
 
 .session-mission-title {
   margin: 0;
-  font-size: clamp(1.35rem, 2.8vw, 1.85rem);
-  font-weight: 700;
+  font-size: 1.75rem; /* 28px — live 09 objective title 6:568 */
+  font-weight: 500; /* Medium */
   letter-spacing: -0.02em;
-  line-height: 1.2;
-  color: var(--mc-text-primary);
+  line-height: 1.4;
+  color: #282237; /* live 6:568 ink — not --mc-text-primary */
 }
 
 .session-signal-pills {
