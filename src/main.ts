@@ -1479,11 +1479,17 @@ function chatErrorMessage(err: unknown): string {
   ) {
     return raw;
   }
-  if (/quota|free_tier|free limit|resource_exhausted|429/i.test(raw)) {
-    return "Your coach hit today’s usage limit. Try again later — mission watching still works.";
-  }
-  if (/rate limit|rate-limited/i.test(raw)) {
+  // A generic HTTP 429 can be Waypoint's short-window request throttle, not a
+  // depleted Gemini allowance. Only show daily-limit copy for explicit quota signals.
+  if (/rate limit|rate-limited|too many requests|rate_limited/i.test(raw)) {
     return "Your coach is getting too many requests. Please try again in a moment.";
+  }
+  if (
+    /gemini_quota|free_tier|free limit|daily (?:usage )?limit|daily quota|quota (?:was )?exhausted/i.test(
+      raw,
+    )
+  ) {
+    return "Your coach hit today’s usage limit. Try again later — mission watching still works.";
   }
   if (/api[_ ]?key|invalid|permission|unauthorized|403|401/i.test(raw)) {
     return "Your coach couldn’t connect. Check Connection in Settings and try again.";
@@ -1674,11 +1680,20 @@ async function dispatchChatMessage(
   }
 }
 
+function resizeCopilotComposerInput() {
+  const input = $<HTMLTextAreaElement>("#chat-input");
+  if (!input) return;
+  input.style.height = "auto";
+  const maxPx = 14 * 1.4 * 6;
+  input.style.height = `${Math.min(Math.max(input.scrollHeight, 14 * 1.4), maxPx)}px`;
+}
+
 async function sendChat() {
   const input = $<HTMLTextAreaElement>("#chat-input");
   if (chatBusy || !input?.value.trim()) return;
   const message = input.value.trim();
   input.value = "";
+  resizeCopilotComposerInput();
   // While Copilot Live is open, typed lines go over the Live socket (not STT→composer).
   if (companionLive?.active && liveSurface === "copilot") {
     companionLive.sendText(message);
@@ -1714,25 +1729,37 @@ function applyMicLiveUi(
 ) {
   if (!mic) return;
   const sticky = opts?.stickyLabel === true;
+  const active = phase !== "idle";
+  mic.classList.toggle("is-on", active);
   mic.classList.toggle("is-live", phase === "listening");
   mic.classList.toggle("is-thinking", phase === "thinking");
   mic.classList.toggle("is-speaking", phase === "speaking");
   mic.classList.toggle("is-connecting", phase === "connecting");
-  // Copilot keeps Figma “Mic”; session Talk may show Live / … while active.
+  // Copilot keeps “Mic”; session Talk may show Live / … while active.
   mic.textContent =
     sticky || phase === "idle"
       ? startLabel
       : phase === "connecting"
         ? "…"
         : "Live";
-  mic.setAttribute(
-    "aria-label",
-    phase === "idle"
-      ? sticky
-        ? "Start live voice with Copilot"
-        : `Start ${startLabel.toLowerCase()} live voice`
-      : "End live voice",
-  );
+  mic.setAttribute("aria-pressed", active ? "true" : "false");
+  const startAria = sticky
+    ? "Start live voice with Copilot"
+    : `Start ${startLabel.toLowerCase()} live voice`;
+  const activeAria =
+    phase === "connecting"
+      ? "Live voice connecting — click to cancel"
+      : phase === "thinking"
+        ? "Companion answering — click to end live voice"
+        : phase === "speaking"
+          ? "Companion speaking — click to end live voice"
+          : "End live voice";
+  mic.setAttribute("aria-label", active ? activeAria : startAria);
+  mic.title = active
+    ? "End live voice"
+    : sticky
+      ? "Start / end live voice with Copilot"
+      : `Start / end ${startLabel.toLowerCase()} live voice`;
 }
 
 function setCopilotListeningPlaceholder(listening: boolean) {
@@ -1923,24 +1950,6 @@ function teardownCompanionLive() {
   void invoke("companion_clear").catch(() => {});
 }
 
-let screenShareHintRestore: string | null = null;
-
-function currentComposerHint(target: "chat" | "session"): string {
-  return ($(target === "session" ? "#session-chat-hint" : "#chat-hint")?.textContent ?? "").trim();
-}
-
-/** Same pref PKG-1 uses; if a lock-in session is running it must also have launched with screen on. */
-async function liveScreenConsent(): Promise<boolean> {
-  try {
-    const session = await invoke<LockInSession | null>("get_session");
-    // Mid-mission: honor the session flag (always true for new launches).
-    if (session && !session.screen_enabled) return false;
-  } catch {
-    return false;
-  }
-  return screenSharingEnabled();
-}
-
 async function ensureCompanionLive(surface: LiveSurface): Promise<CompanionLiveSession> {
   if (companionLive?.active && liveSurface === surface) return companionLive;
   if (companionLive?.active) teardownCompanionLive();
@@ -1959,20 +1968,6 @@ async function ensureCompanionLive(surface: LiveSurface): Promise<CompanionLiveS
       setComposerMicHint(message, liveSurface === "copilot" ? "chat" : "session");
       liveSurface = null;
       setCompanionPhaseUi("idle");
-    },
-    screenConsent: liveScreenConsent,
-    onScreenShare: (sharing) => {
-      const target = liveSurface === "session" ? "session" : "chat";
-      if (sharing) {
-        screenShareHintRestore = currentComposerHint(target);
-        setComposerMicHint("Sharing a screen frame…", target);
-      } else if (screenShareHintRestore != null) {
-        // Only restore if nothing else replaced the cue in the meantime.
-        if (currentComposerHint(target) === "Sharing a screen frame…") {
-          setComposerMicHint(screenShareHintRestore, target);
-        }
-        screenShareHintRestore = null;
-      }
     },
   });
   await companionLive.start(collectCompanionContext());
@@ -3187,12 +3182,16 @@ async function bootApp() {
     void sendChat();
   });
 
+  $("#chat-input")?.addEventListener("input", resizeCopilotComposerInput);
   $("#chat-input")?.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
       void sendChat();
+      return;
     }
+    queueMicrotask(resizeCopilotComposerInput);
   });
+  resizeCopilotComposerInput();
 
   $("#session-chat-input")?.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {

@@ -2792,35 +2792,39 @@ button:active {
   background: rgba(107, 76, 255, 0.2);
 }
 
-.view-copilot .copilot-mic:hover:not(:disabled),
-.view-session .session-copilot-composer .copilot-mic:hover:not(:disabled) {
+.view-copilot .copilot-mic:hover:not(:disabled):not(.is-on),
+.view-session .session-copilot-composer .copilot-mic:hover:not(:disabled):not(.is-on) {
   background: #ddd0f5;
 }
 
-/* Session Talk may use phase fills; Copilot Mic stays tonal #e9ddfd (live 03/31). */
-.view-session .session-companion-talk.is-live {
+/* Mic / Talk ON: distinct fills by Live phase (idle stays tonal #e9ddfd). */
+.view-copilot .copilot-mic.is-on.is-live,
+.view-session .session-companion-talk.is-on.is-live,
+.view-session .session-copilot-composer .copilot-mic.is-on.is-live {
   background: #6b4cff;
   color: #f7f4ff;
+  box-shadow: 0 0 0 3px rgba(107, 76, 255, 0.28);
 }
-.view-session .session-companion-talk.is-thinking {
+.view-copilot .copilot-mic.is-on.is-thinking,
+.view-session .session-companion-talk.is-on.is-thinking,
+.view-session .session-copilot-composer .copilot-mic.is-on.is-thinking {
   background: #3d2a99;
   color: #f7f4ff;
+  box-shadow: 0 0 0 3px rgba(61, 42, 153, 0.28);
 }
-.view-session .session-companion-talk.is-speaking {
-  background: #2f6b45;
-  color: #f4fff7;
+.view-copilot .copilot-mic.is-on.is-speaking,
+.view-session .session-companion-talk.is-on.is-speaking,
+.view-session .session-copilot-composer .copilot-mic.is-on.is-speaking {
+  background: #2a6b7a;
+  color: #f4fcff;
+  box-shadow: 0 0 0 3px rgba(42, 107, 122, 0.28);
 }
-.view-session .session-companion-talk.is-connecting {
+.view-copilot .copilot-mic.is-on.is-connecting,
+.view-session .session-companion-talk.is-on.is-connecting,
+.view-session .session-copilot-composer .copilot-mic.is-on.is-connecting {
   background: #5c5348;
   color: #f6f0e6;
-}
-
-.view-copilot .copilot-mic.is-live,
-.view-copilot .copilot-mic.is-thinking,
-.view-copilot .copilot-mic.is-speaking,
-.view-copilot .copilot-mic.is-connecting {
-  background: #e9ddfd;
-  color: var(--mc-text-primary);
+  box-shadow: 0 0 0 3px rgba(92, 83, 72, 0.28);
 }
 
 .view-copilot .copilot-send.primary,

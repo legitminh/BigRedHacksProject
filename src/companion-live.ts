@@ -3,8 +3,10 @@
  * Streams only to Waypoint `/v1/companion/live` — never opens Google sockets.
  *
  * Audio uses the wp1 binary frame protocol (see backend audioProtocol.ts).
- * Downlink plays through a continuous AudioWorklet ring (silence on underrun)
- * so gaps between network batches never tear the AudioBufferSource chain.
+ * Downlink plays through a continuous AudioWorklet queue (silence on underrun)
+ * so gaps between paced network slices never tear the AudioBufferSource chain.
+ *
+ * Live never captures the screen — screencap_request is refused immediately.
  */
 
 import { invoke } from "@tauri-apps/api/core";
@@ -32,26 +34,30 @@ export type CompanionLiveHandlers = {
   onAssistant?: (text: string, isFinal: boolean) => void;
   onError?: (message: string) => void;
   onLevel?: (rms: number) => void;
-  /**
-   * Whether the user currently consents to sharing a screen frame. Missing → denied.
-   * Checked on every screencap request (not cached) so toggling the pref takes effect live.
-   */
-  screenConsent?: () => boolean | Promise<boolean>;
-  /** True while a screen frame is being captured/sent; false when done or refused. */
-  onScreenShare?: (sharing: boolean) => void;
 };
 
 /** ws_url has no query string; protocols = ["waypoint.live.v1", "bearer.<jwt>"]. */
 type LiveInfo = { ws_url: string; protocols: string[] };
 
-const SCREEN_OFF_MESSAGE = "Screen sharing is off.";
+const SCREENCAP_REFUSED =
+  "Live Copilot does not use screen capture.";
 
 const AUDIO_PROTOCOL = "wp1";
 const AUDIO_KIND_DOWNLINK = 1;
 const AUDIO_KIND_UPLINK = 2;
 const HEADER_BYTES = 16;
-/** Hold this much resampled audio before the worklet starts draining (jitter). */
-const PREROLL_SEC = 0.18;
+/**
+ * Jitter cushion before the worklet starts draining.
+ * Backend paces ~20ms wp1 slices at 1× realtime — keep this low (~80ms) so speech
+ * doesn't feel delayed; brief gaps play as silence rather than a huge buffer.
+ */
+const PREROLL_SEC = 0.08;
+/** After a long underrun gap, rebuild this much cushion before draining again. */
+const REPREROLL_SEC = 0.06;
+/** Treat an underrun older than this as a real gap worth a gentle re-preroll. */
+const UNDERRUN_GAP_MS = 45;
+/** Keep mic uplink muted briefly after assistant audio drains (echo / barge-in). */
+const POST_PLAYBACK_MUTE_MS = 150;
 
 function encodePcmFrame(
   kind: number,
@@ -140,9 +146,10 @@ export class CompanionLiveSession {
   private phase: CompanionPhase = "idle";
   private epoch = 1;
   private oddByte: number | null = null;
-  private bargeHits = 0;
   private barged = false;
   private speaking = false;
+  private underrunAt = 0;
+  private muteUplinkUntil = 0;
   private handlers: CompanionLiveHandlers;
   private useBinaryAudio = true;
   private uplinkSeq = 0;
@@ -176,10 +183,11 @@ export class CompanionLiveSession {
     this.pendingPlaybackSamples = 0;
     this.playbackPrimed = false;
     this.speaking = false;
+    this.underrunAt = 0;
+    this.muteUplinkUntil = 0;
     this.oddByte = null;
     // Keep `barged` so in-flight downlink frames stay dropped until clear_audio /
     // listening / audio_end resets it. Clearing here let barge-in leak audio.
-    this.bargeHits = 0;
     this.playbackWorklet?.port.postMessage({ type: "reset" });
   }
 
@@ -218,12 +226,27 @@ export class CompanionLiveSession {
     const floats = resampleS16leToF32(input, rate, this.audioCtx.sampleRate);
     if (floats.length === 0) return;
 
+    const wasSpeaking = this.speaking;
     this.speaking = true;
+    this.muteUplinkUntil = 0;
+
+    // After a real gap (not a 1-quantum hiccup), rebuild a small cushion once.
+    if (
+      this.playbackPrimed &&
+      this.underrunAt > 0 &&
+      performance.now() - this.underrunAt >= UNDERRUN_GAP_MS
+    ) {
+      this.playbackPrimed = false;
+    }
+    this.underrunAt = 0;
+
     if (!this.playbackPrimed) {
       this.pendingPlayback.push(floats);
       this.pendingPlaybackSamples += floats.length;
-      const need = Math.floor(PREROLL_SEC * this.audioCtx.sampleRate);
-      if (this.pendingPlaybackSamples >= need) {
+      // First cushion of an utterance uses PREROLL; mid-turn recovery uses REPREROLL.
+      const targetSec = wasSpeaking ? REPREROLL_SEC : PREROLL_SEC;
+      const target = Math.floor(targetSec * this.audioCtx.sampleRate);
+      if (this.pendingPlaybackSamples >= target) {
         this.playbackPrimed = true;
         this.flushPendingPlayback();
       }
@@ -243,14 +266,12 @@ export class CompanionLiveSession {
 
   private onLevel(rms: number) {
     this.handlers.onLevel?.(rms);
-    if (this.speaking && rms > 0.12) this.bargeHits += 1;
-    else this.bargeHits = 0;
-    if (this.speaking && this.bargeHits > 5 && !this.barged) {
-      this.barged = true;
-      this.sendJson({ type: "barge" });
-      this.stopPlayback();
-      this.setPhase("listening");
-    }
+  }
+
+  /** True while assistant audio is queued/playing, or during the post-drain mute hold. */
+  private get playbackBusy(): boolean {
+    if (this.muteUplinkUntil > 0 && performance.now() < this.muteUplinkUntil) return true;
+    return this.speaking || this.playbackPrimed || this.pendingPlaybackSamples > 0;
   }
 
   private sendUplinkPcm(pcm: ArrayBuffer) {
@@ -274,6 +295,17 @@ export class CompanionLiveSession {
     if (!this.audioCtx || this.playbackWorklet) return;
     await this.audioCtx.audioWorklet.addModule("/pcm-playback-worklet.js");
     this.playbackWorklet = new AudioWorkletNode(this.audioCtx, "pcm-playback");
+    // Underrun → silence in the worklet. Mark the time; only a sustained gap triggers
+    // gentle re-preroll on the next packet (see appendPcmBytes). No queue reset/skip.
+    this.playbackWorklet.port.onmessage = (event: MessageEvent) => {
+      const data = event.data as { type?: string };
+      if (data?.type !== "underrun" || this.barged) return;
+      this.underrunAt = performance.now();
+      if (!this.speaking) {
+        this.playbackPrimed = false;
+        this.muteUplinkUntil = performance.now() + POST_PLAYBACK_MUTE_MS;
+      }
+    };
     this.playbackWorklet.connect(this.audioCtx.destination);
   }
 
@@ -293,11 +325,12 @@ export class CompanionLiveSession {
     this.captureWorklet = new AudioWorkletNode(this.audioCtx, "pcm-capture");
     this.captureWorklet.port.onmessage = (event: MessageEvent) => {
       const data = event.data as { pcm?: ArrayBuffer; rms?: number };
-      if (typeof data.rms === "number") this.handlers.onLevel?.(data.rms);
-      if (data.pcm) {
-        if (typeof data.rms === "number") this.onLevel(data.rms);
-        this.sendUplinkPcm(data.pcm);
-      }
+      if (typeof data.rms === "number") this.onLevel(data.rms);
+      if (!data.pcm) return;
+      // Hard-mute uplink while assistant audio is queued/playing (and briefly after).
+      // Speaker echo was reaching Gemini VAD and cutting the reply short.
+      if (this.playbackBusy || this.barged) return;
+      this.sendUplinkPcm(data.pcm);
     };
     source.connect(this.captureWorklet);
   }
@@ -337,8 +370,10 @@ export class CompanionLiveSession {
       this.setPhase(message.phase as CompanionPhase);
       if (message.phase === "listening") {
         this.barged = false;
-        // Next assistant turn re-prerolls once; keep the worklet running.
-        if (!this.speaking) this.playbackPrimed = false;
+        // Do not clear playbackPrimed here. Server sends listening immediately after
+        // audio_end while the worklet may still be draining; clearing primed early
+        // made playbackBusy false and unmuted the mic into speaker echo.
+        // Underrun (and clear_audio / stopPlayback) re-preroll the next turn.
       }
       return;
     }
@@ -378,7 +413,13 @@ export class CompanionLiveSession {
       return;
     }
     if (type === "screencap_request" && typeof message.id === "string") {
-      void this.handleScreencapRequest(message.id);
+      // Live never captures the screen — refuse immediately (no permission prompt, no invoke).
+      this.sendJson({
+        type: "screencap",
+        id: message.id,
+        ok: false,
+        error: SCREENCAP_REFUSED,
+      });
       return;
     }
     if (type === "error" && typeof message.message === "string") {
@@ -387,46 +428,11 @@ export class CompanionLiveSession {
     }
   }
 
-  private async handleScreencapRequest(id: string) {
-    let consent = false;
-    try {
-      consent = (await this.handlers.screenConsent?.()) === true;
-    } catch {
-      consent = false;
-    }
-    if (!consent) {
-      // Refuse without touching the capture path; never send a frame.
-      this.sendJson({ type: "screencap", id, ok: false, error: SCREEN_OFF_MESSAGE });
-      return;
-    }
-    this.setPhase("thinking");
-    this.handlers.onScreenShare?.(true);
-    try {
-      const jpeg_base64 = await invoke<string>("companion_grab_screencap", {
-        screenConsent: true,
-      });
-      this.sendJson({
-        type: "screencap",
-        id,
-        ok: true,
-        jpeg_base64,
-      });
-    } catch (err) {
-      this.sendJson({
-        type: "screencap",
-        id,
-        ok: false,
-        error: typeof err === "string" ? err : err instanceof Error ? err.message : String(err),
-      });
-    } finally {
-      this.handlers.onScreenShare?.(false);
-    }
-  }
-
   async start(context: CompanionContext): Promise<void> {
     if (this.phase !== "idle") return;
     const info = await invoke<LiveInfo>("companion_live_info");
-    this.audioCtx = new AudioContext({ sampleRate: 48000 });
+    // Prefer the hardware rate so we don't fight the OS resampler on top of ours.
+    this.audioCtx = new AudioContext();
     if (this.audioCtx.state === "suspended") await this.audioCtx.resume();
     await this.ensurePlaybackWorklet();
     this.setPhase("connecting");

@@ -274,7 +274,6 @@
                     id="chat-input"
                     rows="1"
                     aria-label="Message Copilot"
-                    aria-describedby="chat-hint"
                     placeholder="Message your copilot…"
                   ></textarea>
                   <button
@@ -282,6 +281,7 @@
                     type="button"
                     class="copilot-mic"
                     aria-label="Start live voice with Copilot"
+                    aria-pressed="false"
                     title="Start / end live voice with Copilot"
                   >
                     Mic
@@ -291,13 +291,7 @@
                   </button>
                 </div>
               </form>
-              <p id="chat-hint" class="composer-hint copilot-hint">
-                Enter to send · Click the microphone to start or stop a voice turn.
-              </p>
             </footer>
-            <p class="copilot-responses-foot">
-              Responses always appear as text. Audio is yours to turn on.
-            </p>
           </div>
         </div>
       </section>
@@ -651,6 +645,7 @@
                         type="button"
                         class="copilot-mic session-companion-talk"
                         aria-label="Start live companion talk"
+                        aria-pressed="false"
                         title="Start / end live voice with companion"
                       >
                         Talk
@@ -883,9 +878,9 @@
                   <h2 id="settings-privacy-title" class="settings-privacy-title">Your session, not a recording.</h2>
                   <p class="settings-privacy-copy">
                     Mission summaries and study notes are saved to your account. Screen text and window checks stay on
-                    your Mac during missions. When Copilot Live asks to see your screen, Waypoint sends a screenshot to
-                    Google Gemini through the Waypoint API. If Camera accountability is on, short webcam clips go to the
-                    Waypoint API for presence — then discarded. They never prove you’re distracted.
+                    your Mac during missions. Copilot Live is voice-only — it does not capture or send screenshots.
+                    If Camera accountability is on, short webcam clips go to the Waypoint API for presence — then
+                    discarded. They never prove you’re distracted.
                   </p>
                 </section>
               </div>
@@ -910,7 +905,7 @@
                     <li class="mc-perm-row">
                       <div class="mc-perm-copy">
                         <strong>Screen Recording</strong>
-                        <span>Required for missions and for Copilot Live screen context.</span>
+                        <span>Required for missions (local focus checks). Copilot Live does not use the screen.</span>
                       </div>
                       <span id="perm-screen" class="mc-perm-badge" data-state="unknown">Checking…</span>
                     </li>
