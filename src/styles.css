@@ -3964,7 +3964,8 @@ body:has(.view-mission-setup.active) .grain {
   margin: 0 0 0.45rem;
   font-size: 0.95rem;
   font-weight: 700;
-  color: var(--mc-text-primary);
+  /* Live 16 lost / session header (6:1710): ink #282237; scale/weight open */
+  color: #282237;
 }
 
 .session-copilot-presence {
@@ -4367,18 +4368,21 @@ body:has(.view-session.active) .grain {
 
 .session-timer-caption {
   margin: 0.35rem 0 0;
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
+  /* Live 09 relaunch caption (6:642): Regular 11 / 400 / lh 1.4 muted */
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: normal;
   text-transform: uppercase;
-  color: var(--mc-text-muted);
-  font-weight: 600;
+  color: #645d73;
 }
 
 .session-controls {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.55rem;
+  /* Live 09 relaunch controls (6:643): 12px between Take a break / End */
+  gap: 12px;
   width: 100%;
   margin-top: 0.25rem;
 }
