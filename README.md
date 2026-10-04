@@ -1,17 +1,49 @@
 # Waypoint
 
-End-user study navigation app for Big Red Hacks.
+End-user study navigation app for Big Red Hacks — **self-hostable beta**.
 
-Users download the Mac app, **Sign in with Google**, and use Copilot + Lock-in.  
-**Gemini, Google OAuth, Postgres, and Ollama live only on your Waypoint API server.** The Mac build only needs the public API URL.
+**Run your own Waypoint API with your own keys** ([BigRedHacksProjectBackend](https://github.com/legitminh/BigRedHacksProjectBackend)). The Mac app only needs `waypoint_api_base` (and matching `local_llm_base`) pointed at that server. **Never put Gemini, Google OAuth secrets, xAI, Presage, or Ollama credentials in the desktop repo** — they belong in the API’s `.env` only.
 
 | Repo | Role |
 |---|---|
 | **This repo** | Tauri Mac app (frontend / desktop) |
-| [BigRedHacksProjectBackend](https://github.com/legitminh/BigRedHacksProjectBackend) | API + secrets + Ollama |
+| [BigRedHacksProjectBackend](https://github.com/legitminh/BigRedHacksProjectBackend) | API + all provider secrets + Ollama |
 
-- **Deploy / run the API:** [Backend DEPLOY.md](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/DEPLOY.md)  
-- **Desktop ↔ API wiring details:** [docs/BACKEND.md](docs/BACKEND.md)
+- **API keys & env vars:** [Backend README](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/README.md) (local dev) + **[DEPLOY.md](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/DEPLOY.md)** (production / HTTPS)
+- **Desktop ↔ API wiring:** [docs/BACKEND.md](docs/BACKEND.md)
+
+Users open the Mac app, **Sign in with Google** (configured on your API), and use Copilot + Lock-in.
+
+---
+
+## Beta `.app` from GitHub Releases
+
+Download a prebuilt macOS app from **[GitHub Releases](https://github.com/legitminh/BigRedHacksProject/releases)** when available.
+
+The API URL is **baked in at compile time**. A release binary always calls whatever `waypoint_api_base` was set when it was built — not your server until you rebuild (or use a build that already targets your origin).
+
+**Before using Waypoint:** deploy or run the API ([Backend README](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/README.md) → [DEPLOY.md](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/DEPLOY.md)). Note its origin (e.g. `https://api.example.com` or `http://127.0.0.1:8787`).
+
+| Path | When | What to do |
+|---|---|---|
+| **A — Your API (typical)** | Remote HTTPS or any origin you control | Clone `main`, configure `src-tauri/secrets.toml`, rebuild, use the `.app` you built |
+| **B — Localhost / `http://` beta** | Shipped beta targets `127.0.0.1`, or you only have a local API | Same secrets setup; build **without** `WAYPOINT_RELEASE=1` so localhost/`http://` is allowed |
+
+**Rebuild steps (A or B):**
+
+```bash
+git clone https://github.com/legitminh/BigRedHacksProject.git
+cd BigRedHacksProject
+npm install
+cp src-tauri/secrets.example.toml src-tauri/secrets.toml
+# Edit waypoint_api_base + local_llm_base (same origin, no trailing slash)
+```
+
+- **Local / HTTP (path B):** `npm run app:build:debug` — runs `tauri build --debug` and `app:bundle-helpers` into `src-tauri/target/debug/bundle/macos/Waypoint.app`.  
+  Or: `npx tauri build --debug && npm run app:bundle-helpers -- debug`
+- **Ship / public HTTPS (path A):** set `https://…` bases, then `npm run app:build` (`WAYPOINT_RELEASE=1`; **refuses** empty, localhost, or `http://` `waypoint_api_base`).
+
+If macOS blocks the binary: **System Settings → Privacy & Security → Open Anyway**.
 
 ---
 
@@ -48,16 +80,13 @@ Confirm `swiftc` is on `PATH` (`/usr/bin/swiftc`). Without it, OCR / face presen
 cd ~
 git clone https://github.com/legitminh/BigRedHacksProject.git
 cd BigRedHacksProject
-git checkout cursor/waypoint-rust-study-nav-bd7b
 npm install
 cp src-tauri/secrets.example.toml src-tauri/secrets.toml
 ```
 
-`src-tauri/secrets.toml` is **gitignored** and gets compiled into the binary. Do not invent or paste Gemini / Google / xAI keys here — those live only on the API (`.env`). Leave `coach_api_token` and `presage_api_key` empty (non-empty values fail release builds).
+`src-tauri/secrets.toml` is **gitignored** and compiled into the binary. It holds **only** the API origin (and optional dev-only tokens — leave `coach_api_token` and `presage_api_key` empty for release builds). **Do not** paste Gemini, Google, xAI, or Presage keys here; configure them on the API ([Backend README](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/README.md), [DEPLOY.md](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/DEPLOY.md)).
 
-Run / deploy the API first ([DEPLOY.md](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/DEPLOY.md)). Note its public origin, e.g. `https://api.example.com` or `http://127.0.0.1:8787`.
-
-Edit both bases together (same origin, **no trailing slash**). `local_llm_base` must be `waypoint_api_base` + `/v1/coach`.
+Edit both bases together (same origin, **no trailing slash**). `local_llm_base` = `waypoint_api_base` + `/v1/coach`.
 
 ### Local API on this Mac
 
@@ -86,7 +115,7 @@ presage_api_key = ""
 
 - `waypoint_api_base` must match the API’s `PUBLIC_BASE_URL` (scheme + host, no trailing slash).  
 - Changing the API URL requires a **rebuild** (values are baked in at compile time).  
-- Google OAuth is configured **only** on the API. Details: backend DEPLOY / README.
+- Google OAuth is configured **only** on the API.
 
 More wiring notes: [docs/BACKEND.md](docs/BACKEND.md).
 
@@ -113,8 +142,6 @@ open src-tauri/target/release/bundle/macos/Waypoint.app
 ```
 
 **Judges / demo / ship:** use `npm run app:build`, then open the release `.app` — not `app:install`.
-
-If macOS blocks the binary: **System Settings → Privacy & Security → Open Anyway**.
 
 ### Switching backends
 
@@ -172,7 +199,7 @@ Server-side camera contract: [Backend CAMERA-ACCOUNTABILITY.md](https://github.c
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Camera accountability stuck / “unavailable” | Camera TCC denied, or toggle on without sign-in | Sign in → enable toggle → **System Settings → Camera** for Waypoint → quit/reopen |
-| Sign-in / Copilot / coach fails; Connection status red | API not running or unreachable | Start API (`npm run dev` in backend) or check host / HTTPS proxy ([DEPLOY.md](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/DEPLOY.md)) |
+| Sign-in / Copilot / coach fails; Connection status red | API not running or unreachable | Start API ([Backend README](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/README.md)) or check host / HTTPS proxy ([DEPLOY.md](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/DEPLOY.md)) |
 | App still hits old host after editing `secrets.toml` | URL is compile-time | Rebuild (`app:dev` / `app:build:debug` / `app:build`); restart the app |
 | `WAYPOINT_RELEASE=1` / `app:build` panics on API base | Localhost or `http://` in `waypoint_api_base` | Point at public `https://…` matching `PUBLIC_BASE_URL`, or use `app:dev` / `app:build:debug` for local |
 | Lock-in won’t start (Screen Recording) | TCC not granted for this binary path | Enable Waypoint under Screen Recording; quit/reopen (especially after `app:install` to `/Applications`) |
@@ -197,6 +224,7 @@ No API keys on the device. Copilot uses Gemini on your server, with silent local
 | Doc | Purpose |
 |---|---|
 | [BigRedHacksProjectBackend](https://github.com/legitminh/BigRedHacksProjectBackend) | API repo |
+| [Backend README](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/README.md) | Local API setup, `.env` / keys |
 | [Backend DEPLOY.md](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/DEPLOY.md) | Production / local API host setup |
 | [docs/BACKEND.md](docs/BACKEND.md) | Compile this app against any API URL; endpoint map |
 | `open Waypoint.code-workspace` | Edit desktop + API together in Cursor |
