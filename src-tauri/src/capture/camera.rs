@@ -61,6 +61,14 @@ pub fn grab_jpeg() -> Result<Vec<u8>, String> {
     Ok(jpeg)
 }
 
+/// Webcam clip plus one mid-clip still for sparse local phone checks.
+pub struct PresageClip {
+    pub path: PathBuf,
+    /// Mid-clip JPEG (downscaled) — used for local VLM phone detection without
+    /// reopening the camera.
+    pub sample_jpeg: Option<Vec<u8>>,
+}
+
 /// Record a short webcam clip for server-side camera observe (presence / stress).
 /// Grabs as fast as the camera/JPEG path allows, then encodes at the measured fps.
 /// Duration is clamped so uploads stay under the ~8MB observe limit.
@@ -68,7 +76,7 @@ pub fn record_presage_clip(
     dir: &Path,
     duration_secs: u64,
     _target_fps: u32,
-) -> Result<PathBuf, String> {
+) -> Result<PresageClip, String> {
     if !nokhwa::nokhwa_check() {
         return Err("Camera permission is unavailable.".into());
     }
@@ -137,8 +145,17 @@ pub fn record_presage_clip(
         ));
     }
 
+    // Keep a mid-clip still for local phone VLM before we delete frame JPEGs.
+    let sample_jpeg = paths
+        .get(paths.len() / 2)
+        .and_then(|p| std::fs::read(p).ok())
+        .filter(|b| !b.is_empty());
+
     let out = dir.join("presage-clip.mp4");
     encode_clip_from_jpegs(&paths, &out, measured_fps.max(10))?;
     let _ = std::fs::remove_dir_all(&frames_dir);
-    Ok(out)
+    Ok(PresageClip {
+        path: out,
+        sample_jpeg,
+    })
 }

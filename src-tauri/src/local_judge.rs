@@ -720,9 +720,40 @@ fn is_stress_break_invite_kind(kind: &str) -> bool {
     )
 }
 
+/// Camera accountability + calm coach kinds — never treat the tag as a distraction app.
+/// Server/desktop already authored the spoken line; keep it verbatim (except placeholders).
+fn is_verbatim_coach_kind(kind: &str) -> bool {
+    matches!(
+        kind.to_lowercase().as_str(),
+        "watching"
+            | "encourage"
+            | "on_task"
+            | "left_desk"
+            | "left_desk_pause"
+            | "welcome_back"
+            | "camera_obstructed"
+            | "camera"
+            | "suggest_break"
+            | "stressed"
+    )
+}
+
 fn coach_line_needs_rewrite(text: &str, kind: &str, distraction: &str, goals: &str) -> bool {
     if is_placeholder_coach_line(text) {
         return true;
+    }
+    // Presence / watching / stress invites omit mission words on purpose.
+    // Never rewrite them into "left_desk isn't {goal}" distraction templates.
+    if is_verbatim_coach_kind(kind) {
+        // Exception: a "stressed" line that also names Instagram/etc → refocus, not break.
+        if is_stress_break_invite_kind(kind)
+            && (is_distraction_coach_context("", distraction)
+                || distraction_label_in_line(text).is_some())
+            && coach_line_suggests_break(text)
+        {
+            return true;
+        }
+        return false;
     }
     // Stress/break invites often omit mission words — don't treat that as off-mission.
     // Still rewrite if the line also names a distraction surface (refocus, not break).
@@ -759,6 +790,10 @@ fn is_status_kind_token(s: &str) -> bool {
             | "watching"
             | "encourage"
             | "camera"
+            | "left_desk"
+            | "left_desk_pause"
+            | "welcome_back"
+            | "camera_obstructed"
     )
 }
 
@@ -832,7 +867,7 @@ fn too_similar(candidate: &str, recent: &[String]) -> bool {
 }
 
 fn fallback_templates(kind: &str, distraction: &str, goals: &str, nag_n: u32) -> Vec<String> {
-    let d = if distraction.is_empty() {
+    let d = if distraction.is_empty() || is_status_kind_token(distraction) {
         "that tab"
     } else {
         distraction
@@ -850,6 +885,30 @@ fn fallback_templates(kind: &str, distraction: &str, goals: &str, nag_n: u32) ->
             format!("This fits {g}. Stay with it a bit longer."),
             format!("Good pullback toward {g}. Ride this focus."),
             format!("You’re on {g} — keep that momentum."),
+        ],
+        // Camera accountability — human meaning, never "tag isn't goal".
+        "left_desk" => vec![
+            "Looks like you stepped away. Come back when you can.".into(),
+            "You’re away from the desk — return when you’re ready.".into(),
+            "Still away from the camera. Come back to the work.".into(),
+        ],
+        "left_desk_pause" => vec![
+            "Still away — I’ll pause check-ins until you’re back.".into(),
+            "I’ll stay quiet until you’re back at the desk.".into(),
+        ],
+        "welcome_back" => vec![
+            "Welcome back. Stay with the work.".into(),
+            "Good to see you back — let’s keep going.".into(),
+        ],
+        "camera_obstructed" | "camera" => vec![
+            "I can’t see you clearly. Check the camera or lighting.".into(),
+            "Camera’s unclear — fix lighting or uncover the lens.".into(),
+        ],
+        "suggest_break" => vec![
+            "Feeling tense — optional five-minute break?".into(),
+        ],
+        "stressed" => vec![
+            "You seem tense — one slow breath, then back.".into(),
         ],
         _ => {
             // Avoid "Quick check:" here — models echo it into dumps that collide with the UI kicker.
@@ -1152,6 +1211,58 @@ mod tests {
         assert_eq!(kept, stress);
         let stressed = sanitize_coach_line(stress, "stressed", "stressed", "coding project");
         assert_eq!(stressed, stress);
+    }
+
+    #[test]
+    fn camera_presence_kinds_kept_verbatim_not_rewritten_as_distraction() {
+        let goals = "work on coding project for Waypoint!";
+        let cases: &[(&str, &str)] = &[
+            (
+                "left_desk",
+                "Looks like you stepped away. Come back when you can.",
+            ),
+            (
+                "left_desk",
+                "Still away — return to the desk when you're ready.",
+            ),
+            (
+                "left_desk_pause",
+                "Still away — I'll pause check-ins until you're back.",
+            ),
+            ("welcome_back", "Welcome back. Stay with the work."),
+            (
+                "camera_obstructed",
+                "I can't see you clearly. Check the camera or lighting.",
+            ),
+            (
+                "suggest_break",
+                "Feeling tense — optional five-minute break?",
+            ),
+            (
+                "stressed",
+                "You seem tense — one slow breath, then back.",
+            ),
+            (
+                "watching",
+                "You're locked in. I'll check in if you drift.",
+            ),
+        ];
+        for (kind, text) in cases {
+            // deliver_ephemeral used to pass kind as distraction → "left_desk isn't coding…".
+            let sanitized = sanitize_coach_line(text, kind, kind, goals);
+            assert_eq!(
+                sanitized, *text,
+                "kind={kind} was rewritten into distraction copy: {sanitized}"
+            );
+            assert!(
+                !sanitized.to_lowercase().contains("left_desk"),
+                "tag leaked into spoken line for {kind}: {sanitized}"
+            );
+            assert!(
+                !sanitized.contains("isn't") && !sanitized.contains("isn’t"),
+                "distraction template leaked for {kind}: {sanitized}"
+            );
+        }
     }
 
     #[test]

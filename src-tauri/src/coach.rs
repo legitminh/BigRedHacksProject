@@ -21,6 +21,9 @@ const LOCAL_TICK_SECS: u64 = 1;
 const OCR_TICK_SECS: u64 = 3;
 /// Rare tiny local VLM (moondream) when OCR/OS signals are inconclusive.
 const LOCAL_VLM_TICK_SECS: u64 = 45;
+/// Webcam phone check shares the same sparse cadence (physical phone ≠ screen OCR).
+const WEBCAM_PHONE_TICK_SECS: i64 = LOCAL_VLM_TICK_SECS as i64;
+const PHONE_COACH_LINE: &str = "Phone in hand — set it down and return to the work.";
 /// Ambiguous context judgments per session (local model only — no Gemini in lock-in).
 const MAX_CONTEXT_JUDGMENTS_PER_SESSION: u32 = 120;
 /// Soft coach lines (help / stress) — don't spam.
@@ -804,6 +807,8 @@ fn mark_local_on_task(app: &AppHandle, info: &frontmost::FrontmostInfo) {
 async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBool>) {
     // Fully deferred — never blocks coaching / Instagram catch at session start.
     tokio::time::sleep(Duration::from_secs(PRESAGE_START_DELAY_SECS)).await;
+    let mut last_phone_vlm_at =
+        chrono::Utc::now() - chrono::Duration::seconds(WEBCAM_PHONE_TICK_SECS);
 
     while !stop.load(Ordering::SeqCst) {
         let (active, paused, on_pomodoro_break) = {
@@ -838,6 +843,7 @@ async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop
 
         // Quiet phases: heartbeat with phase=paused|break (tiny JPEG, no webcam) so the
         // server refreshes stress cooldown and stays silent. Active: record + upload clip.
+        let mut sample_jpeg: Option<Vec<u8>> = None;
         let observe_result = if paused {
             if stop.load(Ordering::SeqCst) {
                 Err("stopped".into())
@@ -860,7 +866,7 @@ async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop
                 })
                 .await
                 {
-                    Ok(Ok(path)) => Some(path),
+                    Ok(Ok(clip)) => Some(clip),
                     Ok(Err(e)) => {
                         tracing::warn!("camera clip record: {e}");
                         None
@@ -872,12 +878,13 @@ async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop
                 }
             };
 
-            if let Some(path) = clip {
-                let cleanup = path.clone();
+            if let Some(clip) = clip {
+                sample_jpeg = clip.sample_jpeg;
+                let cleanup = clip.path.clone();
                 let result = if stop.load(Ordering::SeqCst) {
                     Err("stopped".into())
                 } else {
-                    camera_observe::observe_clip(&cfg, &session_id, phase, &path).await
+                    camera_observe::observe_clip(&cfg, &session_id, phase, &clip.path).await
                 };
                 let _ = tokio::fs::remove_file(&cleanup).await;
                 result
@@ -886,13 +893,40 @@ async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop
             }
         };
 
+        // Sparse local VLM on a mid-clip still — physical phone never appears on screen OCR.
+        let mut phone_hit = false;
+        if !paused {
+            let due = chrono::Utc::now()
+                .signed_duration_since(last_phone_vlm_at)
+                .num_seconds()
+                >= WEBCAM_PHONE_TICK_SECS;
+            if due {
+                if let Some(jpeg) = sample_jpeg.as_ref() {
+                    last_phone_vlm_at = chrono::Utc::now();
+                    if local_vision::vlm_available(&cfg).await {
+                        match local_vision::judge_webcam_phone(&cfg, jpeg).await {
+                            Ok((true, conf)) => {
+                                tracing::info!("webcam phone detected conf={conf:.2}");
+                                phone_hit = true;
+                            }
+                            Ok((false, _)) => {}
+                            Err(e) => tracing::debug!("webcam phone VLM: {e}"),
+                        }
+                    }
+                }
+            }
+        }
+
         match observe_result {
             Ok(resp) => {
-                apply_observe_response(&app, &resp, paused);
+                apply_observe_response(&app, &resp, paused, phone_hit);
             }
             Err(e) if e == "stopped" => break,
             Err(e) if e == "no_clip" => {
                 // Clip failed — still wait out the gap so we don't spin the camera.
+                if phone_hit {
+                    deliver_phone_nudge(&app);
+                }
             }
             Err(e) if is_quiet_observe_error(&e) => {
                 // 429 / auth: stay quiet; stop on auth so we don't retry-spam.
@@ -903,6 +937,9 @@ async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop
             }
             Err(e) => {
                 tracing::warn!("camera observe: {e}");
+                if phone_hit {
+                    deliver_phone_nudge(&app);
+                }
             }
         }
 
@@ -941,7 +978,12 @@ fn is_suggest_break_nudge(kind: &str) -> bool {
     kind == "suggest_break"
 }
 
-fn apply_observe_response(app: &AppHandle, resp: &camera_observe::ObserveResponse, paused: bool) {
+fn apply_observe_response(
+    app: &AppHandle,
+    resp: &camera_observe::ObserveResponse,
+    paused: bool,
+    phone_hit: bool,
+) {
     if let Some(note) = resp.watching_note.as_deref() {
         apply_watching_note(app, note);
     }
@@ -953,6 +995,11 @@ fn apply_observe_response(app: &AppHandle, resp: &camera_observe::ObserveRespons
     if paused {
         return;
     }
+    // Looking at a phone often looks like left_frame to Presage — prefer the phone line.
+    if phone_hit {
+        deliver_phone_nudge(app);
+        return;
+    }
     let Some(nudge) = resp.nudge.as_ref() else {
         return;
     };
@@ -962,6 +1009,30 @@ fn apply_observe_response(app: &AppHandle, resp: &camera_observe::ObserveRespons
         nudge.kind.as_str()
     };
     deliver_camera_nudge(app, kind, &nudge.text);
+}
+
+fn deliver_phone_nudge(app: &AppHandle) {
+    let mut vitals = {
+        let state = app.state::<AppState>();
+        let guard = state.session.lock();
+        guard
+            .as_ref()
+            .map(|s| s.vitals.clone())
+            .unwrap_or_else(|| presage::fallback_vitals(false))
+    };
+    let result = CoachVisionResult {
+        on_task: false,
+        objects: vec!["phone".into()],
+        distraction: Some("phone".into()),
+        needs_help: false,
+        stress_cue: vitals.stressed,
+        coach_line: PHONE_COACH_LINE.into(),
+        modality: Some("camera".into()),
+    };
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        apply_coach_tick(&handle, &result, &mut vitals).await;
+    });
 }
 
 fn deliver_camera_nudge(app: &AppHandle, kind: &str, text: &str) {
@@ -1336,6 +1407,24 @@ fn play_back_on_task_ding(app: &AppHandle) {
     });
 }
 
+/// Distraction label for sanitize — empty for camera/status kinds so tags like
+/// `left_desk` are never spoken as if they were Instagram/Discord.
+fn sanitize_distraction_arg(kind: &str) -> &str {
+    match kind {
+        "left_desk"
+        | "left_desk_pause"
+        | "welcome_back"
+        | "camera_obstructed"
+        | "camera"
+        | "suggest_break"
+        | "stressed"
+        | "watching"
+        | "encourage"
+        | "on_task" => "",
+        other => other,
+    }
+}
+
 fn push_ephemeral(app: &AppHandle, text: &str, kind: &str) {
     // Praise / watching lines share the same single-slot gate — never stack over a nag.
     if !claim_ephemeral_slot_keyed(EPHEMERAL_FLOOR_SECS, Some(kind)) {
@@ -1349,7 +1438,7 @@ fn push_ephemeral(app: &AppHandle, text: &str, kind: &str) {
         .as_ref()
         .map(|s| s.goals.clone())
         .unwrap_or_default();
-    let safe = local_judge::sanitize_coach_line(text, kind, kind, &goals);
+    let safe = local_judge::sanitize_coach_line(text, kind, sanitize_distraction_arg(kind), &goals);
     let prompt = CoachPrompt {
         id: Uuid::new_v4().to_string(),
         at: chrono::Utc::now().to_rfc3339(),
@@ -1368,8 +1457,12 @@ fn deliver_ephemeral(app: &AppHandle, prompt: &CoachPrompt) {
         .as_ref()
         .map(|s| s.goals.clone())
         .unwrap_or_default();
-    let safe_text =
-        local_judge::sanitize_coach_line(&prompt.text, &prompt.kind, &prompt.kind, &goals);
+    let safe_text = local_judge::sanitize_coach_line(
+        &prompt.text,
+        &prompt.kind,
+        sanitize_distraction_arg(&prompt.kind),
+        &goals,
+    );
     let prompt = CoachPrompt {
         id: prompt.id.clone(),
         at: prompt.at.clone(),
