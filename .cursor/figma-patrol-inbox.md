@@ -3854,3 +3854,82 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     right on the constellation field; keep Lock-in nav + handoff over
     scrim. Preserve Settings five-tab; do not block Launch.
 - escalate: scrutinous
+
+## done: fp-copilot-responses-foot-missing
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · foot `5:257` ·
+  crop `_verify/tick34-copilot-foot-crop.png`
+- commit: PENDING
+- change: |
+    Restored `.copilot-responses-foot` under composer with live
+    Responses/Audio copy; `margin-top: auto` pins toward `.copilot-main`
+    bottom. `#chat-hint` Enter/mic + Mic/Send unchanged.
+- escalate: scrutinous
+- reopened: true
+
+## done: fp-copilot-muted-645d73
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  page-sub `5:234` · empty body `5:239` · sidebar body `5:221` ·
+  crop `_verify/tick34-copilot-live.png`
+- commit: PENDING
+- change: |
+    `.copilot-page-sub` / `.copilot-empty-copy` / `.copilot-sidebar-body`
+    → muted `#645d73` (not lilac `--mc-text-muted`). Mic/Send/chips +
+    Start a mission wiring untouched.
+- escalate: scrutinous
+
+## done: fp-copilot-sidebar-status-type
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  status `5:226` · crop `_verify/tick34-copilot-sidebar-crop.png`
+- commit: PENDING
+- change: |
+    `.copilot-sidebar-status` → 0.875rem (~14px) / weight 400 / `#645d73`;
+    planet remains 20px under status via sidebar gap. Start a mission
+    wiring unchanged.
+- escalate: scrutinous
+
+## open: fp-connection-lost-header-type
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  header `6:1708` · title `6:1710` · crop `_verify/tick34-lost-panel-crop.png`
+- expected: |
+    Live lost Copilot header title “Your copilot” (`6:1710`, h=31): Medium
+    **~22px** / lh 1.4 dark beside ✦ — not semibold ~15px.
+- actual: |
+    Verified kicker **string** “✦ Your copilot” (`9681808`). Opens lock
+    panel surface/pad/height/stack — not title type scale.
+    `.session-copilot-kicker` is `font-size: 0.95rem` (~15.2) /
+    `font-weight: 700`.
+- deviation: |
+    Tick34 — lost/session “Your copilot” type vs live `6:1710`. Distinct
+    from panel-surface / pad-25 / meta-muted / keeps-chat-chrome; under-
+    covered `2:48`. Spot-check: Pause/End still on flight card.
+- fix_hint: |
+    Set `.session-copilot-kicker` to ~22px / weight 500 / lh 1.4; keep ✦
+    Your copilot string + composer. Preserve Pause/End.
+- escalate: scrutinous
+
+## open: fp-welcome-field-label-type
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` ·
+  Email label `5:64` · Password label `5:68` ·
+  crop `_verify/tick34-welcome-card-crop.png`
+- expected: |
+    Live Email/Password labels (`5:64`/`5:68`, h=20): Semibold/Medium
+    **14px** / lh 20 / dark `#2a2440` above 64px fields (label→field gap
+    10 already on labeled-field-stack).
+- actual: |
+    Opens lock form structure (`fp-welcome-signin-form`) + 64px field
+    height + lead type done — not label type scale. `.welcome-field-label`
+    is `font-size: 0.82rem` (~13.1) when fields mount.
+- deviation: |
+    Tick34 — welcome field label type vs live `5:64`/`5:68`. Distinct from
+    signin-form / field-height / lead-type (`8eb02fd`); under-covered
+    welcome form. Spot-check: lead 16/`#645d73` still matches (no reopen).
+- fix_hint: |
+    Set `.welcome-field-label` to 14px / weight 600 / lh 20 / `#2a2440`;
+    keep 10px gap + 64px fields + Google wiring until form open lands.
+- escalate: scrutinous
+
