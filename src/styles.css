@@ -2435,6 +2435,14 @@ button:active {
   box-shadow: none; /* flat filled — no --mc-shadow-glow-purple */
 }
 
+/* Live 03 Start a mission 5:223 — M3 Label Large Medium ~14 / 500 / white */
+#copilot-start-mission.copilot-sidebar-cta.primary,
+.copilot-sidebar-cta.primary {
+  font-size: 0.875rem; /* 14px */
+  font-weight: 500; /* override .primary 700 */
+  color: #fff;
+}
+
 .copilot-sidebar-status {
   margin: 0;
   font-size: 0.75rem; /* 12px — live 03 status 5:226 */
@@ -2585,11 +2593,12 @@ button:active {
   height: 52px;
   background: #e9ddfd;
   border: none;
-  color: var(--mc-text-primary);
+  color: #282237; /* live chip label ink 5:241 */
   padding: 0 1rem;
   border-radius: var(--radius-pill);
-  font-size: 0.95rem;
-  font-weight: 500;
+  font-size: 1rem; /* 16px — live Regular */
+  font-weight: 400;
+  line-height: 1.4;
   transition: background 0.2s ease;
 }
 
@@ -2757,6 +2766,14 @@ button:active {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Live 03 Mic 5:251 — Regular 16 / 400 / #282237 on tonal circle */
+.view-copilot .copilot-mic {
+  font-size: 1rem; /* 16px */
+  font-weight: 400;
+  line-height: 1.4;
+  color: #282237;
 }
 
 .copilot-mic:hover:not(:disabled) {

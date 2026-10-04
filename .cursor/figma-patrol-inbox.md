@@ -4324,3 +4324,80 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When mounting Retry, set label 16px / 400 / `#282237` on `#e9ddfd`
     52px full-width; keep composer + Pause/End.
 - escalate: scrutinous
+
+## done: fp-copilot-chip-label-type
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  chips `5:241`/`5:243`/`5:245` · crop `_verify/tick40-copilot-chips-crop.png`
+- commit: PENDING
+- change: |
+    `.copilot-chip` → Regular 16px / weight 400 / lh 1.4 / `#282237` on
+    tonal `#e9ddfd`; 52px height + fixed widths + chip→send wiring kept.
+- escalate: scrutinous
+
+## done: fp-copilot-mic-label-type
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  Mic `5:251` · crop `_verify/tick40-copilot-composer-crop.png`
+- commit: PENDING
+- change: |
+    `.view-copilot .copilot-mic` → Regular 16px / weight 400 / lh 1.4 /
+    `#282237`; “Mic” string + 52×52 tonal circle + voice wiring kept.
+- escalate: scrutinous
+
+## done: fp-copilot-sidebar-cta-label-type
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  CTA `5:223` · crop `_verify/tick40-copilot-sidebar-crop.png`
+- commit: PENDING
+- change: |
+    `#copilot-start-mission` / `.copilot-sidebar-cta.primary` → Medium
+    14px / weight 500 / white (override `.primary` 700); full-width +
+    52px height + no glow + `show("view-lockin")` kept.
+- escalate: scrutinous
+
+## open: fp-relaunch-take-break-label-type
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  Take a break `8:426` · crop `_verify/tick40-relaunch-panel-crop.png`
+- expected: |
+    Live card “Take a break” (`8:426`, 386×52 tonal `#e9ddfd`): Regular
+    **16px** / lh 1.4 ink **`#282237`** — same secondary-label token as
+    handoff Not now / lost Retry (not purple/semibold).
+- actual: |
+    Opens lock tonal/raised fill (`fp-relaunch-take-break-tonal-raised` /
+    quiet-fill) + Relaunch **primary** label type — not Take a break
+    **label type**. App has no relaunch card yet; risk: reuse `.primary`
+    bold or chip Medium when mounting.
+- deviation: |
+    Tick40 — Take a break label type vs live `8:426`. Distinct from
+    take-break-tonal / cta-hierarchy / primary-label-type / badge-type;
+    under-covered `2:41`. Spot-check: left Take a break + End on flight
+    card; Pause/End preserved on normal active / lost.
+- fix_hint: |
+    When mounting Take a break, set label 16px / 400 / `#282237` on
+    `#e9ddfd` 52px full-width; pair with Relaunch filled Medium 14.
+    Preserve Pause/End on normal active.
+- escalate: scrutinous
+
+## open: fp-permission-handoff-badge-weight
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  badge text `7:417` · crop `_verify/tick40-handoff-modal-crop.png`
+- expected: |
+    Live PERMISSION HANDOFF (`7:417`): Regular **12px** / weight **400** /
+    lh 1.4 / purple `#6750a4` on `#e9ddfd` pill (design_context
+    Roboto Regular — not Bold).
+- actual: |
+    Tick39 done `84b0882` set `.mc-perm-modal__badge` to **12px / 700** /
+    tracking 0.08em / `#6750a4`. Not now ink (`#282237` Regular 16) still
+    matches live `7:421` — no regression there. Welcome Email/Password
+    labels still Bold 14 (`84b0882`) matching live `5:64`.
+- deviation: |
+    Tick40 spot-check — handoff badge **weight** vs live Regular `7:417`
+    after `84b0882` (live now Regular, app Bold). Distinct from badge-type
+    size/color done; escalate for scrutinous rewrite if needed.
+- fix_hint: |
+    Set `.mc-perm-modal__badge` to font-weight 400 (keep 12px / `#6750a4`
+    / tracking); leave Not now · Continue + camera copy + pad 33.
+- escalate: scrutinous
