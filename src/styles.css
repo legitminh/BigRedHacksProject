@@ -890,7 +890,7 @@ body:has(.view-home.view-home--guest.active) .grain {
 .welcome-signin-card.signin-box {
   width: min(100%, 510px);
   margin: 0;
-  padding: 37px;
+  padding: 36px; /* live 5:58 p-[36px] (kicker x/y=37 = border + pad) */
   background: #fffbff;
   border: 1px solid #c8bfd7;
   border-radius: 28px;
@@ -2530,8 +2530,11 @@ button:active {
 }
 
 .copilot-panel:has(#chat-empty) {
-  /* Live empty Copilot response 5:235: compact ~830×117 hug — not flex-tall */
+  /* Live empty Copilot response 5:235: compact 830×117 hug — not flex-tall */
   flex: 0 0 auto;
+  align-self: flex-start;
+  width: 830px;
+  max-width: min(100%, 830px);
   min-height: 0;
   max-height: none;
   /* Live 03 empty Copilot response card (5:235): surface + border, not cream */
@@ -2543,7 +2546,7 @@ button:active {
 .copilot-panel:has(#chat-empty) .copilot-log.chat-log {
   flex: 0 0 auto;
   min-height: 0;
-  padding: 25px; /* live 5:235 heading y=25 */
+  padding: 24px; /* live 5:235 space-24 (heading y=25 = border + pad) */
   overflow: visible;
 }
 

@@ -3766,25 +3766,15 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `#permission-handoff-modal` → badge PERMISSION HANDOFF; title “Share an optional input?”; body “Your browser will ask for camera or screen access. You can decline and keep flying.”; foot “Design reference: the next step is the browser’s native permission prompt.”; Not now · Continue kept. Ref 17 refreshed from live `7:415`.
 - escalate: scrutinous
 
-## open: fp-connection-lost-panel-pad-25
+## done: fp-connection-lost-panel-pad-25
 - screen: active
 - ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
   panel `6:1707` · crop `_verify/tick33-lost-panel-crop.png`
-- expected: |
-    Live lost Copilot panel (`6:1707`, 434×678): outer pad **25px**
-    (header at y=25; composer ends y=653 → bottom pad 25). Surface
-    `#fffbff` / `#c8bfd7` / 28 stay on sibling panel-surface.
-- actual: |
-    Open `fp-connection-lost-panel-surface` expected pad **24** from an
-    older design_context read. Metadata + crop lock 25. App
-    `.session-copilot-panel` uses ~1.1rem pad (~17–18px).
-- deviation: |
-    Tick33 — lost panel pad 25 vs sibling 24 claim / app denser pad.
-    Distinct from panel-surface (fill/border/radius) + panel-height /
-    stack-gaps; under-covered `2:48`.
-- fix_hint: |
-    Prefer pad **25px** when mounting lost (and shared session) panel;
-    keep Pause/End + composer. Pair with open surface/height items.
+- commit: n/a
+- change: |
+    Superseded by open `fp-connection-lost-panel-pad-24` (tick48): live
+    `6:1707` token is **24px** (header y=25 = 1px border + 24 pad), not
+    25px padding. Prefer pad-24 when mounting; do not re-add pad-25.
 - escalate: scrutinous
 
 ## done: fp-connection-lost-meta-muted
@@ -4934,4 +4924,83 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When mounting Next step editable, set `border-radius: 12px` with
     `#f7f2ff` / `#c8bfd7` / h 64; keep Relaunch / Take a break.
     Preserve Pause/End.
+- escalate: scrutinous
+
+## done: fp-copilot-empty-card-pad-24
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  card `5:235` · heading `5:238` ·
+  crop `_verify/tick48-copilot-empty-crop.png`
+- commit: PENDING
+- change: |
+    Empty-state `.copilot-panel:has(#chat-empty) .copilot-log` padding →
+    **24px** (live `5:235` space-24; heading y=25 = border + pad). Gap 14 /
+    `#fffbff` / `#c8bfd7` / 28 + Mic/Send kept. Supersedes pad-25.
+- escalate: scrutinous
+
+## done: fp-copilot-empty-width-830
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  card `5:235` · Conversation `5:232` ·
+  crop `_verify/tick48-copilot-empty-crop.png`
+- commit: PENDING
+- change: |
+    `.copilot-panel:has(#chat-empty)` → `width`/`max-width: 830px` +
+    `align-self: flex-start` (live `5:235` 830×117 hug); chips + composer
+    stay full Conversation column. Compact height preserved.
+- escalate: scrutinous
+
+## done: fp-welcome-card-pad-36
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` ·
+  card `5:58` · kicker `5:59` ·
+  crop `_verify/tick48-welcome-card-crop.png`
+- commit: PENDING
+- change: |
+    `.welcome-signin-card.signin-box` padding → **36px** (live `5:58`
+    p-[36px]; kicker x/y=37 = border + pad). 510 max-width + 24 stack +
+    Google/guest wiring kept.
+- escalate: scrutinous
+
+## open: fp-relaunch-panel-pad-24
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  panel `6:653` · badge `8:414` ·
+  crop `_verify/tick48-relaunch-panel-crop.png`
+- expected: |
+    Live relaunch Copilot panel (`6:653`, 434×560): outer pad **24px**
+    (`space-24`) — badge at y=25 is **1px border + 24 pad** (footer ends
+    y=535 → bottom inset 25 = border+24). Not ~25 pad.
+- actual: |
+    Open `fp-relaunch-card-surface` expected pad **~25**. App has no
+    relaunch card; risk of copying lost pad-25 / 37 welcome mistake.
+- deviation: |
+    Tick48 — relaunch panel pad token vs live `6:653` (24 not ~25).
+    Distinct from card-surface fill/border/radius / panel-compact /
+    stack-gap; under-covered `2:41`. Do not re-add card-surface.
+- fix_hint: |
+    When mounting relaunch panel, use pad **24px** with `#fffbff` /
+    `#c8bfd7` / 28; keep Relaunch / Take a break. Preserve Pause/End.
+- escalate: scrutinous
+
+## open: fp-connection-lost-panel-pad-24
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  panel `6:1707` · header `6:1708` ·
+  crop `_verify/tick48-lost-panel-crop.png`
+- expected: |
+    Live lost Copilot panel (`6:1707`, 434×678): outer pad **24px**
+    (`space-24` from `get_design_context`) — header y=25 / composer end
+    y=653 → bottom inset 25 = **1px border + 24 pad**, not 25px padding.
+- actual: |
+    Open `fp-connection-lost-panel-pad-25` expected **25px** from absolute
+    y=25 — overstated vs live token 24 (same border+pad pattern as
+    Copilot empty / welcome). App session panel still ~1.1rem denser.
+- deviation: |
+    Tick48 — lost panel pad correction vs live `6:1707` (24 not 25).
+    Distinct from panel-surface / panel-height / stack-gaps; under-
+    covered `2:48`. Prefer 24 when mounting; do not re-add pad-25.
+- fix_hint: |
+    Prefer pad **24px** when mounting lost (and shared session) panel;
+    keep Pause/End + composer. Supersede pad-25 expected.
 - escalate: scrutinous
