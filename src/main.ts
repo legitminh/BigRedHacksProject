@@ -39,8 +39,15 @@ type ViewId =
 
 interface UserSettings {
   silent_mode: boolean;
+  notes_enabled?: boolean;
 }
 
+/**
+ * Canonical camera accountability opt-in (localStorage).
+ * Sole persisted source of truth for Settings `#setting-camera-signals`,
+ * mission `#lockin-camera`, foot copy, and `start_lock_in` `cameraEnabled`.
+ * (No `settings.camera_enabled` in Rust UserSettings — do not invent a second store.)
+ */
 const PREF_CAMERA_SIGNALS = "wp-setting-camera-signals";
 /** Legacy key — screen sharing is always on for study; kept only to clear old prefs. */
 const PREF_SCREEN_SHARING = "wp-setting-screen-sharing";
@@ -71,11 +78,63 @@ function writeBoolPref(key: string, value: boolean) {
   }
 }
 
+/** Raw persisted camera opt-in (default off). Ignores sign-in. */
+function cameraPrefStored(): boolean {
+  return readBoolPref(PREF_CAMERA_SIGNALS, false);
+}
+
+/** Effective camera for UI + launch — stored pref AND signed-in. Never forced true. */
+function cameraPreferenceEnabled(): boolean {
+  return cloudSignedIn && cameraPrefStored();
+}
+
+/** Mirror both camera checkboxes from the sole preference (effective value). */
+function syncCameraToggleInputs() {
+  const on = cameraPreferenceEnabled();
+  for (const id of ["setting-camera-signals", "lockin-camera"]) {
+    const el = $(`#${id}`) as HTMLInputElement | null;
+    if (el) el.checked = on;
+  }
+}
+
+/** Write the sole preference and refresh Settings + mission toggles immediately. */
+function setCameraPreference(on: boolean) {
+  writeBoolPref(PREF_CAMERA_SIGNALS, on);
+  syncCameraToggleInputs();
+  syncMissionSetupLaunchUi();
+}
+
 function syncSilentModeInputs(silentMode: boolean) {
   const silent = $("#setting-silent-mode") as HTMLInputElement | null;
   const audio = $("#setting-copilot-audio") as HTMLInputElement | null;
   if (silent) silent.checked = silentMode;
   if (audio) audio.checked = !silentMode;
+}
+
+function syncNotesInput(enabled: boolean) {
+  const notes = $("#setting-session-notes") as HTMLInputElement | null;
+  if (notes) notes.checked = enabled;
+}
+
+async function hydrateSettingsToggles() {
+  try {
+    const settings = await invoke<UserSettings>("get_settings");
+    syncSilentModeInputs(Boolean(settings.silent_mode));
+    syncNotesInput(settings.notes_enabled !== false);
+  } catch {
+    syncNotesInput(true);
+  }
+}
+
+function settingsFromToggles(): UserSettings {
+  const silent = $("#setting-silent-mode") as HTMLInputElement | null;
+  const audio = $("#setting-copilot-audio") as HTMLInputElement | null;
+  const notes = $("#setting-session-notes") as HTMLInputElement | null;
+  const silentMode = silent ? silent.checked : audio ? !audio.checked : true;
+  return {
+    silent_mode: silentMode,
+    notes_enabled: notes ? notes.checked : true,
+  };
 }
 
 function applyReduceMotionPref() {
@@ -89,11 +148,7 @@ function applyReduceMotionPref() {
 function syncSessionPreferenceToggles() {
   // Persist mandatory screen so any leftover readers see on.
   writeBoolPref(PREF_SCREEN_SHARING, true);
-  const camOn = cloudSignedIn && readBoolPref(PREF_CAMERA_SIGNALS, false);
-  for (const id of ["setting-camera-signals", "lockin-camera"]) {
-    const el = $(`#${id}`) as HTMLInputElement | null;
-    if (el) el.checked = camOn;
-  }
+  syncCameraToggleInputs();
   const ack = $("#lockin-screen-ack") as HTMLInputElement | null;
   const ackRow = $("#lockin-screen-ack-row");
   if (ack) {
@@ -105,11 +160,11 @@ function syncSessionPreferenceToggles() {
   applyCameraGuestLocks();
 }
 
-/** Consent flags for start_lock_in — screen is always required; camera needs sign-in. */
+/** Consent flags for start_lock_in — screen is always required; camera from sole pref. */
 function lockInConsentArgs() {
   return {
     screenEnabled: screenSharingEnabled(),
-    cameraEnabled: cloudSignedIn && readBoolPref(PREF_CAMERA_SIGNALS, false),
+    cameraEnabled: cameraPreferenceEnabled(),
   };
 }
 
@@ -242,6 +297,16 @@ interface SessionSummary {
   stress_spikes: number;
   closing_note: string;
   vitals_summary?: string;
+  session_id?: string;
+  started_at?: string;
+  session_note?: string | null;
+  notes_pending?: boolean;
+}
+
+interface SessionNoteReady {
+  session_id: string;
+  kind: string;
+  markdown: string;
 }
 
 const $ = <T extends HTMLElement>(sel: string) =>
@@ -249,6 +314,15 @@ const $ = <T extends HTMLElement>(sel: string) =>
 
 let lastSummaryGoals = "";
 let lastSessionSummary: SessionSummary | null = null;
+let bufferedSessionNote: SessionNoteReady | null = null;
+let conceptMapMarkdown = "";
+/** Last generated session-summary image (for download). */
+let lastSessionSummaryImage: { content_type: string; image_base64: string } | null = null;
+
+type ConceptMapImage = {
+  content_type: string;
+  image_base64: string;
+};
 let lastSummaryPersonalBest: { previous: number; isNew: boolean; delta: number } | null = null;
 let lastSummaryRelaunches = 0;
 
@@ -587,6 +661,7 @@ function show(view: ViewId) {
   if (view === "view-lockin") {
     applyPendingSuggestionToMissionForm();
     syncDurationChips();
+    syncSessionPreferenceToggles();
     requestAnimationFrame(() => {
       ($("#goals") as HTMLTextAreaElement | null)?.focus();
     });
@@ -637,9 +712,8 @@ function missionLaunchLabel(loading: boolean) {
 }
 
 function setupConsentSummary(): string {
-  const camera = readBoolPref(PREF_CAMERA_SIGNALS, false);
-  // Mission preference only — not macOS Screen Recording TCC.
-  return camera
+  // Same effective flag as start_lock_in — not macOS Screen Recording TCC.
+  return cameraPreferenceEnabled()
     ? "Screen watching enabled for this mission; camera accountability on."
     : "Screen watching enabled for this mission; camera accountability off.";
 }
@@ -773,6 +847,8 @@ async function submitWelcomeGuest() {
 }
 
 function wireWelcomeSignIn() {
+  // Initial welcome is Sign in + Guest only; Cancel appears after Google starts.
+  resetWelcomeSignInState();
   const btn = $("#welcome-google-signin") as HTMLButtonElement | null;
   if (btn && btn.dataset.wired !== "1") {
     btn.dataset.wired = "1";
@@ -904,6 +980,8 @@ function renderHome(status: StatusPayload) {
   guestCloudLocked = Boolean(status.guest_mode && !status.signed_in);
   cloudSignedIn = Boolean(status.signed_in);
   applyGuestCloudLocks();
+  // Auth can flip after first paint — re-mirror camera toggles from sole pref.
+  syncCameraToggleInputs();
 
   const home = $("#view-home");
   home?.classList.toggle("view-home--signed-in", unlocked);
@@ -1584,7 +1662,8 @@ async function startLockInFromSuggestion(
   pendingStudySuggestion = null;
   const goalsInput = $("#goals") as HTMLTextAreaElement | null;
   if (goalsInput) goalsInput.value = goalsText;
-  renderVitals(null);
+  sessionCameraEnabled = Boolean(session.camera_enabled);
+  renderVitals(null, session.camera_enabled);
   playLaunchCelebration(() => {
     dismissBreakSuggestion();
     renderSession(session);
@@ -1835,11 +1914,9 @@ function applyCameraGuestLocks() {
     if (!el) continue;
     el.disabled = locked;
     el.title = locked ? GUEST_CAMERA_HINT : "Optional camera accountability";
-    if (locked && el.checked) {
-      el.checked = false;
-      writeBoolPref(PREF_CAMERA_SIGNALS, false);
-    }
   }
+  // Unsigned: force UI/launch off without wiping PREF_CAMERA_SIGNALS (restore on sign-in).
+  syncCameraToggleInputs();
   const row = $("#lockin-camera")?.closest(".mission-toggle-row");
   row?.classList.toggle("is-guest-locked", locked);
   syncMissionSetupLaunchUi();
@@ -2409,7 +2486,8 @@ function teardownCompanionLive() {
   liveSurface = null;
   setCompanionPhaseUi("idle");
   void invoke("voice_stop").catch(() => {});
-  void invoke("companion_clear").catch(() => {});
+  // Do not companion_clear here — End Mission used to wipe Live/typed turns before
+  // stop_lock_in snapped them for the session note. History clears on start/stop lock-in.
 }
 
 async function ensureCompanionLive(surface: LiveSurface): Promise<CompanionLiveSession> {
@@ -2441,7 +2519,14 @@ async function ensureCompanionLive(surface: LiveSurface): Promise<CompanionLiveS
         upsertCopilotLiveBubble("user", text, isFinal);
       } else {
         upsertSessionLiveBubble("user", text, isFinal);
-        if (isFinal) maybeOfferBreakFromUserText(text);
+        if (isFinal) {
+          maybeOfferBreakFromUserText(text);
+          // Live never went through companion_send — persist finals for the session note.
+          const trimmed = text.trim();
+          if (trimmed) {
+            void invoke("companion_record_user", { text: trimmed }).catch(() => {});
+          }
+        }
       }
     },
     onAssistant: (text, isFinal) => {
@@ -2598,6 +2683,7 @@ async function sendSessionChat() {
     // Live onUser(final) also runs stress detection; call here too so typed-while-live
     // still works if the socket omits a user echo.
     maybeOfferBreakFromUserText(message);
+    void invoke("companion_record_user", { text: message }).catch(() => {});
     return;
   }
 
@@ -3150,7 +3236,11 @@ function formatPresenceSummary(raw?: string | null): string {
   return raw.replace(/wellness/gi, "accountability");
 }
 
-function formatVitals(vitals?: VitalsSnapshot | null): string {
+function formatVitals(vitals?: VitalsSnapshot | null, cameraEnabled?: boolean): string {
+  // Honesty: never imply webcam/observe is running when this mission opted out.
+  if (cameraEnabled === false) {
+    return "Camera accountability off.";
+  }
   if (
     !vitals ||
     (!vitals.raw_summary &&
@@ -3158,7 +3248,9 @@ function formatVitals(vitals?: VitalsSnapshot | null): string {
       vitals.source !== "fallback" &&
       vitals.source !== "presence")
   ) {
-    return "Running quietly in the background.";
+    return cameraEnabled
+      ? "Camera accountability starting…"
+      : "Camera accountability off.";
   }
   const bits: string[] = [];
   if (typeof vitals.heart_rate === "number") bits.push(`HR ${Math.round(vitals.heart_rate)}`);
@@ -3201,26 +3293,40 @@ function applyCameraPresenceUi(vitals?: VitalsSnapshot | null) {
   }
 }
 
-function renderVitals(vitals?: VitalsSnapshot | null) {
+function renderVitals(vitals?: VitalsSnapshot | null, cameraEnabled?: boolean) {
+  const enabled = cameraEnabled ?? sessionCameraEnabled;
   const line = $("#vitals-line");
   const panel = $("#session-vitals");
-  if (line) line.textContent = formatVitals(vitals);
-  if (panel) panel.classList.toggle("stressed", Boolean(vitals?.stressed));
+  if (line) line.textContent = formatVitals(vitals, enabled);
+  if (panel) panel.classList.toggle("stressed", Boolean(enabled !== false && vitals?.stressed));
+  if (enabled === false) return;
   applyCameraPresenceUi(vitals);
   // Presage / camera stressed flag — same Accept/Decline card as coach suggest_break.
   if (vitals?.stressed) offerBreakSuggestion("vitals");
 }
 
-function renderWatchingNote(note?: string | null) {
+function renderWatchingNote(note?: string | null, cameraEnabled?: boolean) {
   const el = $("#session-watch-note");
   if (!el) return;
   const raw = (note || "").trim();
   // Strip debug OCR crumbs — never user-facing (e.g. " · OCR: W&ypolnl").
-  const cleaned = raw
+  let cleaned = raw
     .replace(/\s*[·•]\s*OCR:\s*.+$/i, "")
     .replace(/\bOCR:\s*\S+/gi, "")
     .replace(/wellness later in background/gi, "camera accountability in background")
     .trim();
+  const enabled = cameraEnabled ?? sessionCameraEnabled;
+  if (enabled === false) {
+    cleaned = cleaned
+      .replace(/\s*[·•]\s*camera accountability in background/gi, "")
+      .replace(/camera accountability in background/gi, "")
+      .trim();
+    if (!/camera accountability off/i.test(cleaned)) {
+      cleaned = cleaned
+        ? `${cleaned} · camera accountability off`
+        : "Camera accountability off";
+    }
+  }
   el.textContent = cleaned;
   const show = Boolean(cleaned);
   el.hidden = !show;
@@ -3252,9 +3358,9 @@ function renderSessionCoachLog(prompts: CoachPrompt[]) {
  * before a session exists, fall back to the saved prefs.
  */
 function syncSessionSignalPills(session?: Pick<LockInSession, "screen_enabled" | "camera_enabled"> | null) {
-  const optedIn = session?.camera_enabled ?? readBoolPref(PREF_CAMERA_SIGNALS, false);
+  const optedIn = session?.camera_enabled ?? cameraPreferenceEnabled();
   // Unsigned / Guest never run observe — don't claim "Camera on".
-  const cameraOn = optedIn && cloudSignedIn;
+  const cameraOn = Boolean(optedIn);
   const screenOn = session?.screen_enabled ?? screenSharingEnabled();
   const camera = $("#session-pill-camera");
   const screen = $("#session-pill-screen");
@@ -3346,6 +3452,7 @@ let missionTimerFrozenDisplay: string | null = null;
 
 function renderSession(session: LockInSession) {
   currentSessionDurationSecs = session.duration_secs;
+  sessionCameraEnabled = Boolean(session.camera_enabled);
   const timer = $("#session-timer");
   const status = $("#session-status");
   const goals = $("#session-goals");
@@ -3357,7 +3464,10 @@ function renderSession(session: LockInSession) {
         : formatRemaining(session.ends_at);
   }
   if (status) {
-    const presence = session.paused ? null : cameraPresenceLabel(session.vitals);
+    const presence =
+      session.paused || !session.camera_enabled
+        ? null
+        : cameraPresenceLabel(session.vitals);
     const label = session.paused
       ? "paused"
       : presence || statusLabel(session.status);
@@ -3373,7 +3483,10 @@ function renderSession(session: LockInSession) {
     goals.textContent = session.goals || "Your mission";
     goals.hidden = false;
   }
-  renderWatchingNote(session.watching_note || "Watching your screen");
+  renderWatchingNote(
+    session.watching_note || "Watching your screen",
+    session.camera_enabled,
+  );
   if (!session.paused && breakTimerActive) {
     // Mission resumed elsewhere (break window / Rust) — clear local pomodoro flag.
     setBreakTimerActive(false);
@@ -3381,7 +3494,7 @@ function renderSession(session: LockInSession) {
   syncPauseControls(Boolean(session.paused));
   if (session.paused) dismissBreakSuggestion();
   syncSessionSignalPills(session);
-  renderVitals(session.vitals);
+  renderVitals(session.vitals, session.camera_enabled);
   renderSessionCoachLog(session.prompts);
   ensureSessionAtLaunchSeed(session);
   onMissionStarted(session.duration_secs);
@@ -3406,6 +3519,7 @@ async function openSettings(tab = "lockin") {
   try {
     const settings = await invoke<UserSettings>("get_settings");
     syncSilentModeInputs(Boolean(settings.silent_mode));
+    syncNotesInput(settings.notes_enabled !== false);
     syncSessionPreferenceToggles();
     const status = $("#settings-save-status");
     if (status) status.textContent = "";
@@ -3421,16 +3535,13 @@ async function openSettings(tab = "lockin") {
 type CameraHandoffSource = "setup" | "settings";
 
 function setCameraToggleChecked(on: boolean) {
-  const setup = $("#lockin-camera") as HTMLInputElement | null;
-  const settings = $("#setting-camera-signals") as HTMLInputElement | null;
-  if (setup) setup.checked = on;
-  if (settings) settings.checked = on;
-  writeBoolPref(PREF_CAMERA_SIGNALS, on);
   // Session pills mirror the launched mission, not live toggles — don't touch them here.
-  syncMissionSetupLaunchUi();
+  setCameraPreference(on);
 }
 
 function showPermissionHandoffModal(_source: CameraHandoffSource) {
+  // Never imply enabling when preference is off / unsigned.
+  if (!cloudSignedIn) return;
   const modal = $("#permission-handoff-modal");
   if (modal) openModal(modal, "#permission-handoff-continue");
 }
@@ -3482,23 +3593,23 @@ function wireCameraPermissionHandoff(inputId: string, source: CameraHandoffSourc
   $(`#${inputId}`)?.addEventListener("change", (event) => {
     const input = event.target as HTMLInputElement;
     if (!cloudSignedIn) {
+      // Do not clear stored pref — unsigned users cannot enable; UI stays off.
+      // Never open the enable handoff while signed out.
       input.checked = false;
-      writeBoolPref(PREF_CAMERA_SIGNALS, false);
+      hidePermissionHandoffModal();
+      syncCameraToggleInputs();
       applyCameraGuestLocks();
       return;
     }
     if (!input.checked) {
-      writeBoolPref(PREF_CAMERA_SIGNALS, false);
-      syncMissionSetupLaunchUi();
-      const other =
-        source === "setup"
-          ? ($("#setting-camera-signals") as HTMLInputElement | null)
-          : ($("#lockin-camera") as HTMLInputElement | null);
-      if (other) other.checked = false;
+      setCameraPreference(false);
+      hidePermissionHandoffModal();
       return;
     }
-    // Defer OS prompt until Continue — leave toggle off until granted.
+    // Opt-in only: defer OS prompt until Continue — leave toggle/pref off until granted.
     input.checked = false;
+    writeBoolPref(PREF_CAMERA_SIGNALS, false);
+    syncCameraToggleInputs();
     showPermissionHandoffModal(source);
   });
 }
@@ -3520,20 +3631,13 @@ function selectSettingsTab(tab: string) {
   }
 }
 
-async function persistSilentMode() {
-  const silent = $("#setting-silent-mode") as HTMLInputElement | null;
-  const audio = $("#setting-copilot-audio") as HTMLInputElement | null;
-  const silentMode = silent
-    ? silent.checked
-    : audio
-      ? !audio.checked
-      : false;
-  syncSilentModeInputs(silentMode);
+async function persistUserSettings() {
+  const settings = settingsFromToggles();
+  syncSilentModeInputs(settings.silent_mode);
+  syncNotesInput(settings.notes_enabled !== false);
   const status = $("#settings-save-status");
   try {
-    await invoke("save_settings", {
-      settings: { silent_mode: silentMode },
-    });
+    await invoke("save_settings", { settings });
     if (status) status.textContent = "Saved.";
     await syncSessionMuteButton();
   } catch (err) {
@@ -3541,11 +3645,15 @@ async function persistSilentMode() {
   }
 }
 
+async function persistSilentMode() {
+  await persistUserSettings();
+}
+
 async function persistCopilotAudioFromToggle() {
   const audio = $("#setting-copilot-audio") as HTMLInputElement | null;
   const silent = $("#setting-silent-mode") as HTMLInputElement | null;
   if (silent && audio) silent.checked = !audio.checked;
-  await persistSilentMode();
+  await persistUserSettings();
 }
 
 async function syncSessionMuteButton() {
@@ -3568,7 +3676,12 @@ async function toggleSessionMute() {
     const next = !settings.silent_mode;
     // Mute also stops the current heads-up TTS; Live Web Audio is unchanged
     // (use Stop for an in-flight companion reply).
-    await invoke("save_settings", { settings: { silent_mode: next } });
+    await invoke("save_settings", {
+      settings: {
+        silent_mode: next,
+        notes_enabled: settings.notes_enabled !== false,
+      },
+    });
     if (next) {
       void invoke("voice_stop").catch(() => {});
     }
@@ -3586,6 +3699,9 @@ function formatAccountabilitySummary(vitalsSummary?: string): string {
     vitalsSummary === "Camera accountability was off for this mission."
   ) {
     return "Camera accountability was off for this mission.";
+  }
+  if (vitalsSummary === "Camera accountability was on; no presence reading this mission.") {
+    return vitalsSummary;
   }
   if (vitalsSummary.includes("presence=present")) {
     return "Present at desk during session checks.";
@@ -3687,11 +3803,235 @@ function renderSummary(summary: SessionSummary) {
       <ul class="flight-log-distractions">${distractions}</ul>
     </article>
   `;
+  applySessionNote(summary);
+}
+
+function hideSessionSummaryResult() {
+  lastSessionSummaryImage = null;
+  const result = $("#summary-concept-map-result");
+  const image = $("#summary-concept-map-image") as HTMLImageElement | null;
+  if (result) result.hidden = true;
+  if (image) {
+    image.hidden = true;
+    image.removeAttribute("src");
+  }
+}
+
+function resetConceptMap() {
+  conceptMapMarkdown = "";
+  const wrap = $("#summary-concept-map");
+  const status = $("#summary-concept-map-status");
+  const button = $("#summary-concept-map-btn") as HTMLButtonElement | null;
+  if (wrap) wrap.hidden = true;
+  if (status) {
+    status.hidden = true;
+    status.textContent = "";
+  }
+  hideSessionSummaryResult();
+  if (button) {
+    button.hidden = false;
+    button.disabled = false;
+  }
+}
+
+/** True when the note has content beyond a title and "Not captured." placeholders. */
+function noteHasConceptMapTopics(markdown: string): boolean {
+  for (const line of markdown.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const body = trimmed.replace(/^[-*]\s+/, "").trim().replace(/\.$/, "");
+    if (!body) continue;
+    if (/^not captured$/i.test(body)) continue;
+    return true;
+  }
+  return false;
+}
+
+/** Filename: Waypoint-Session-Summary-{goal-slug}-{YYYY-MM-DD}.{ext} */
+function sessionSummaryFilename(
+  goal: string,
+  contentType: string,
+  date = new Date(),
+): string {
+  const slug =
+    goal
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || "session";
+  const yyyy = String(date.getFullYear());
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  const ext =
+    contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
+  return `Waypoint-Session-Summary-${slug}-${yyyy}-${mm}-${dd}.${ext}`;
+}
+
+function sessionSummaryGoalLabel(markdown: string): string {
+  for (const line of markdown.split("\n")) {
+    const heading = line.trim().match(/^#\s+(.+)$/);
+    if (heading?.[1]?.trim()) return heading[1].trim();
+  }
+  return lastSummaryGoals.trim() || "session";
+}
+
+function showConceptMapOffer(markdown: string) {
+  const wrap = $("#summary-concept-map");
+  if (!wrap) return;
+  const status = $("#summary-concept-map-status");
+  const button = $("#summary-concept-map-btn") as HTMLButtonElement | null;
+  if (conceptMapMarkdown !== markdown) {
+    conceptMapMarkdown = markdown;
+    hideSessionSummaryResult();
+  }
+  wrap.hidden = false;
+  if (!noteHasConceptMapTopics(markdown)) {
+    conceptMapMarkdown = "";
+    if (button) {
+      button.disabled = true;
+      button.hidden = true;
+    }
+    if (status) {
+      status.hidden = false;
+      status.textContent =
+        "No captured content yet — a session summary needs session evidence, not empty sections.";
+    }
+    return;
+  }
+  if (button) {
+    button.hidden = false;
+    button.disabled = false;
+  }
+  if (status) {
+    status.hidden = true;
+    status.textContent = "";
+  }
+}
+
+function conceptMapError(error: unknown): string {
+  if (typeof error === "string" && error.trim()) {
+    if (/empty_concept_map|no captured (topics|content)/i.test(error)) {
+      return "No captured content yet — a session summary needs session evidence, not empty sections.";
+    }
+    return error;
+  }
+  if (error instanceof Error && error.message.trim()) {
+    if (/empty_concept_map|no captured (topics|content)/i.test(error.message)) {
+      return "No captured content yet — a session summary needs session evidence, not empty sections.";
+    }
+    return error.message;
+  }
+  return "Couldn't create the session summary.";
+}
+
+async function requestConceptMap() {
+  const markdown = conceptMapMarkdown.trim();
+  const status = $("#summary-concept-map-status");
+  const result = $("#summary-concept-map-result");
+  const image = $("#summary-concept-map-image") as HTMLImageElement | null;
+  const button = $("#summary-concept-map-btn") as HTMLButtonElement | null;
+  if (!markdown || !status || !image || !button) return;
+  button.disabled = true;
+  status.hidden = false;
+  status.textContent = "Creating your session summary…";
+  if (result) result.hidden = true;
+  image.hidden = true;
+  image.removeAttribute("src");
+  lastSessionSummaryImage = null;
+  try {
+    const generated = await invoke<ConceptMapImage>("concept_map", { markdown });
+    const type = /^image\/(jpeg|png|webp)$/.test(generated.content_type)
+      ? generated.content_type
+      : "image/jpeg";
+    lastSessionSummaryImage = {
+      content_type: type,
+      image_base64: generated.image_base64,
+    };
+    image.src = `data:${type};base64,${generated.image_base64}`;
+    image.hidden = false;
+    if (result) result.hidden = false;
+    status.hidden = true;
+  } catch (error) {
+    status.textContent = conceptMapError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function downloadSessionSummaryImage() {
+  const image = lastSessionSummaryImage;
+  if (!image) return;
+  const filename = sessionSummaryFilename(
+    sessionSummaryGoalLabel(conceptMapMarkdown || lastSummaryGoals),
+    image.content_type,
+  );
+  const anchor = document.createElement("a");
+  anchor.href = `data:${image.content_type};base64,${image.image_base64}`;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+}
+
+function hideSessionNote() {
+  const card = $("#summary-session-note");
+  if (card) card.hidden = true;
+  resetConceptMap();
+}
+
+function showSessionNotePending() {
+  const card = $("#summary-session-note");
+  const status = $("#summary-session-note-status");
+  const body = $("#summary-session-note-body");
+  if (!card || !status || !body) return;
+  card.hidden = false;
+  status.hidden = false;
+  status.textContent = "Writing your note…";
+  body.hidden = true;
+  body.replaceChildren();
+  resetConceptMap();
+}
+
+function showSessionNoteMarkdown(markdown: string) {
+  const card = $("#summary-session-note");
+  const status = $("#summary-session-note-status");
+  const body = $("#summary-session-note-body");
+  if (!card || !status || !body) return;
+  card.hidden = false;
+  status.hidden = true;
+  body.hidden = false;
+  renderMarkdown(body, markdown);
+  showConceptMapOffer(markdown);
+}
+
+function applySessionNote(summary: SessionSummary) {
+  if (summary.session_note) {
+    showSessionNoteMarkdown(summary.session_note);
+    return;
+  }
+  if (
+    bufferedSessionNote &&
+    summary.session_id &&
+    bufferedSessionNote.session_id === summary.session_id
+  ) {
+    showSessionNoteMarkdown(bufferedSessionNote.markdown);
+    bufferedSessionNote = null;
+    return;
+  }
+  if (summary.notes_pending) {
+    showSessionNotePending();
+    return;
+  }
+  hideSessionNote();
 }
 
 let timerHandle: number | undefined;
 let currentEndsAt: string | null = null;
 let currentSessionDurationSecs = 0;
+/** Camera accountability consent for the active mission (drives honest vitals/watch copy). */
+let sessionCameraEnabled: boolean | undefined;
 
 /** True from launch until End / timer finish (including while on a break). */
 function isMissionRunning(): boolean {
@@ -3760,6 +4100,7 @@ function stopTimer() {
   }
   currentEndsAt = null;
   currentSessionDurationSecs = 0;
+  sessionCameraEnabled = undefined;
   missionTimerFrozenDisplay = null;
   pausedElapsedSecs = null;
   setBreakTimerActive(false);
@@ -4221,7 +4562,8 @@ async function bootApp() {
       } catch {
         // ignore
       }
-      renderVitals(null);
+      sessionCameraEnabled = Boolean(session.camera_enabled);
+      renderVitals(null, session.camera_enabled);
       playLaunchCelebration(() => {
         dismissBreakSuggestion();
         renderSession(session);
@@ -4389,9 +4731,13 @@ async function bootApp() {
   $("#setting-silent-mode")?.addEventListener("change", () => {
     void persistSilentMode();
   });
+  $("#setting-session-notes")?.addEventListener("change", () => {
+    void persistUserSettings();
+  });
   wireCameraPermissionHandoff("lockin-camera", "setup");
   wireCameraPermissionHandoff("setting-camera-signals", "settings");
   syncSessionPreferenceToggles();
+  void hydrateSettingsToggles();
   syncMissionSetupLaunchUi();
   $("#setting-reduce-motion")?.addEventListener("change", (event) => {
     const input = event.target as HTMLInputElement;
@@ -4563,6 +4909,29 @@ async function bootApp() {
     breakSuggestionCooldownUntil = 0;
     setSessionEndingUi(false);
     showSummaryWithCelebration(event.payload);
+  });
+  await listen<SessionNoteReady>("session-note", (event) => {
+    const note = event.payload;
+    if (
+      lastSessionSummary?.session_id &&
+      note.session_id === lastSessionSummary.session_id
+    ) {
+      lastSessionSummary = {
+        ...lastSessionSummary,
+        session_note: note.markdown,
+        notes_pending: false,
+      };
+      showSessionNoteMarkdown(note.markdown);
+      return;
+    }
+    bufferedSessionNote = note;
+  });
+
+  $("#summary-concept-map-btn")?.addEventListener("click", () => {
+    void requestConceptMap();
+  });
+  $("#summary-concept-map-download")?.addEventListener("click", () => {
+    downloadSessionSummaryImage();
   });
 
   initShipUI();

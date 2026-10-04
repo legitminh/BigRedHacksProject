@@ -37,6 +37,7 @@
     "allow-clear-chat",
     "allow-companion-send",
     "allow-companion-clear",
+    "allow-companion-record-user",
     "allow-companion-live-info",
     "allow-companion-grab-screencap",
     "allow-voice-stop",
@@ -52,6 +53,7 @@
     "allow-save-settings",
     "allow-voice-speak",
     "allow-voice-listen-test",
+    "allow-concept-map",
     "allow-delete-all-user-data"
   ]
 }

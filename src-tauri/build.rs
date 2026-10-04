@@ -147,6 +147,7 @@ fn main() {
             "clear_chat",
             "companion_send",
             "companion_clear",
+            "companion_record_user",
             "companion_live_info",
             "companion_grab_screencap",
             "voice_stop",
@@ -162,6 +163,7 @@ fn main() {
             "save_settings",
             "voice_speak",
             "voice_listen_test",
+            "concept_map",
             "delete_all_user_data",
         ]),
     );

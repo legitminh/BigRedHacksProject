@@ -229,6 +229,10 @@ fn title_is_brand_chrome(title: &str, brand: &str) -> bool {
 
 /// Host/app distraction policy. Extend ALWAYS_OFF / CONTEXTUAL lists — don't special-case
 /// brand names inside the coach loop.
+///
+/// Product principle: on-task vs off-task comes from **session goals + screen context**,
+/// not whole-category bans. YouTube, papers/PDFs, Discord, and gaming are Contextual;
+/// Instagram-class social / shopping / texting stay AlwaysOff.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SurfacePolicy {
     /// Never study (Instagram-class social, shopping, pure texting, streaming apps, …).
@@ -239,8 +243,8 @@ enum SurfacePolicy {
 
 fn surface_policy(label: &str) -> SurfacePolicy {
     match label {
-        // Contextual tools: judge from real page/window context, not the site name alone.
-        "youtube" | "video" | "discord" => SurfacePolicy::Contextual,
+        // Contextual: judge from goals + page/window context, not the category alone.
+        "youtube" | "video" | "discord" | "reading" | "gaming" => SurfacePolicy::Contextual,
         // Always-off categories (add hosts/apps via classify_url_host / hard_app_label).
         "instagram" | "tiktok" | "shopping" | "texting" | "email" | "netflix" | "twitch"
         | "spotify" | "facebook" | "twitter" | "reddit" | "pinterest" | "snapchat" => {
@@ -277,8 +281,29 @@ fn classify_site(
                     focused,
                 }));
             }
-            Some(true) | None => {
-                // Study / unclear → local text judge (never treat unclear YouTube as entertainment).
+            Some(true) => {
+                // Clear study signal → confirm with local text judge.
+                return Ok(FocusEvent::NeedsJudgment {
+                    kind: label,
+                    info,
+                    page_text,
+                });
+            }
+            None => {
+                // YouTube/video/gaming: interrupt by default when context is unclear
+                // (tiny models often mark entertainment on-task). Discord / reading stay
+                // judgment-gated so goal-matching study help and papers can still pass.
+                if matches!(label, "youtube" | "video" | "gaming") {
+                    return Ok(FocusEvent::Hard(DistractionHit {
+                        label,
+                        detail: if info.window_title.is_empty() {
+                            info.summary()
+                        } else {
+                            truncate(&info.window_title, 64)
+                        },
+                        focused,
+                    }));
+                }
                 return Ok(FocusEvent::NeedsJudgment {
                     kind: label,
                     info,
@@ -326,12 +351,18 @@ pub fn distraction_coach_line(hit: &DistractionHit) -> String {
         "instagram" => format!(
             "Instagram isn’t the goal{where_} — close it and get back to what you locked in on."
         ),
+        "reading" => format!(
+            "That reading isn’t tied to your lock-in goals{where_} — switch back to the work that matches this session."
+        ),
+        "gaming" => format!(
+            "This game isn’t part of your lock-in goals{where_} — leave it and return to the work."
+        ),
         other => format!("That’s {other}{where_} — close it and get back to your lock-in goal."),
     }
 }
 
-/// Cheap local guess for contextual surfaces (YouTube / Discord) before the Ollama text judge.
-/// `Some(true)` = looks study-related, `Some(false)` = entertainment/off-task, `None` = unclear.
+/// Cheap local guess for contextual surfaces before the Ollama text judge.
+/// `Some(true)` = looks on-task for goals, `Some(false)` = off-task, `None` = unclear.
 /// Ignores tab-group chrome like "School" — only title/URL/page_text + goal overlap count.
 pub fn local_context_guess(kind: &str, page_text: &str, goals: &str) -> Option<bool> {
     // Only scan the page/title — never let goal words (e.g. "course") mark every video as study.
@@ -344,6 +375,8 @@ pub fn local_context_guess(kind: &str, page_text: &str, goals: &str) -> Option<b
     match kind {
         "youtube" | "video" => guess_youtube_context(&blob, page_text, goals),
         "discord" => guess_discord_context(&blob, goals),
+        "reading" => guess_reading_context(&blob, page_text, goals),
+        "gaming" => guess_gaming_context(page_text, goals),
         _ => None,
     }
 }
@@ -436,27 +469,118 @@ fn guess_youtube_context(blob: &str, page_text: &str, goals: &str) -> Option<boo
         "stand up",
         "vevo",
     ];
+    // Gaming-flavored entertainment — still off by default, but allowed when goals name the game.
+    const GAMING_FUN: &[&str] = &[
+        "minecraft",
+        "fortnite",
+        "gameplay",
+        "playthrough",
+        "speedrun",
+        "let's play",
+        "lets play",
+    ];
 
-    let study_hit = STUDY.iter().any(|k| blob.contains(k));
-    let fun_hit = ENTERTAIN.iter().any(|k| blob.contains(k)) || music_or_rap_signal(blob);
+    // Title + URL only for study/goal evidence — YouTube sidebars often contain
+    // "lecture"/"tutorial" recommendations that must not green-light entertainment.
+    let head = title_url_head(page_text);
+    let study_hit = STUDY.iter().any(|k| head.contains(k));
+    // Entertainment may also appear in a short OCR/page excerpt when the title is sparse.
+    let fun_hit = ENTERTAIN.iter().any(|k| head.contains(k) || blob.contains(k))
+        || music_or_rap_signal(&head)
+        || music_or_rap_signal(blob);
+    let gaming_fun = GAMING_FUN
+        .iter()
+        .any(|k| head.contains(k) || blob.contains(k));
 
-    // Goal keywords appearing in the video title/page → strong on-task signal.
+    // Goal keywords appearing in the video title/URL → strong on-task signal.
     // Do not treat bare "school" / tab-group words as goals.
     let goal_overlap = goal_keywords(goals)
         .into_iter()
-        .filter(|k| page_text.to_lowercase().contains(k))
+        .filter(|k| head.contains(k))
         .count();
 
+    // Goal-named gameplay/playtest first — "walkthrough" study chrome must not force
+    // unclear/Hard when the session is explicitly a game-design assignment.
+    if gaming_fun && goal_overlap >= 1 {
+        return Some(true);
+    }
+    if fun_hit && !study_hit {
+        return Some(false);
+    }
     if goal_overlap >= 1 && !fun_hit {
         return Some(true);
     }
     if study_hit && !fun_hit {
         return Some(true);
     }
-    if fun_hit && !study_hit {
+    None
+}
+
+/// Academic papers / PDFs / scholar: "academic" alone is not enough — must overlap goals.
+fn guess_reading_context(blob: &str, page_text: &str, goals: &str) -> Option<bool> {
+    let head = title_url_head(page_text);
+    let goal_overlap = goal_keywords(goals)
+        .into_iter()
+        .filter(|k| head.contains(k))
+        .count();
+    if goal_overlap >= 1 {
+        return Some(true);
+    }
+    // Paper/PDF chrome without goal match → off-topic for this session.
+    if looks_like_academic_reading(&head) || looks_like_academic_reading(blob) {
         return Some(false);
     }
     None
+}
+
+fn looks_like_academic_reading(s: &str) -> bool {
+    const MARKERS: &[&str] = &[
+        "arxiv",
+        "abstract",
+        "doi.org",
+        "doi:",
+        ".pdf",
+        "scholar",
+        "pubmed",
+        "proceedings",
+        "journal of",
+        "researchgate",
+        "biorxiv",
+        "preprint",
+        "semanticscholar",
+        "acm digital",
+        "ieee xplore",
+        "full text pdf",
+        "cite this",
+    ];
+    MARKERS.iter().any(|m| s.contains(m))
+}
+
+/// Steam / Epic / game clients: on-task only when title/URL overlaps session goals.
+fn guess_gaming_context(page_text: &str, goals: &str) -> Option<bool> {
+    let head = title_url_head(page_text);
+    let goal_overlap = goal_keywords(goals)
+        .into_iter()
+        .filter(|k| head.contains(k))
+        .count();
+    if goal_overlap >= 1 {
+        return Some(true);
+    }
+    // Gaming surface with no goal match → interrupt (play/store is off-task by default).
+    Some(false)
+}
+
+/// First two non-empty lines of page_text are title + URL from `page_context_blob`.
+fn title_url_head(page_text: &str) -> String {
+    let head: String = page_text
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .take(2)
+        .collect::<Vec<_>>()
+        .join("\n")
+        .to_lowercase();
+    head.replace("tab group", " ").replace("school group", " ")
 }
 
 /// Music/rap chrome that substring lists miss (word boundaries, "Artist - Track" + music cues).
@@ -489,26 +613,26 @@ fn guess_discord_context(blob: &str, goals: &str) -> Option<bool> {
         "ta help",
         "course",
     ];
-    const OFF: &[&str] = &[
-        "meme",
-        "memes",
+    // Pure social spam — never rescued by goal word overlap in channel chrome.
+    const MEME_OFF: &[&str] = &["meme", "memes", "nft", "anime", "shitpost", "general spam"];
+    // Gaming channels are contextual: off by default, on-task when goals name the game.
+    const GAME_OFF: &[&str] = &[
         "gaming",
         "game night",
         "valorant",
         "fortnite",
         "minecraft",
-        "nft",
-        "anime",
-        "shitpost",
-        "general spam",
     ];
     let study_hit = STUDY.iter().any(|k| blob.contains(k));
-    let off_hit = OFF.iter().any(|k| blob.contains(k));
+    let meme_hit = MEME_OFF.iter().any(|k| blob.contains(k));
+    let game_hit = GAME_OFF.iter().any(|k| blob.contains(k));
+    let off_hit = meme_hit || game_hit;
     let goal_overlap = goal_keywords(goals)
         .into_iter()
         .filter(|k| blob.contains(k.as_str()))
         .count();
-    if goal_overlap >= 1 && !off_hit {
+    // Goal match wins over gaming chrome (playtest / game-design assignments).
+    if goal_overlap >= 1 && !meme_hit {
         return Some(true);
     }
     if study_hit && !off_hit {
@@ -565,11 +689,19 @@ fn hard_app_label(app_name: &str) -> Option<&'static str> {
     None
 }
 
-/// Contextual native apps (Discord): never hard-nag from app name alone — use window title.
+/// Contextual native apps: never hard-nag from app name alone — use window title + goals.
 fn contextual_app_label(app_name: &str) -> Option<&'static str> {
     let app = app_name.to_lowercase();
     if app.contains("discord") {
         Some("discord")
+    } else if app == "steam" || app.contains("steam helper") || app.contains("epic games") {
+        Some("gaming")
+    } else if app == "preview"
+        || app.contains("acrobat")
+        || app.contains("adobe reader")
+        || app.contains("pdf expert")
+    {
+        Some("reading")
     } else {
         None
     }
@@ -616,12 +748,39 @@ fn classify_url_host(text: &str) -> Option<&'static str> {
         ("newegg.com", "shopping"),
         ("costco.com", "shopping"),
         ("apple.com/shop", "shopping"),
-        ("store.steampowered", "shopping"),
+        // Academic / papers — contextual (must match goals; not auto-clear).
+        ("arxiv.org", "reading"),
+        ("scholar.google", "reading"),
+        ("pubmed.ncbi", "reading"),
+        ("semanticscholar.org", "reading"),
+        ("biorxiv.org", "reading"),
+        ("medrxiv.org", "reading"),
+        ("researchgate.net", "reading"),
+        ("jstor.org", "reading"),
+        ("sciencedirect.com", "reading"),
+        ("ieeexplore.ieee", "reading"),
+        ("dl.acm.org", "reading"),
+        ("acm.org/doi", "reading"),
+        ("nature.com", "reading"),
+        ("springer.com", "reading"),
+        ("wiley.com", "reading"),
+        ("ssrn.com", "reading"),
+        ("doi.org", "reading"),
+        // Gaming storefronts / launchers in-browser — contextual via goals.
+        ("store.steampowered", "gaming"),
+        ("steamcommunity.com", "gaming"),
+        ("steampowered.com", "gaming"),
+        ("epicgames.com", "gaming"),
+        ("store.epicgames", "gaming"),
     ];
     for (needle, label) in RULES {
         if text.contains(needle) {
             return Some(label);
         }
+    }
+    // Browser PDF tabs (file.pdf / .../pdf) — treat as reading, not auto-clear.
+    if text.contains(".pdf") || text.contains("/pdf") || text.contains("filetype=pdf") {
+        return Some("reading");
     }
     None
 }
@@ -1037,6 +1196,90 @@ mod tests {
         assert_eq!(surface_policy("texting"), SurfacePolicy::AlwaysOff);
         assert_eq!(surface_policy("youtube"), SurfacePolicy::Contextual);
         assert_eq!(surface_policy("discord"), SurfacePolicy::Contextual);
+        assert_eq!(surface_policy("reading"), SurfacePolicy::Contextual);
+        assert_eq!(surface_policy("gaming"), SurfacePolicy::Contextual);
+    }
+
+    #[test]
+    fn off_topic_arxiv_paper_is_off_task() {
+        assert_eq!(
+            classify_url_host("https://arxiv.org/abs/1706.03762"),
+            Some("reading")
+        );
+        let page = "Attention Is All You Need\nhttps://arxiv.org/pdf/1706.03762.pdf\nAbstract We propose a new simple network architecture";
+        assert_eq!(
+            local_context_guess("reading", page, "ENGL 1140 discussion post"),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn on_topic_paper_title_matching_goals_is_on_task() {
+        let page = "ENGL 1140 Peer Review Strategies in First-Year Composition - Google Scholar\nhttps://scholar.google.com/scholar?q=engl+1140+peer+review\n";
+        assert_eq!(
+            classify_url_host("https://scholar.google.com/scholar?q=engl+1140"),
+            Some("reading")
+        );
+        assert_eq!(
+            local_context_guess("reading", page, "ENGL 1140 discussion post"),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn on_topic_game_matching_goals_is_on_task() {
+        assert_eq!(
+            classify_url_host("https://store.steampowered.com/app/367520/Hollow_Knight/"),
+            Some("gaming")
+        );
+        let page = "Hollow Knight on Steam\nhttps://store.steampowered.com/app/367520/Hollow_Knight/\n";
+        assert_eq!(
+            local_context_guess(
+                "gaming",
+                page,
+                "playtest Hollow Knight for game design assignment"
+            ),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn off_topic_game_is_off_task() {
+        let page = "Counter-Strike 2 on Steam\nhttps://store.steampowered.com/app/730/CounterStrike_2/\n";
+        assert_eq!(
+            local_context_guess("gaming", page, "ENGL 1140 discussion post"),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn youtube_gameplay_on_topic_for_game_design_goals() {
+        let page = "Hollow Knight Path of Pain gameplay walkthrough - YouTube\nhttps://www.youtube.com/watch?v=x\n";
+        assert_eq!(
+            local_context_guess(
+                "youtube",
+                page,
+                "playtest Hollow Knight for game design class"
+            ),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn discord_gaming_channel_on_topic_when_goals_match() {
+        assert_eq!(
+            local_context_guess(
+                "discord",
+                "#hollow-knight | playtest notes",
+                "Hollow Knight playtest for game design"
+            ),
+            Some(true)
+        );
+        // Gaming chrome without goal overlap stays off-task.
+        assert_eq!(
+            local_context_guess("discord", "#minecraft | gaming", "ENGL 1140 discussion"),
+            Some(false)
+        );
     }
 
     #[test]
@@ -1094,5 +1337,34 @@ mod tests {
         let line = distraction_coach_line(&hit);
         assert!(line.to_lowercase().contains("youtube"));
         assert!(!line.to_lowercase().contains("instagram"));
+    }
+
+    #[test]
+    fn youtube_sidebar_lecture_does_not_greenlight_music() {
+        // Body recommendations must not override a clear entertainment title.
+        let page = "KSI - Thick of it, but with NO MUSIC - YouTube\nhttps://www.youtube.com/watch?v=x\nUp next: MIT OCW calculus lecture tutorial explained";
+        assert_eq!(
+            local_context_guess("youtube", page, "calculus exam prep"),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn youtube_unclear_title_is_not_study() {
+        // No study/entertainment keywords → unclear (caller hard-nags YouTube).
+        let page = "Random Cat Video - YouTube\nhttps://www.youtube.com/watch?v=abc\nHome Recommended";
+        assert_eq!(
+            local_context_guess("youtube", page, "ENGL 1140 discussion"),
+            None
+        );
+    }
+
+    #[test]
+    fn youtube_goal_word_only_in_sidebar_is_not_study() {
+        let page = "Funny prank compilation - YouTube\nhttps://www.youtube.com/watch?v=abc\nRelated: ENGL 1140 discussion lecture";
+        assert_eq!(
+            local_context_guess("youtube", page, "ENGL 1140 discussion"),
+            Some(false)
+        );
     }
 }

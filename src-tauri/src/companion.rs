@@ -41,6 +41,54 @@ pub fn clear_history(state: &AppState) {
     state.companion_history.lock().clear();
 }
 
+/// User turns only — what they told the companion, not coach replies.
+pub fn user_utterances(state: &AppState) -> Vec<String> {
+    state
+        .companion_history
+        .lock()
+        .iter()
+        .filter(|m| m.role == "user")
+        .map(|m| m.content.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// Record a final Live (or typed-while-live) user turn for the session note.
+/// Typed `companion_send` already appends; Live voice never did, so notes were empty.
+#[tauri::command]
+pub fn companion_record_user(state: State<'_, AppState>, text: String) -> Result<(), String> {
+    let text = text.trim().to_string();
+    if text.is_empty() {
+        return Ok(());
+    }
+    let in_mission = state
+        .session
+        .lock()
+        .as_ref()
+        .map(|s| s.active)
+        .unwrap_or(false);
+    if !in_mission {
+        return Ok(());
+    }
+    let mut hist = state.companion_history.lock();
+    if hist
+        .last()
+        .is_some_and(|m| m.role == "user" && m.content.trim() == text)
+    {
+        return Ok(());
+    }
+    hist.push(ChatMessage {
+        role: "user".into(),
+        content: text,
+        study_suggestion: None,
+    });
+    if hist.len() > 40 {
+        let drain = hist.len() - 40;
+        hist.drain(0..drain);
+    }
+    Ok(())
+}
+
 fn merge_session_context(state: &AppState, mut ctx: CompanionContext) -> CompanionContext {
     if let Some(session) = state.session.lock().as_ref() {
         if ctx.goals.as_ref().map(|g| g.trim().is_empty()).unwrap_or(true) {

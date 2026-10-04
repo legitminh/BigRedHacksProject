@@ -199,7 +199,7 @@ fn claim_ephemeral_slot_keyed(cooldown_secs: i64, key: Option<&str>) -> bool {
 
 /// `use_screen`: the student opted in to screen watching (frontmost app/title/URL, OCR, local VLM).
 /// When false none of those run — the loop only keeps the timer honest.
-/// `use_camera`: camera opted in AND permission available; gates Presage.
+/// `use_camera`: camera opted in AND permission available; gates webcam record + observe/Presage.
 pub fn spawn_coach_loop(
     app: AppHandle,
     session_id: String,
@@ -226,7 +226,13 @@ pub fn spawn_coach_loop(
         let mut guard = state.session.lock();
         if let Some(session) = guard.as_mut() {
             session.watching_note = if use_screen {
-                format!("Settling in — tracking starts in {TRACKING_WARMUP_SECS}s…")
+                if use_camera || session.camera_enabled {
+                    format!("Settling in — tracking starts in {TRACKING_WARMUP_SECS}s…")
+                } else {
+                    format!(
+                        "Settling in — tracking starts in {TRACKING_WARMUP_SECS}s · camera accountability off"
+                    )
+                }
             } else {
                 "Screen sharing off · timer and check-ins only".into()
             };
@@ -255,8 +261,12 @@ pub fn spawn_coach_loop(
             let mut guard = state.session.lock();
             if let Some(session) = guard.as_mut() {
                 if session.active && session.id == probe_id {
-                    session.watching_note =
+                    let mut note =
                         format!("Local watch · {ocr_line} · {text_line} · {vlm_line}");
+                    if !session.camera_enabled {
+                        note.push_str(" · camera accountability off");
+                    }
+                    session.watching_note = note;
                     let snap = session.clone();
                     drop(guard);
                     let _ = probe_app.emit("session-update", &snap);
@@ -279,7 +289,7 @@ pub fn spawn_coach_loop(
     });
 
     // Camera accountability: capture locally, analyze on the API (Presage + presence).
-    // `use_presage` is legacy (local key); loop runs whenever camera is opted in.
+    // Only when opted in + ready — never record/observe when preference is off.
     if use_camera {
         let _ = use_presage;
         let vitals_app = app;
@@ -413,6 +423,7 @@ async fn run_local_watch_loop(
                     // Key by label only — detail churn was resetting cooldown and stacking voice.
                     let fp = format!("hard:{}", hit.label);
                     last_fingerprint = fp;
+                    append_screen_log(&app, &format!("{} · {}", hit.label, hit.detail));
                     let cfg = app.state::<AppState>().config.lock().clone();
                     let nag_n = distraction_episode_nags(hit.label).saturating_add(1);
                     let coach_line = local_judge::compose_coach_line(
@@ -444,10 +455,19 @@ async fn run_local_watch_loop(
                     let fp = info.fingerprint();
                     let switched = fp != last_fingerprint;
                     last_fingerprint = fp.clone();
+                    if switched {
+                        append_screen_log(&app, &info.summary());
+                        if !page_text.trim().is_empty() {
+                            append_screen_log(&app, &format!("Page: {page_text}"));
+                        }
+                    }
 
                     // 1) Instant keyword guess for obvious study vs entertainment.
-                    //    Unclear YouTube → local judge (do NOT assume entertainment).
-                    let heuristic = frontmost::local_context_guess(kind, &page_text, &goals);
+                    //    Unclear YouTube/video/gaming → off-task (interrupt by default).
+                    let mut heuristic = frontmost::local_context_guess(kind, &page_text, &goals);
+                    if heuristic.is_none() && matches!(kind, "youtube" | "video" | "gaming") {
+                        heuristic = Some(false);
+                    }
                     if let Some(on_task) = heuristic {
                         if on_task {
                             if was_distracted && switched {
@@ -565,6 +585,7 @@ async fn run_local_watch_loop(
                     let state = app.state::<AppState>();
                     let mut guard = state.session.lock();
                     if let Some(session) = guard.as_mut() {
+                        session.push_screen_log(&info.summary());
                         if matches!(session.status, SessionStatusKind::OnTask)
                             && !camera_presence_owns_note(&session.vitals.raw_summary)
                         {
@@ -603,14 +624,19 @@ async fn run_local_watch_loop(
                         .next()
                         .unwrap_or("")
                         .to_string();
+                    if !last_ocr_snippet.trim().is_empty() {
+                        append_screen_log(&app, &format!("OCR: {last_ocr_snippet}"));
+                    }
                     // OCR labels are host/chrome-strong only — ignore brand word mentions.
                     if let Some(label) = reading.labels.first().copied() {
+                        // YouTube only skips the OCR nag when title/OCR clearly looks like study.
+                        // Unclear entertainment must still distract (interrupt by default).
                         let study_ok = label == "youtube"
                             && frontmost::local_context_guess(
                                 "youtube",
                                 &reading.ocr_text,
                                 &goals,
-                            ) != Some(false);
+                            ) == Some(true);
                         if !study_ok {
                             last_fingerprint = format!("ocr:{label}");
                             let hit = frontmost::DistractionHit {
@@ -651,11 +677,20 @@ async fn run_local_watch_loop(
                                 )
                                 .await
                                 {
-                                    if j.confidence >= local_judge::min_confidence()
-                                        && !j.result.on_task
-                                    {
-                                        apply_coach_tick(&app, &j.result, &mut last_vitals).await;
-                                        was_distracted = true;
+                                    if j.confidence >= local_judge::min_confidence() {
+                                        let verdict = if j.result.on_task {
+                                            "on task"
+                                        } else {
+                                            "off task"
+                                        };
+                                        append_screen_log(
+                                            &app,
+                                            &format!("Judge: {verdict} — {}", j.result.coach_line),
+                                        );
+                                        if !j.result.on_task {
+                                            apply_coach_tick(&app, &j.result, &mut last_vitals).await;
+                                            was_distracted = true;
+                                        }
                                     }
                                 }
                             }
@@ -752,6 +787,14 @@ async fn judge_context_cascade(
                 judgment.result.on_task
             );
             let on_task = judgment.result.on_task && judgment.result.distraction.is_none();
+            let verdict = if on_task { "on task" } else { "off task" };
+            append_screen_log(
+                app,
+                &format!(
+                    "Judge: {verdict} · {} · {} — {}",
+                    info.app_name, info.window_title, judgment.result.coach_line
+                ),
+            );
             apply_coach_tick(app, &judgment.result, last_vitals).await;
             Some(on_task)
         }
@@ -801,8 +844,16 @@ fn mark_local_on_task(app: &AppHandle, info: &frontmost::FrontmostInfo) {
     session.status = SessionStatusKind::OnTask;
     // Screen focus note must not erase Presage away/obstructed accountability copy.
     if !camera_presence_owns_note(&session.vitals.raw_summary) {
-        session.watching_note = format!("Watching full screen · {}", info.summary());
+        session.watching_note = if session.camera_enabled {
+            format!("Watching full screen · {}", info.summary())
+        } else {
+            format!(
+                "Watching full screen · {} · camera accountability off",
+                info.summary()
+            )
+        };
     }
+    session.push_screen_log(&info.summary());
     let snap = session.clone();
     drop(guard);
     let _ = app.emit("session-update", &snap);
@@ -819,7 +870,7 @@ async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop
     tokio::time::sleep(Duration::from_secs(PRESAGE_START_DELAY_SECS)).await;
 
     while !stop.load(Ordering::SeqCst) {
-        let (active, paused, on_pomodoro_break) = {
+        let (active, paused, on_pomodoro_break, camera_enabled) = {
             let state = app.state::<AppState>();
             let on_pomodoro_break = state.break_active.load(Ordering::SeqCst);
             let guard = state.session.lock();
@@ -829,12 +880,17 @@ async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop
                         && s.id == session_id
                         && (s.paused || s.remaining_secs() > 25) =>
                 {
-                    (true, s.paused, on_pomodoro_break)
+                    (true, s.paused, on_pomodoro_break, s.camera_enabled)
                 }
-                _ => (false, false, false),
+                _ => (false, false, false, false),
             }
         };
         if !active {
+            break;
+        }
+        // Preference off mid-mission (or never opted in) — never touch webcam / observe.
+        if !camera_enabled {
+            tracing::debug!("camera accountability idle — preference off");
             break;
         }
 
@@ -1066,6 +1122,14 @@ fn is_auth_observe_error(err: &str) -> bool {
     lower.contains("401")
         || lower.contains("unauthorized")
         || lower.contains("sign in")
+}
+
+fn append_screen_log(app: &AppHandle, line: &str) {
+    let state = app.state::<AppState>();
+    let mut guard = state.session.lock();
+    if let Some(session) = guard.as_mut() {
+        session.push_screen_log(line);
+    }
 }
 
 fn apply_watching_note(app: &AppHandle, note: &str) {
@@ -1503,6 +1567,12 @@ async fn speak_heads_up(app: &AppHandle, text: &str) {
 async fn finish_session(app: &AppHandle, session_id: &str) {
     waypoint_voice::stop_speaking();
     overlay::hide(app);
+    // Natural end does not clear companion history, but snapshot before the session goes away
+    // so the note still has what the user told the agent.
+    let utterances = {
+        let state = app.state::<AppState>();
+        crate::companion::user_utterances(&state)
+    };
     let summary = {
         let state = app.state::<AppState>();
         let open_pause = state.pause_started.lock().take();
@@ -1513,7 +1583,9 @@ async fn finish_session(app: &AppHandle, session_id: &str) {
                 session.finalize_open_pause(open_pause);
                 session.active = false;
                 session.paused = false;
-                let summary = session.summarize();
+                let mut summary = session.summarize();
+                summary.notes_pending =
+                    crate::maybe_spawn_session_note(app, session, utterances);
                 // Same lifecycle as `stop_lock_in`: clear the finished session.
                 *guard = None;
                 Some(summary)

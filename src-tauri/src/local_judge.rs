@@ -201,10 +201,12 @@ Reply with ONLY compact JSON, no markdown:
 Rules:
 - Decide from title, url, and page_text — NOT from the kind label alone, and NOT from tab-group names like "School".
 - on_task=true only if this clearly advances the goals (coursework, lecture, tutorial matching goals).
-- YouTube/video are CONTEXTUAL: lecture/tutorial matching goals → on_task=true; music/rap/artist tracks/"no music"/gaming/vlogs/memes/entertainment → false, distraction="youtube".
-- Discord is CONTEXTUAL: study/homework help matching goals → may be true; meme/gaming spam → false, distraction="discord".
+- YouTube/video are CONTEXTUAL: lecture/tutorial matching goals → on_task=true; music/rap/artist tracks/"no music"/vlogs/memes/entertainment → false, distraction="youtube". Gameplay matching game-design/playtest goals → may be true.
+- Discord is CONTEXTUAL: study/homework help matching goals → may be true; meme spam → false; gaming channels matching playtest/game goals → may be true, else false, distraction="discord".
+- Reading/papers/PDFs/scholar/arxiv are CONTEXTUAL: on_task=true ONLY if the paper/title advances the goals — being academic is not enough; off-topic papers → false, distraction="reading".
+- Gaming/Steam/Epic are CONTEXTUAL: on_task=true ONLY if goals clearly include that game/playtest; otherwise false, distraction="gaming".
 - Instagram, shopping, email, texting-class → ALWAYS on_task=false (never study).
-- If unsure, confidence < 0.5 and lean on_task=false for entertainment content.
+- If unsure, confidence < 0.5 and lean on_task=false for entertainment / off-topic content.
 - coach_line MUST name the distraction AND reuse words from the goals field only — never invent other courses, assignments, or discussion posts that are not in goals.
 - When off-task, coach_line must tell them to leave the distraction and refocus on goals — NEVER suggest taking a break, resting, or stepping away (breaks are only for stress/tiredness).
 - Never output meta text like "one short sentence" or "short nudge".

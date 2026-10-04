@@ -1071,6 +1071,13 @@ body:has(.view-home.view-home--guest.active) .grain {
   color: #282237;
 }
 
+/* `display: inline-flex` above beats the UA `[hidden]` rule — keep Cancel sign-in
+   invisible until JS shows it during an in-flight Google sign-in. */
+.welcome-guest-link[hidden],
+#welcome-cancel-google[hidden] {
+  display: none !important;
+}
+
 /* Live 01 foot (5:77): muted #645d73 at 13px / lh 1.4 left under Quiet guest */
 .welcome-signin-foot {
   margin: 0;
@@ -5145,6 +5152,146 @@ body:has(.view-quest-complete.active) .grain {
   font-size: 15px;
   line-height: 1.4;
   color: #282237;
+}
+
+.quest-session-note {
+  margin: 0.35rem 0 1rem;
+  padding: 20px;
+  border-radius: 28px;
+  background: #e9ddfd;
+  border: 1px solid #c8bfd7;
+  box-shadow: 0 6px 18px rgba(42, 36, 64, 0.04);
+  color: #282237;
+}
+
+.quest-session-note-kicker {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #326c78;
+}
+
+.quest-session-note-status {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: #4a4560;
+}
+
+.quest-session-note-body {
+  font-size: 15px;
+  line-height: 1.45;
+  color: #282237;
+}
+
+.quest-session-note-body > :first-child {
+  margin-top: 0;
+}
+
+.quest-session-note-body > :last-child {
+  margin-bottom: 0;
+}
+
+.quest-session-note-body h1,
+.quest-session-note-body h2,
+.quest-session-note-body h3 {
+  margin: 0.85rem 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 650;
+  color: #2a2440;
+}
+
+.quest-session-note-body h1 {
+  font-size: 1.15rem;
+}
+
+.quest-session-note-body p {
+  margin: 0.35rem 0;
+}
+
+.quest-session-note-body ul,
+.quest-session-note-body ol {
+  margin: 0.35rem 0;
+  padding-left: 1.2rem;
+}
+
+.quest-session-note-body code {
+  font-size: 0.9em;
+}
+
+.quest-concept-map {
+  margin-top: 14px;
+}
+
+.quest-session-summary-btn {
+  margin-top: 4px;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(50, 108, 120, 0.35);
+  background: #326c78;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(50, 108, 120, 0.22);
+}
+
+.quest-session-summary-btn:hover:not(:disabled) {
+  background: #2a5d67;
+}
+
+.quest-session-summary-btn:disabled {
+  background: rgba(42, 36, 64, 0.12);
+  border-color: transparent;
+  color: rgba(42, 36, 64, 0.45);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.quest-concept-map-status {
+  margin: 8px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: #4a4560;
+}
+
+.quest-concept-map-result {
+  margin-top: 12px;
+}
+
+.quest-concept-map-result[hidden] {
+  display: none !important;
+}
+
+.quest-concept-map-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.quest-concept-map-image[hidden],
+.quest-concept-map-image:not([src]) {
+  display: none !important;
+}
+
+.quest-session-summary-download {
+  margin-top: 10px;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(50, 108, 120, 0.28);
+  background: rgba(255, 255, 255, 0.72);
+  color: #326c78;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.quest-session-summary-download:hover {
+  background: #fff;
 }
 
 .quest-flight-details {

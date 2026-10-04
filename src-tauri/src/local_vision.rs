@@ -147,7 +147,7 @@ pub async fn judge_frame(
     let prompt = format!(
         r#"You are a study lock-in classifier. Look at the screenshot (and OCR hint).
 Reply ONLY JSON: {{"on_task":true|false,"confidence":0.0-1.0,"distraction":null|"youtube"|"instagram"|"shopping"|"email"|"discord"|"phone"|"other","coach_line":"Leave that tab and get back to {goal_hint}."}}
-Rules: on_task only if the visible content advances the goals. YouTube entertainment/music/gaming = false. Lectures matching goals = true.
+Rules: on_task only if the visible content advances the goals. YouTube entertainment/music = false; lectures matching goals = true; gameplay only if goals include that game/playtest. Academic papers/PDFs only if they match goals (academic ≠ on-task). Gaming/Steam only if goals include that game.
 Set distraction from the visible site/app (youtube.com/Shorts → "youtube", never "instagram"). Use "phone" only if a phone UI/screen is clearly visible.
 coach_line must name the real distraction and reuse words from goals only — never invent other courses/quizzes (e.g. BIOMG/ENGL) not in goals. Never meta text like "short" or "one short sentence".
 When off-task, tell them to leave the distraction and refocus — NEVER suggest taking a break (breaks are only for stress/tiredness).
