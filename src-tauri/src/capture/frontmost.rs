@@ -1458,6 +1458,126 @@ fn osascript(source: &str) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+/// Whether macOS Accessibility (AX) is granted for this process.
+#[cfg(target_os = "macos")]
+pub fn accessibility_trusted() -> bool {
+    #[link(name = "ApplicationServices", kind = "framework")]
+    extern "C" {
+        fn AXIsProcessTrusted() -> bool;
+    }
+    // SAFETY: plain C call; reads TCC Accessibility grant for this binary.
+    unsafe { AXIsProcessTrusted() }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn accessibility_trusted() -> bool {
+    true
+}
+
+/// Show the system Accessibility prompt (opens Settings when the user confirms).
+#[cfg(target_os = "macos")]
+fn request_accessibility_prompt() -> bool {
+    use std::ffi::c_void;
+
+    type CfTypeRef = *const c_void;
+    type CfDictionaryRef = *const c_void;
+
+    #[link(name = "ApplicationServices", kind = "framework")]
+    extern "C" {
+        fn AXIsProcessTrustedWithOptions(options: CfDictionaryRef) -> bool;
+        static kAXTrustedCheckOptionPrompt: CfTypeRef;
+    }
+
+    #[link(name = "CoreFoundation", kind = "framework")]
+    extern "C" {
+        fn CFDictionaryCreate(
+            allocator: *const c_void,
+            keys: *const CfTypeRef,
+            values: *const CfTypeRef,
+            num_values: isize,
+            key_callbacks: *const c_void,
+            value_callbacks: *const c_void,
+        ) -> CfDictionaryRef;
+        fn CFRelease(cf: CfTypeRef);
+        static kCFBooleanTrue: CfTypeRef;
+        static kCFTypeDictionaryKeyCallBacks: c_void;
+        static kCFTypeDictionaryValueCallBacks: c_void;
+    }
+
+    // SAFETY: symbols are process-global CoreFoundation / AX constants; dictionary
+    // holds one boolean option and is released before return.
+    unsafe {
+        let keys = [kAXTrustedCheckOptionPrompt];
+        let values = [kCFBooleanTrue];
+        let opts = CFDictionaryCreate(
+            std::ptr::null(),
+            keys.as_ptr(),
+            values.as_ptr(),
+            1,
+            &kCFTypeDictionaryKeyCallBacks,
+            &kCFTypeDictionaryValueCallBacks,
+        );
+        if opts.is_null() {
+            return AXIsProcessTrustedWithOptions(std::ptr::null());
+        }
+        let trusted = AXIsProcessTrustedWithOptions(opts);
+        CFRelease(opts);
+        trusted
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn open_privacy_pane(pane: &str) {
+    let url = format!("x-apple.systempreferences:com.apple.preference.security?{pane}");
+    let _ = Command::new("open").arg(url).spawn();
+}
+
+/// Trigger the Automation (Apple Events) prompt for System Events, if needed.
+#[cfg(target_os = "macos")]
+fn probe_system_events_automation() -> Result<(), String> {
+    // Minimal target — first call shows “Waypoint wants to control System Events”.
+    osascript(r#"tell application "System Events" to get name"#).map(|_| ())
+}
+
+/// Prompt Accessibility + Automation before lock-in, then verify frontmost works.
+///
+/// Call this before spawning the coach loop so the session never starts with a
+/// dead focus scanner and a late “Can’t read screen focus” note.
+pub fn ensure_focus_permissions() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        if !accessibility_trusted() {
+            let trusted = request_accessibility_prompt();
+            if !trusted && !accessibility_trusted() {
+                open_privacy_pane("Privacy_Accessibility");
+                return Err(
+                    "Allow Accessibility for Waypoint in System Settings → Privacy & Security → Accessibility, then quit and reopen Waypoint before launching."
+                        .into(),
+                );
+            }
+        }
+
+        if let Err(e) = probe_system_events_automation() {
+            open_privacy_pane("Privacy_Automation");
+            return Err(format!(
+                "Allow Automation for Waypoint → System Events in System Settings → Privacy & Security → Automation, then try again. ({e})"
+            ));
+        }
+
+        frontmost_info().map(|_| ()).map_err(|e| {
+            open_privacy_pane("Privacy_Accessibility");
+            format!(
+                "Can’t read screen focus yet ({e}). Allow Accessibility + Automation (System Events) for Waypoint in System Settings, then quit and reopen the app."
+            )
+        })
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(())
+    }
+}
+
 /// Kept for any leftover callers.
 #[allow(dead_code)]
 pub fn scan_distractions(front: &FrontmostInfo) -> Option<DistractionHit> {

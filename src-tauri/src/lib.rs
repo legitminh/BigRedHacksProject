@@ -136,8 +136,14 @@ async fn get_system_permissions() -> Result<SystemPermissions, String> {
         .await
         .unwrap_or(false);
     let camera = capture::camera::permission_granted();
-    let accessibility = match tokio::task::spawn_blocking(capture::frontmost::frontmost_info).await {
-        Ok(Ok(_)) => true,
+    // Accessibility alone is not enough — Automation (System Events) is required for
+    // frontmost/title/tabs. Treat the pair as the coaching focus permission.
+    let accessibility = match tokio::task::spawn_blocking(|| {
+        capture::frontmost::accessibility_trusted() && capture::frontmost::frontmost_info().is_ok()
+    })
+    .await
+    {
+        Ok(ok) => ok,
         _ => false,
     };
     let microphone = tokio::task::spawn_blocking(waypoint_voice::microphone_permission_status)
@@ -1290,6 +1296,17 @@ async fn start_lock_in(
     }
 
     let cfg = state.config.lock().clone();
+
+    // Accessibility + Automation (System Events) — prompt before coach starts so we never
+    // enter a session that only surfaces “Can’t read screen focus” mid-loop.
+    {
+        let focus_ok = tokio::task::spawn_blocking(capture::frontmost::ensure_focus_permissions)
+            .await
+            .map_err(|e| format!("Focus permission check failed: {e}"))?;
+        if let Err(e) = focus_ok {
+            return Err(e);
+        }
+    }
 
     // Screen watching is required. Don't hard-fail on CGPreflight alone (adhoc rebuilds /
     // /Applications installs often look "denied" there). Prompt + short capture probe.

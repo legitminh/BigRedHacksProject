@@ -1385,7 +1385,7 @@ async function renderPermissionsStatus() {
     });
     setPermissionBadge("perm-accessibility", perms.accessibility, {
       on: "Enabled",
-      off: "Grant for tab coaching",
+      off: "Grant Accessibility + Automation",
     });
     setMicrophoneBadge(perms.microphone);
   } catch (err) {
@@ -5110,18 +5110,8 @@ async function bootApp() {
         return;
       }
     }
-    try {
-      // TCC preflight alone is unreliable for ad-hoc /Applications rebuilds — don't
-      // hard-block here. Rust start_lock_in prompts + probes real capture.
-      const perms = await invoke<SystemPermissions>("get_system_permissions");
-      if (!perms.accessibility && errEl) {
-        errEl.hidden = false;
-        errEl.textContent =
-          "Accessibility isn’t granted yet — tab coaching may be limited. Continuing launch; grant it in System Settings for full coaching.";
-      }
-    } catch {
-      // Preflight best-effort; Rust still gates capture.
-    }
+    // Rust start_lock_in prompts Accessibility + Automation (System Events) and
+    // hard-gates until frontmost focus works — do not soft-continue without them.
     if (!beginLockInLaunch()) return;
     const missionGoals = goals;
     try {
