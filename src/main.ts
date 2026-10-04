@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import shipIconUrl from "./assets/branding/ship-icon.png?url";
 import { renderMarkdown } from "./markdown.ts";
 import { retryChat } from "./chat-retry.ts";
 import {
@@ -774,7 +775,7 @@ function renderGuestNav() {
   if (brand) {
     brand.className = "mc-nav-brand";
     brand.innerHTML =
-      '<img class="brand-mark" src="/src/assets/branding/ship-icon.png" width="28" height="28" alt="" aria-hidden="true" /><span class="welcome-brand-star" aria-hidden="true">✦</span> Waypoint';
+      `<img class="brand-mark" src="${shipIconUrl}" width="28" height="28" alt="" aria-hidden="true" /><span class="welcome-brand-star" aria-hidden="true">✦</span> Waypoint`;
   }
   if (nav) {
     nav.innerHTML = "";
@@ -806,7 +807,7 @@ function renderHomeNav(status: StatusPayload) {
   if (brand) {
     brand.className = "settings-brand";
     brand.innerHTML =
-      '<img class="brand-mark" src="/src/assets/branding/ship-icon.png" width="28" height="28" alt="" aria-hidden="true" /><span class="settings-brand-star" aria-hidden="true">✦</span> Waypoint';
+      `<img class="brand-mark" src="${shipIconUrl}" width="28" height="28" alt="" aria-hidden="true" /><span class="settings-brand-star" aria-hidden="true">✦</span> Waypoint`;
   }
   if (center) {
     center.className = "settings-nav";
