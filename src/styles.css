@@ -1,7 +1,18 @@
 @import "katex/dist/katex.min.css";
 
-.bubble.assistant .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.3rem 0; }
-.bubble.assistant .katex { font-size: 1.1em; }
+.bubble.assistant .katex {
+  font-size: 1.21em;
+  color: inherit;
+}
+.bubble.assistant .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.35rem 0;
+  margin: 0.75rem 0;
+}
+.bubble.assistant .katex-display > .katex {
+  font-size: 1.35em;
+}
 
 :root {
   /* Mission Control — surfaces (Figma light lavender / cream) */
@@ -1489,16 +1500,6 @@ body:has(.view-home.view-home--guest.active) .grain {
   gap: 22px;
 }
 
-/* Live 15 timer-replace dialog (6:1562): 580×301 surface tokens */
-.mc-perm-modal__card--timer-replace {
-  width: min(100%, 580px);
-  padding: 32px;
-  border-radius: 28px;
-  background: #fffbff;
-  border: 1px solid #c8bfd7;
-  gap: 22px;
-}
-
 .mc-perm-modal__badge {
   margin: 0;
   justify-self: start;
@@ -2800,6 +2801,32 @@ button:active {
   background: #ddd0f5;
 }
 
+/* Stop TTS only — sits beside Mic/Talk while speaking/thinking. */
+.view-copilot .copilot-stop-speech,
+.view-session .session-copilot-composer .copilot-stop-speech {
+  flex-shrink: 0;
+  height: 3.25rem;
+  padding: 0 0.85rem;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: #2a6b7a;
+  color: #f4fcff;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.view-copilot .copilot-stop-speech:hover:not(:disabled),
+.view-session .session-copilot-composer .copilot-stop-speech:hover:not(:disabled) {
+  background: #245f6c;
+}
+
+.view-copilot .copilot-stop-speech[hidden],
+.view-session .session-copilot-composer .copilot-stop-speech[hidden] {
+  display: none;
+}
+
 /* Mic / Talk ON: distinct fills by Live phase (idle stays tonal #e9ddfd). */
 .view-copilot .copilot-mic.is-on.is-live,
 .view-session .session-companion-talk.is-on.is-live,
@@ -3079,9 +3106,35 @@ button:focus-visible, a:focus-visible, .table-scroll:focus-visible {
 .bubble.assistant li { margin: 0.3rem 0; }
 .bubble.assistant a { color: var(--amber); text-underline-offset: 3px; }
 .bubble.assistant blockquote { margin: 0.8rem 0; border-left: 3px solid var(--mist); padding-left: 0.8rem; color: var(--muted); }
-.bubble.assistant code { font-family: ui-monospace, monospace; font-size: 0.9em; background: rgba(0, 0, 0, 0.25); padding: 0.1em 0.3em; }
-.bubble.assistant pre { max-width: 100%; overflow: auto; white-space: pre; background: #07141a; padding: 0.85rem; }
-.bubble.assistant pre code { background: none; padding: 0; }
+.bubble.assistant :not(pre) > code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
+  color: var(--mc-text-primary);
+  background: var(--mc-bg-deep);
+  border: 1px solid var(--mc-border-default);
+  border-radius: var(--radius-sm);
+  padding: 0.12em 0.38em;
+}
+.bubble.assistant pre {
+  max-width: 100%;
+  overflow: auto;
+  white-space: pre;
+  margin: 0.75rem 0;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--mc-border-default);
+  background: var(--ship-hull);
+  color: var(--mc-bg-elevated);
+  line-height: 1.5;
+  font-size: 0.875rem;
+}
+.bubble.assistant pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
 .table-scroll { max-width: 100%; overflow-x: auto; margin: 0.8rem 0; }
 .bubble.assistant table { border-collapse: collapse; font-size: 0.9rem; }
 .bubble.assistant th, .bubble.assistant td { border: 1px solid rgba(159, 196, 188, 0.3); padding: 0.5rem 0.7rem; text-align: left; }
@@ -3810,10 +3863,21 @@ body:has(.view-mission-setup.active) .grain {
 
 .session-break-resume {
   width: 100%;
-  min-height: 3.25rem;
+  min-height: 3.5rem;
   border-radius: var(--radius-pill);
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 700;
+}
+
+.session-break-resume:focus-visible {
+  outline: 2px solid var(--mc-accent-cyan);
+  outline-offset: 3px;
+}
+
+#view-session.is-pomodoro-break .session-break-resume {
+  min-height: 3.75rem;
+  font-size: 1.1rem;
+  box-shadow: var(--mc-shadow-glow-purple);
 }
 
 .session-break-footer {
@@ -3959,6 +4023,7 @@ body:has(.view-mission-setup.active) .grain {
 }
 
 /* Break wins if both classes briefly overlap (Take a break from check-in). */
+#view-session.is-session-break .session-break-suggest,
 #view-session.is-session-break .session-checkin-card {
   display: none !important;
 }
@@ -4094,8 +4159,7 @@ body:has(.view-session.active) .grain {
 
 .view-session > .session-top-bar,
 .view-session > .session-page,
-.view-session > .session-coach-log,
-.view-session > .session-watch-note {
+.view-session > .session-coach-log {
   position: relative;
   z-index: 1;
 }
@@ -4433,66 +4497,131 @@ body:has(.view-session.active) .grain {
   text-align: center;
 }
 
-.session-next-step {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.65rem 0.85rem;
-  margin: 1rem 0 0;
-}
-
-#view-session.is-session-listening #session-next-step,
-#view-session.is-session-break #session-next-step,
-#view-session.is-session-checkin #session-next-step,
-#view-session.is-session-ending #session-next-step {
-  display: none;
-}
-
 #view-session.is-session-break #session-copilot-suggest,
-#view-session.is-session-checkin #session-copilot-suggest {
+#view-session.is-session-checkin #session-copilot-suggest,
+#view-session.is-break-suggested #session-copilot-suggest {
   display: none;
 }
 
-.session-next-step-pill {
+/* Coach-suggested 5-minute break — Accept / Not now (never auto-starts). */
+.session-break-suggest {
+  display: none;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  margin: 0 0 0.85rem;
+  padding: 1.15rem 1.2rem 1.2rem;
+  border-radius: var(--radius-xl);
+  background: var(--mc-bg-card);
+  border: 1px solid rgba(107, 76, 255, 0.16);
+  box-shadow: var(--mc-shadow-soft);
+}
+
+#view-session.is-break-suggested .session-break-suggest {
+  display: flex;
+}
+
+#view-session.is-session-checkin .session-break-suggest,
+#view-session.is-session-ending .session-break-suggest {
+  display: none !important;
+}
+
+/* Stress break invite wins over check-in if both classes overlap briefly. */
+#view-session.is-break-suggested.is-session-checkin .session-break-suggest {
+  display: flex !important;
+}
+
+#view-session.is-break-suggested.is-session-checkin .session-checkin-card {
+  display: none !important;
+}
+
+.session-break-suggest__badge {
+  margin: 0 0 0.75rem;
+  align-self: flex-start;
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.55rem 0.95rem;
+  padding: 0.35rem 0.75rem;
   border-radius: var(--radius-pill);
-  background: var(--mc-surface-lavender);
-  border: 1px solid rgba(107, 76, 255, 0.16);
-}
-
-.session-next-step-clock {
-  width: 0.95rem;
-  height: 0.95rem;
-  flex-shrink: 0;
-  color: var(--mc-accent-purple);
-}
-
-.session-next-step-kicker {
   font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--mc-accent-purple);
+  background: var(--mc-surface-lavender);
+  border: 1px solid rgba(107, 76, 255, 0.14);
 }
 
-.session-next-step-time {
+.session-break-suggest__title {
+  margin: 0 0 0.5rem;
   font-family: var(--font-display);
-  font-size: 1.15rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
   color: var(--mc-text-primary);
-  min-width: 3.4rem;
-  text-align: right;
 }
 
-.session-next-step-hint {
-  margin: 0;
-  font-size: 0.82rem;
-  color: var(--mc-text-muted);
+.session-break-suggest__body {
+  margin: 0 0 1rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--mc-text-secondary);
+}
+
+.session-break-suggest__divider {
+  margin: 0 0 1rem;
+  border: none;
+  border-top: 1px solid var(--mc-border-subtle);
+}
+
+.session-break-suggest__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.session-break-suggest__btn {
+  flex: 1 1 8rem;
+  min-height: 2.85rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.session-break-suggest__btn--ghost {
+  border: 1px solid var(--mc-border-default);
+  background: transparent;
+  color: var(--mc-text-primary);
+}
+
+.session-break-suggest__btn--ghost:hover {
+  background: var(--mc-surface-lavender);
+  border-color: rgba(107, 76, 255, 0.22);
+}
+
+.session-break-suggest__btn--accept {
+  border: none;
+}
+
+.session-break-suggest__btn:focus-visible,
+.session-break-suggest__btn--accept:focus-visible {
+  outline: 2px solid var(--mc-accent-cyan);
+  outline-offset: 3px;
+}
+
+.session-break-suggest__btn:disabled,
+.session-copilot-suggest:disabled,
+.session-checkin-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+#view-session.is-break-suggested .session-copilot-chat {
+  opacity: 0.72;
+}
+
+#view-session.is-break-suggested .session-break-suggest {
+  order: -1;
 }
 
 .session-copilot-suggest {
@@ -4595,11 +4724,16 @@ body:has(.view-session.active) .grain {
   box-shadow: none;
 }
 
-.session-watch-note {
-  text-align: center;
-  color: var(--muted);
-  font-size: 0.85rem;
-  margin: 0 auto 0.9rem;
+.session-mission-card > .session-watch-note {
+  margin: 0 0 0.65rem;
+  text-align: left;
+  color: var(--mc-text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.session-watch-note[hidden] {
+  display: none !important;
 }
 
 .vitals-panel {
@@ -4820,7 +4954,7 @@ body:has(.view-quest-complete.active) .grain {
 
 .quest-complete-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.55rem;
   margin-bottom: 0.85rem;
 }
@@ -5873,7 +6007,7 @@ img[src*="assets/figma/"] {
 }
 
 .view-quest-complete .flight-log-stats {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.55rem;
 }
 

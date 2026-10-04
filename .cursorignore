@@ -1,0 +1,49 @@
+# Dependencies & build artifacts
+node_modules/
+dist/
+dist-ssr/
+preview/
+coverage/
+.vite/
+.turbo/
+src-tauri/target/
+src-tauri/gen/
+*.map
+
+# Lockfiles (low signal, high token cost)
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+src-tauri/Cargo.lock
+
+# Secrets / local env
+.env
+.env.*
+src-tauri/secrets.toml
+
+# Design dumps & pixel-diff screenshots (tens of MB; not needed for coding)
+.cursor/figma-refs/
+_verify/
+src/assets/figma/from-export/
+
+# Agent patrol / audit noise
+.cursor/*-inbox.md
+.cursor/*-brief.md
+.cursor/*-compliance.md
+.cursor/overseer-*.md
+.cursor/figma-patrol-*.md
+AUDIT-*.local.md
+*.local.md
+
+# Nested clone / scratch trees
+.tmp-*/
+.tmp-VIDEOINPUT/
+.tmp-gemini_live_demo/
+
+# Logs & OS junk
+logs/
+*.log
+*.ndjson
+*.jsonl
+*.har
+.DS_Store

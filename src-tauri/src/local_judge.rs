@@ -188,13 +188,16 @@ pub async fn judge_on_task(
     let prompt = format!(
         r#"You are a strict study lock-in classifier. Decide if the student is ON TASK for their goals.
 Reply with ONLY compact JSON, no markdown:
-{{"on_task":true|false,"confidence":0.0-1.0,"distraction":null|"label","coach_line":"one short sentence"}}
+{{"on_task":true|false,"confidence":0.0-1.0,"distraction":null|"youtube","coach_line":"Close Discord and finish your ENGL discussion post."}}
 
 Rules:
+- Decide from title, url, and page_text — NOT from the kind label alone, and NOT from tab-group names like "School".
 - on_task=true only if this clearly advances the goals (coursework, lecture, tutorial matching goals).
-- YouTube/video: study/lecture/tutorial matching goals → on_task=true; music/gaming/vlogs/entertainment → false, distraction="youtube".
-- Discord, Instagram, shopping, email, texting → usually on_task=false.
-- If unsure, confidence < 0.5 and lean on_task=false for entertainment sites.
+- YouTube/video are CONTEXTUAL: lecture/tutorial matching goals → on_task=true; music/rap/artist tracks/"no music"/gaming/vlogs/memes/entertainment → false, distraction="youtube".
+- Discord is CONTEXTUAL: study/homework help matching goals → may be true; meme/gaming spam → false, distraction="discord".
+- Instagram, shopping, email, texting-class → ALWAYS on_task=false (never study).
+- If unsure, confidence < 0.5 and lean on_task=false for entertainment content.
+- coach_line MUST be a specific nudge naming the distraction AND the mission goal (course/assignment). Never output meta text like "one short sentence" or "short nudge".
 
 goals: {goals}
 kind: {kind}
@@ -251,13 +254,23 @@ page_text: {excerpt}"#
             .filter(|s| !s.is_empty())
             .or_else(|| Some(kind.to_string()))
     };
-    let coach_line = judged.coach_line.filter(|s| !s.trim().is_empty()).unwrap_or_else(|| {
-        if on_task {
-            "Looks aligned with your lock-in — keep going.".into()
-        } else {
-            format!("This {kind} doesn’t look like your lock-in — switch back to the work.")
-        }
-    });
+    let coach_line = judged
+        .coach_line
+        .filter(|s| !is_placeholder_coach_line(s))
+        .unwrap_or_else(|| {
+            if on_task {
+                format!(
+                    "This looks on track for {} — keep going.",
+                    goals_snippet(goals, 48)
+                )
+            } else {
+                format!(
+                    "{} isn’t your mission — get back to {}.",
+                    if kind.is_empty() { "That" } else { kind },
+                    goals_snippet(goals, 48)
+                )
+            }
+        });
 
     Ok(LocalJudgment {
         confidence,
@@ -298,6 +311,109 @@ fn normalize_line(s: &str) -> String {
         .to_lowercase()
 }
 
+/// Short mission fragment for concrete check-in lines.
+fn goals_snippet(goals: &str, max_chars: usize) -> String {
+    let cleaned = goals
+        .split(|c| c == '\n' || c == ';' || c == '|')
+        .map(str::trim)
+        .find(|p| p.len() >= 4)
+        .unwrap_or(goals)
+        .trim();
+    let cleaned = cleaned.trim_matches(|c: char| c == '"' || c == '\'' || c == '.');
+    if cleaned.is_empty() {
+        return "your lock-in goal".into();
+    }
+    let mut out: String = cleaned.chars().take(max_chars).collect();
+    if cleaned.chars().count() > max_chars {
+        out.push('…');
+    }
+    out
+}
+
+/// Tiny models often echo schema hints (“one short sentence”, “short”) — never show those.
+pub fn is_placeholder_coach_line(text: &str) -> bool {
+    let t = normalize_line(text)
+        .trim_matches(|c: char| c == '"' || c == '\'' || c == '`' || c == '.')
+        .to_string();
+    if t.is_empty() {
+        return true;
+    }
+    // Multi-word instruction / schema leaks (substring match).
+    const PHRASES: &[&str] = &[
+        "one short sentence",
+        "short sentence",
+        "a short sentence",
+        "one sentence",
+        "short nudge",
+        "gentle nudge",
+        "final short nudge",
+        "coach line",
+        "coaching line",
+        "coach_line",
+        "your sentence here",
+        "insert sentence",
+        "example nudge",
+        "specific nudge",
+        "write one",
+        "return only",
+        "return the sentence",
+        "only the sentence",
+        "no quotes",
+        "no json",
+        "no markdown",
+    ];
+    if PHRASES.iter().any(|p| t.contains(p)) {
+        return true;
+    }
+    // Single-token schema crumbs — exact match only (don't kill “Last nudge: …”).
+    const EXACT: &[&str] = &[
+        "short", "label", "sentence", "nudge", "todo", "tbd", "n/a", "none", "null", "true",
+        "false",
+    ];
+    if EXACT.iter().any(|p| t == *p) {
+        return true;
+    }
+    let words: Vec<&str> = t.split_whitespace().collect();
+    // Ultra-short lines are almost always schema crumbs unless they name a real target.
+    if words.len() < 4 {
+        let concrete = words.iter().any(|w| {
+            matches!(
+                *w,
+                "discord"
+                    | "instagram"
+                    | "youtube"
+                    | "email"
+                    | "shopping"
+                    | "texting"
+                    | "phone"
+                    | "tiktok"
+                    | "reddit"
+                    | "twitter"
+                    | "slack"
+            ) || w.chars().any(|c| c.is_ascii_digit())
+        });
+        if !concrete {
+            return true;
+        }
+    }
+    false
+}
+
+/// Replace placeholder/meta coach text with a concrete mission-aware fallback.
+pub fn sanitize_coach_line(text: &str, kind: &str, distraction: &str, goals: &str) -> String {
+    let trimmed = text.trim();
+    if !is_placeholder_coach_line(trimmed) {
+        return trimmed.to_string();
+    }
+    pick_fallback(
+        kind,
+        distraction,
+        goals,
+        1,
+        &recent_lines_snapshot(),
+    )
+}
+
 fn recent_lines_snapshot() -> Vec<String> {
     RECENT_LINES
         .lock()
@@ -329,56 +445,58 @@ fn too_similar(candidate: &str, recent: &[String]) -> bool {
     })
 }
 
-fn fallback_templates(kind: &str, distraction: &str, nag_n: u32) -> Vec<String> {
+fn fallback_templates(kind: &str, distraction: &str, goals: &str, nag_n: u32) -> Vec<String> {
     let d = if distraction.is_empty() {
-        "that"
+        "that tab"
     } else {
         distraction
     };
+    let g = goals_snippet(goals, 56);
     match kind {
         "watching" => vec![
-            "I’m with you — I’ll nudge you if you drift.".into(),
-            "Mission’s live. I’ll keep an eye on your path.".into(),
-            "Locked in. I’ll tap you gently if you wander.".into(),
-            "I’ve got your back for this stretch.".into(),
+            format!("I’m with you on {g} — I’ll nudge you if you drift."),
+            format!("Mission’s live for {g}. I’ll keep an eye on your path."),
+            format!("Locked in on {g}. I’ll tap you gently if you wander."),
+            format!("I’ve got your back while you work on {g}."),
         ],
         "encourage" | "on_task" => vec![
-            "Nice — this looks on track. Keep going.".into(),
-            "This fits your mission. Stay with it.".into(),
-            "Good pullback. Ride this focus a bit longer.".into(),
-            "You’re on the work — keep that momentum.".into(),
+            format!("Nice — this looks on track for {g}. Keep going."),
+            format!("This fits {g}. Stay with it a bit longer."),
+            format!("Good pullback toward {g}. Ride this focus."),
+            format!("You’re on {g} — keep that momentum."),
         ],
         _ => {
             let mut lines = vec![
-                format!("Heads up — {d} isn’t the mission. Slide back to your goal."),
-                format!("Quick check: {d} pulled you off. Close it and return."),
-                format!("That’s {d}, not the work. One click back to your goal."),
-                format!("Mission drift via {d}. Reset to what you locked in on."),
+                format!("Heads up — {d} isn’t {g}. Close it and return."),
+                format!("Quick check: {d} pulled you off {g}. Switch back."),
+                format!("That’s {d}, not {g}. One click back to the work."),
+                format!("Mission drift via {d}. Reset to {g}."),
             ];
             if nag_n >= 2 {
-                lines.push(format!("Still on {d}? Close it so you can finish the mission."));
+                lines.push(format!("Still on {d}? Close it and finish {g}."));
             }
             if nag_n >= 3 {
-                lines.push(format!("Last nudge: leave {d} and finish what you started."));
+                lines.push(format!("Last nudge: leave {d} and finish {g}."));
             }
             lines
         }
     }
 }
 
-fn pick_fallback(kind: &str, distraction: &str, nag_n: u32, recent: &[String]) -> String {
-    let templates = fallback_templates(kind, distraction, nag_n);
+fn pick_fallback(kind: &str, distraction: &str, goals: &str, nag_n: u32, recent: &[String]) -> String {
+    let templates = fallback_templates(kind, distraction, goals, nag_n);
     templates
         .into_iter()
         .find(|t| !too_similar(t, recent))
         .unwrap_or_else(|| {
             format!(
-                "Switch back to your mission — skip the repeat on {}.",
+                "Leave {} and get back to {}.",
                 if distraction.is_empty() {
-                    "distractions"
+                    "that distraction"
                 } else {
                     distraction
-                }
+                },
+                goals_snippet(goals, 56)
             )
         })
 }
@@ -393,7 +511,7 @@ pub async fn compose_coach_line(
     nag_n: u32,
 ) -> String {
     let recent = recent_lines_snapshot();
-    let fallback = pick_fallback(kind, distraction, nag_n, &recent);
+    let fallback = pick_fallback(kind, distraction, goals, nag_n, &recent);
 
     if !cfg.local_llm_enabled || !is_available(cfg).await {
         remember_line(&fallback);
@@ -412,7 +530,7 @@ pub async fn compose_coach_line(
             .collect::<Vec<_>>()
             .join(" | ")
     };
-    let goals_short: String = goals.chars().take(180).collect();
+    let goals_short = goals_snippet(goals, 120);
     let detail_short: String = detail.chars().take(120).collect();
     let intensity = match nag_n {
         0 | 1 => "first gentle nudge",
@@ -420,13 +538,14 @@ pub async fn compose_coach_line(
         _ => "final short nudge for this distraction",
     };
     let prompt = format!(
-        r#"Write ONE fresh coaching line for a student on a focus mission.
-Return ONLY the sentence — no quotes, no JSON, no markdown.
+        r#"Write ONE specific check-in sentence for a student mid lock-in.
+Return ONLY that sentence — no quotes, no JSON, no markdown, no instructions.
 Rules:
-- Max 18 words. Warm, direct, slightly playful space/mission tone.
+- Max 22 words. Warm, direct, slightly playful space/mission tone.
+- MUST name the mission goal (use words from: {goals_short}) and, if off-task, the distraction ({distraction}).
+- Be concrete (e.g. “Close Instagram and finish your BIOMG quiz.”) — never meta phrases like “one short sentence”.
 - Do NOT reuse or paraphrase these recent lines: {avoid}
-- Mention the distraction only if relevant; never dump URLs or tech jargon.
-- Vary wording every time.
+- Never dump URLs or tech jargon. Vary wording every time.
 
 kind: {kind}
 intensity: {intensity}
@@ -480,7 +599,7 @@ mission goals: {goals_short}"#
         .unwrap_or("")
         .trim();
     let line: String = line.chars().take(160).collect();
-    let chosen = if line.split_whitespace().count() < 3 || too_similar(&line, &recent) {
+    let chosen = if is_placeholder_coach_line(&line) || too_similar(&line, &recent) {
         fallback
     } else {
         line
@@ -501,7 +620,7 @@ pub async fn freshen_coach_line(
 ) -> String {
     let recent = recent_lines_snapshot();
     let existing = existing.trim();
-    if existing.split_whitespace().count() >= 3 {
+    if !is_placeholder_coach_line(existing) {
         // Keep a line we just composed (it's already the newest recent entry).
         if recent
             .last()
@@ -520,4 +639,60 @@ pub async fn freshen_coach_line(
         }
     }
     compose_coach_line(cfg, kind, goals, distraction, detail, nag_n).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_schema_echo_placeholders() {
+        assert!(is_placeholder_coach_line("one short sentence"));
+        assert!(is_placeholder_coach_line("One short sentence."));
+        assert!(is_placeholder_coach_line("short nudge"));
+        assert!(is_placeholder_coach_line("short"));
+        assert!(is_placeholder_coach_line("Keep going."));
+        assert!(is_placeholder_coach_line(""));
+        assert!(!is_placeholder_coach_line(
+            "Close Discord and finish your ENGL 1140 discussion post."
+        ));
+        assert!(!is_placeholder_coach_line(
+            "Instagram isn’t BIOMG quiz — switch back."
+        ));
+        assert!(!is_placeholder_coach_line(
+            "Last nudge: leave discord and finish ENGL 1140."
+        ));
+        let sanitized = sanitize_coach_line(
+            "one short sentence",
+            "distracted",
+            "instagram",
+            "ENGL 1140 discussion post",
+        );
+        assert!(!is_placeholder_coach_line(&sanitized));
+        assert!(sanitized.to_lowercase().contains("instagram"));
+    }
+
+    #[test]
+    fn goals_snippet_picks_first_useful_clause() {
+        let s = goals_snippet(
+            "ENGL 1140 discussion post; BIOMG 1350 pre-lecture quiz",
+            80,
+        );
+        assert!(s.contains("ENGL 1140"));
+        assert!(!s.contains(';'));
+    }
+
+    #[test]
+    fn fallback_names_goal_and_distraction() {
+        let line = pick_fallback(
+            "distracted",
+            "instagram",
+            "ENGL 1140 discussion post",
+            1,
+            &[],
+        );
+        assert!(line.to_lowercase().contains("instagram"));
+        assert!(line.contains("ENGL 1140"));
+        assert!(!is_placeholder_coach_line(&line));
+    }
 }

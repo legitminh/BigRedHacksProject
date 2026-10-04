@@ -34,9 +34,14 @@ preview/
 # Bulky full-screen Figma SVG exports (use Space artwork only)
 src/assets/figma/from-export/
 
+# Pixel-diff / live verify screenshots (local only)
+_verify/
+.cursor/figma-refs/_verify/
+
 # Local agent audit reports (never commit)
 *.local.md
 AUDIT-*.local.md
 
 .tmp-VIDEOINPUT/
 .tmp-gemini_live_demo/
+.tmp-*/

@@ -48,7 +48,7 @@ pub fn show_prompt(app: &AppHandle, prompt: &CoachPrompt) {
         tracing::warn!("{e}");
         return;
     }
-    // Main window listens to hide session next-step / suggest while check-in is up.
+    // Main window listens to hide session break suggest while check-in is up.
     let _ = app.emit("overlay-prompt", prompt);
     let Some(window) = app.get_webview_window(OVERLAY_LABEL) else {
         return;

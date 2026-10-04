@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Waypoint • Break</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/break-timer.css" />
+    <script type="module" src="/src/break-timer.ts" defer></script>
+  </head>
+  <body>
+    <main class="break-screen" aria-labelledby="break-title">
+      <div class="break-screen__atmosphere" aria-hidden="true"></div>
+      <div class="break-screen__grain" aria-hidden="true"></div>
+
+      <div class="break-screen__content">
+        <p class="break-screen__badge">Ⅱ&nbsp;&nbsp;ON A BREAK</p>
+        <h1 id="break-title" class="break-screen__kicker">
+          Rest your eyes. Stretch. Breathe.
+        </h1>
+        <p
+          id="break-countdown"
+          class="break-screen__countdown"
+          aria-live="off"
+          aria-atomic="true"
+        >
+          05:00
+        </p>
+        <p id="break-countdown-live" class="visually-hidden" aria-live="polite" aria-atomic="true"></p>
+        <p class="break-screen__copy">
+          Your mission is paused. When you’re ready, come back and keep flying.
+        </p>
+        <button
+          type="button"
+          id="break-resume"
+          class="break-screen__resume"
+          autofocus
+        >
+          Resume mission
+        </button>
+        <p id="break-status" class="break-screen__status" hidden role="status"></p>
+      </div>
+    </main>
+  </body>
+</html>
