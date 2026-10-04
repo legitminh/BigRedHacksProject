@@ -220,23 +220,20 @@ pub fn voice_stop() {
 /// Capture a desktop JPEG for the Live companion. Base64 stays on the device until
 /// the thin client posts it to Waypoint API `/v1/companion/live` (API → Gemini).
 ///
-/// Consent gate: refuses (no capture at all) unless the UI reports screen consent
-/// (`screen_consent`; always true in current UI) AND — when a lock-in session is
-/// running — that session was launched with `screen_enabled` (always true for new launches).
+/// Hard gate: requires an active mission with screen watching enabled. Client
+/// `screen_consent` is ignored as an authority (default-deny when no session).
 #[tauri::command]
 pub async fn companion_grab_screencap(
     state: State<'_, AppState>,
     screen_consent: Option<bool>,
 ) -> Result<String, String> {
-    if !screen_consent.unwrap_or(false) {
-        return Err(SCREEN_SHARING_OFF.into());
-    }
+    let _ = screen_consent; // not authoritative — session policy owns the gate
     let session_allows = state
         .session
         .lock()
         .as_ref()
-        .map(|s| s.screen_enabled)
-        .unwrap_or(true);
+        .map(|s| s.active && s.screen_enabled)
+        .unwrap_or(false);
     if !session_allows {
         return Err(SCREEN_SHARING_OFF.into());
     }

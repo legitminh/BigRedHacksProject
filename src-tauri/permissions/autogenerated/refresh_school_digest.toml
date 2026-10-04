@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-refresh-school-digest"
+description = "Enables the refresh_school_digest command without any pre-configured scope."
+commands.allow = ["refresh_school_digest"]
+
+[[permission]]
+identifier = "deny-refresh-school-digest"
+description = "Denies the refresh_school_digest command without any pre-configured scope."
+commands.deny = ["refresh_school_digest"]

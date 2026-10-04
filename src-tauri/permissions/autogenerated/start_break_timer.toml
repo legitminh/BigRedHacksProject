@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-start-break-timer"
+description = "Enables the start_break_timer command without any pre-configured scope."
+commands.allow = ["start_break_timer"]
+
+[[permission]]
+identifier = "deny-start-break-timer"
+description = "Denies the start_break_timer command without any pre-configured scope."
+commands.deny = ["start_break_timer"]

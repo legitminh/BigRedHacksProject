@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "app:dev": "tauri dev",
-    "app:build": "tauri build",
+    "app:build": "WAYPOINT_RELEASE=1 tauri build",
     "app:build:debug": "tauri build --debug"
   },
   "dependencies": {

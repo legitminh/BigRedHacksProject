@@ -76,7 +76,7 @@
                 <h2 class="welcome-signin-title">Your seat is ready.</h2>
                 <p class="welcome-signin-lead">
                   Sign in with Google to link your account, Calendar, Drive, and study memory.
-                  Or continue as a guest: everything stays on this device, with no cloud sync, Live voice, or mission copilot chat.
+                  Or continue as a guest: everything stays on this device, with no cloud sync, Live voice, Copilot Ask, camera accountability, or mission copilot chat.
                 </p>
                 <p class="signin-error" id="wp-signin-error" hidden></p>
                 <button
@@ -85,6 +85,14 @@
                   id="welcome-google-signin"
                 >
                   Sign in with Google →
+                </button>
+                <button
+                  type="button"
+                  class="welcome-guest-link"
+                  id="welcome-cancel-google"
+                  hidden
+                >
+                  Cancel sign-in
                 </button>
                 <button type="button" class="welcome-guest-link" id="welcome-continue-guest">
                   Continue as guest
@@ -372,10 +380,10 @@
           </div>
           <form id="lockin-form" class="lockin-form mission-setup-card">
             <h1 class="mission-setup-title">Where are we headed?</h1>
-            <p class="mission-setup-lead">Pick a duration and launch — an objective is optional.</p>
+            <p class="mission-setup-lead">Pick a duration and launch — an objective helps coaching quality (you can skip it).</p>
 
             <div class="mission-field mission-field--objective">
-              <label class="mission-field-label" for="goals">What do you want to finish? <span class="mission-field-optional">(optional)</span></label>
+              <label class="mission-field-label" for="goals">What do you want to finish? <span class="mission-field-optional">(optional — coaching is sharper with a goal)</span></label>
               <div class="mission-field-input-wrap">
                 <textarea
                   id="goals"
@@ -400,9 +408,17 @@
               <label class="mission-toggle-row">
                 <span class="mission-toggle-copy">
                   <strong>Camera accountability</strong>
-                  <small>Optional. Holds you present at your desk — screen sharing stays required.</small>
+                  <small>Optional. ~12s clips go to the Waypoint API for desk presence — screen watching stays required.</small>
                 </span>
                 <input id="lockin-camera" type="checkbox" class="mission-toggle-input" />
+                <span class="mission-toggle-switch" aria-hidden="true"></span>
+              </label>
+              <label class="mission-toggle-row" id="lockin-screen-ack-row">
+                <span class="mission-toggle-copy">
+                  <strong>Screen watching required</strong>
+                  <small>Missions watch your screen and may scan open browser tabs; focus context goes to the Waypoint API coach.</small>
+                </span>
+                <input id="lockin-screen-ack" type="checkbox" class="mission-toggle-input" />
                 <span class="mission-toggle-switch" aria-hidden="true"></span>
               </label>
             </div>
@@ -685,14 +701,14 @@
                     id="session-checkin-on-task"
                     class="session-checkin-btn session-checkin-btn--primary"
                   >
-                    On task
+                    Dismiss
                   </button>
                   <button
                     type="button"
                     id="session-checkin-distracted"
                     class="session-checkin-btn session-checkin-btn--secondary"
                   >
-                    Got distracted
+                    Dismiss — still distracted
                   </button>
                   <button
                     type="button"
@@ -974,7 +990,7 @@
                     <li class="settings-toggle-row">
                       <div class="settings-toggle-copy">
                         <strong>Camera accountability</strong>
-                        <span>Optional. Short clips check that you’re still at your desk. Screen sharing stays on either way.</span>
+                        <span>Optional. ~12s clips go to the Waypoint API for desk presence. Screen sharing stays on either way.</span>
                       </div>
                       <label class="mc-switch">
                         <input id="setting-camera-signals" type="checkbox" />
@@ -1004,10 +1020,13 @@
                 <section class="settings-privacy" aria-labelledby="settings-privacy-title">
                   <h2 id="settings-privacy-title" class="settings-privacy-title">Your session, not a recording.</h2>
                   <p class="settings-privacy-copy">
-                    Mission summaries and study notes are saved to your account. Screen text and window checks stay on
-                    your Mac during missions. Copilot Live is voice-only — it does not capture or send screenshots.
-                    If Camera accountability is on, short webcam clips go to the Waypoint API for presence — then
-                    discarded. They never prove you’re distracted.
+                    Mission summaries and study notes are saved to your account. During missions, local OS signals and
+                    on-Mac OCR read your frontmost app, window title, and open browser tabs; focus context (goals,
+                    title, URL, short page text, and rarely a focused-window image) is sent to the Waypoint API coach
+                    for on-task classification. Copilot Live is voice-only — it does not capture or send screenshots.
+                    If Camera accountability is on, ~12s webcam clips go to the Waypoint API for presence/stress — then
+                    discarded. They never prove you’re distracted. Sign-in tokens stay on this Mac in a private file
+                    (owner-only permissions).
                   </p>
                 </section>
               </div>
@@ -1046,7 +1065,7 @@
                     <li class="mc-perm-row">
                       <div class="mc-perm-copy">
                         <strong>Accessibility &amp; Automation</strong>
-                        <span>Reads frontmost app, window title, and browser tabs for instant coaching.</span>
+                        <span>Reads frontmost app, window title, and open browser tabs (may scan tabs during missions) for instant coaching.</span>
                       </div>
                       <span id="perm-accessibility" class="mc-perm-badge" data-state="unknown">Checking…</span>
                     </li>
@@ -1214,7 +1233,9 @@
           <p class="mc-perm-modal__badge">PERMISSION HANDOFF</p>
           <h2 id="permission-handoff-title" class="mc-perm-modal__title">Allow camera signals?</h2>
           <p class="mc-perm-modal__body">
-            Your browser asks to use your camera. Camera signals may inform a gentle check-in; they never prove you’re distracted.
+            macOS will ask for camera access. When this is on, Waypoint records short (~12s) webcam clips and uploads
+            them to the Waypoint API for presence and stress signals. Clips are discarded server-side and never used
+            as proof you’re distracted.
           </p>
           <div class="mc-perm-modal__actions">
             <button
@@ -1230,11 +1251,11 @@
               class="mc-perm-modal__btn mc-perm-modal__btn--primary"
               type="button"
             >
-              Continue
+              I understand — continue
             </button>
           </div>
           <p class="mc-perm-modal__foot">
-            Nothing is recorded. You can turn this input off at any time from your mission controls.
+            Clips leave this Mac for API analysis. You can turn camera accountability off anytime from mission controls.
           </p>
         </div>
       </div>

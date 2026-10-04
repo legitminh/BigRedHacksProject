@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-companion-live-info"
+description = "Enables the companion_live_info command without any pre-configured scope."
+commands.allow = ["companion_live_info"]
+
+[[permission]]
+identifier = "deny-companion-live-info"
+description = "Denies the companion_live_info command without any pre-configured scope."
+commands.deny = ["companion_live_info"]

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "break-timer",
-  "description": "Fullscreen pomodoro break window — Resume via end_break_timer only",
+  "description": "Fullscreen pomodoro break window — resume via end_break_timer only",
   "windows": ["break-timer"],
   "permissions": [
     "core:default",
@@ -14,6 +14,8 @@
     "core:window:allow-set-fullscreen",
     "core:window:allow-set-size",
     "core:window:allow-set-position",
-    "core:window:allow-unminimize"
+    "core:window:allow-unminimize",
+    "allow-end-break-timer",
+    "allow-get-break-timer-status"
   ]
 }

@@ -21,11 +21,57 @@ fn http() -> Client {
         .expect("HTTP client")
 }
 
-fn http_tts(timeout: Duration) -> Client {
+fn http_with_timeout(timeout: Duration) -> Client {
     Client::builder()
         .timeout(timeout)
         .build()
-        .expect("TTS HTTP client")
+        .expect("HTTP client")
+}
+
+fn http_tts(timeout: Duration) -> Client {
+    http_with_timeout(timeout)
+}
+
+/// Structured API failure — keeps `Retry-After` for observe/chat backoff.
+#[derive(Debug, Clone)]
+pub struct ApiClientError {
+    pub message: String,
+    pub status: Option<u16>,
+    pub code: Option<String>,
+    pub retry_after_secs: Option<u64>,
+}
+
+impl ApiClientError {
+    pub fn msg(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            status: None,
+            code: None,
+            retry_after_secs: None,
+        }
+    }
+
+    pub fn is_rate_limited(&self) -> bool {
+        self.status == Some(429)
+            || self
+                .code
+                .as_deref()
+                .is_some_and(|c| c.eq_ignore_ascii_case("rate_limited"))
+            || self.message.to_lowercase().contains("rate_limited")
+            || self.message.contains("(429)")
+    }
+}
+
+impl std::fmt::Display for ApiClientError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl From<ApiClientError> for String {
+    fn from(value: ApiClientError) -> Self {
+        value.message
+    }
 }
 
 #[derive(Debug)]
@@ -108,28 +154,51 @@ struct ApiErrorInner {
     code: Option<String>,
 }
 
-async fn read_error(res: reqwest::Response) -> String {
-    let status = res.status();
+fn parse_retry_after(res: &reqwest::Response) -> Option<u64> {
+    let raw = res.headers().get(reqwest::header::RETRY_AFTER)?.to_str().ok()?;
+    raw.trim().parse::<u64>().ok().filter(|s| *s > 0 && *s < 3600)
+}
+
+async fn read_error_detailed(res: reqwest::Response) -> ApiClientError {
+    let status = res.status().as_u16();
+    let retry_after_secs = parse_retry_after(&res);
     let text = res.text().await.unwrap_or_default();
-    if let Ok(body) = serde_json::from_str::<ApiErrorBody>(&text) {
+    let mut code: Option<String> = None;
+    let message = if let Ok(body) = serde_json::from_str::<ApiErrorBody>(&text) {
         if let Some(err) = body.error {
-            let code = err.code.filter(|c| !c.is_empty());
+            code = err.code.filter(|c| !c.is_empty());
             if let Some(msg) = err.message.filter(|m| !m.is_empty()) {
-                return match code {
+                match &code {
                     Some(c) => format!("{msg} ({c})"),
                     None => msg,
-                };
+                }
+            } else if let Some(c) = code.clone() {
+                format!("API error ({status}: {c})")
+            } else if text.is_empty() {
+                format!("API error ({status})")
+            } else {
+                format!("API error ({status}): {text}")
             }
-            if let Some(c) = code {
-                return format!("API error ({status}: {c})");
-            }
+        } else if text.is_empty() {
+            format!("API error ({status})")
+        } else {
+            format!("API error ({status}): {text}")
         }
-    }
-    if text.is_empty() {
+    } else if text.is_empty() {
         format!("API error ({status})")
     } else {
         format!("API error ({status}): {text}")
+    };
+    ApiClientError {
+        message,
+        status: Some(status),
+        code,
+        retry_after_secs,
     }
+}
+
+async fn read_error(res: reqwest::Response) -> String {
+    read_error_detailed(res).await.message
 }
 
 pub async fn post_json<T: DeserializeOwned>(
@@ -196,12 +265,32 @@ pub async fn authed_json<T: DeserializeOwned>(
     path: &str,
     body: Option<&Value>,
 ) -> Result<T, String> {
-    let mut tokens = auth::load_tokens(cfg).ok_or_else(|| "Sign in to Waypoint first.".to_string())?;
-    match authed_once::<T>(cfg, method.clone(), path, body, &tokens.access_token).await {
+    authed_json_timeout(cfg, method, path, body, Duration::from_secs(60))
+        .await
+        .map_err(|e| e.message)
+}
+
+/// Like `authed_json` but with a custom timeout and structured errors (`Retry-After`).
+pub async fn authed_json_timeout<T: DeserializeOwned>(
+    cfg: &AppConfig,
+    method: reqwest::Method,
+    path: &str,
+    body: Option<&Value>,
+    timeout: Duration,
+) -> Result<T, ApiClientError> {
+    let mut tokens = auth::load_tokens(cfg).ok_or_else(|| ApiClientError::msg("Sign in to Waypoint first."))?;
+    match authed_once::<T>(cfg, method.clone(), path, body, &tokens.access_token, timeout).await {
         Ok(v) => Ok(v),
-        Err(e) if e.contains("401") || e.to_lowercase().contains("sign in") || e.to_lowercase().contains("unauthorized") => {
-            tokens = refresh_tokens(cfg, &tokens).await?;
-            authed_once::<T>(cfg, method, path, body, &tokens.access_token).await
+        Err(e)
+            if e.status == Some(401)
+                || e.message.contains("401")
+                || e.message.to_lowercase().contains("sign in")
+                || e.message.to_lowercase().contains("unauthorized") =>
+        {
+            tokens = refresh_tokens(cfg, &tokens)
+                .await
+                .map_err(ApiClientError::msg)?;
+            authed_once::<T>(cfg, method, path, body, &tokens.access_token, timeout).await
         }
         Err(e) => Err(e),
     }
@@ -213,25 +302,38 @@ async fn authed_once<T: DeserializeOwned>(
     path: &str,
     body: Option<&Value>,
     access: &str,
-) -> Result<T, String> {
+    timeout: Duration,
+) -> Result<T, ApiClientError> {
     let url = format!("{}{}", cfg.api_base().trim_end_matches('/'), path);
-    let mut req = http().request(method, url).bearer_auth(access);
+    let mut req = http_with_timeout(timeout)
+        .request(method, url)
+        .bearer_auth(access);
     if let Some(b) = body {
         req = req.json(b);
     }
-    let res = req.send().await.map_err(|e| e.to_string())?;
+    let res = req
+        .send()
+        .await
+        .map_err(|e| ApiClientError::msg(e.to_string()))?;
     let status = res.status();
     if status.as_u16() == 401 {
-        return Err("unauthorized (401)".into());
+        return Err(ApiClientError {
+            message: "unauthorized (401)".into(),
+            status: Some(401),
+            code: Some("unauthorized".into()),
+            retry_after_secs: None,
+        });
     }
     if !status.is_success() {
-        return Err(read_error(res).await);
+        return Err(read_error_detailed(res).await);
     }
     if status.as_u16() == 204 {
         // Caller should use authed_empty for 204; tolerate empty JSON.
-        return serde_json::from_value(Value::Null).map_err(|e| e.to_string());
+        return serde_json::from_value(Value::Null).map_err(|e| ApiClientError::msg(e.to_string()));
     }
-    res.json().await.map_err(|e| e.to_string())
+    res.json()
+        .await
+        .map_err(|e| ApiClientError::msg(e.to_string()))
 }
 
 pub async fn authed_empty(

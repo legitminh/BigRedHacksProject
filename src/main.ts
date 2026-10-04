@@ -45,6 +45,8 @@ const PREF_CAMERA_SIGNALS = "wp-setting-camera-signals";
 /** Legacy key — screen sharing is always on for study; kept only to clear old prefs. */
 const PREF_SCREEN_SHARING = "wp-setting-screen-sharing";
 const PREF_REDUCE_MOTION = "wp-setting-reduce-motion";
+/** One-time ack that missions require screen watching + may scan open tabs. */
+const PREF_SCREEN_WATCH_ACK = "wp-screen-watch-ack";
 
 /** Screen watching is part of lock-in; not user-toggleable. */
 function screenSharingEnabled(): boolean {
@@ -87,19 +89,27 @@ function applyReduceMotionPref() {
 function syncSessionPreferenceToggles() {
   // Persist mandatory screen so any leftover readers see on.
   writeBoolPref(PREF_SCREEN_SHARING, true);
-  const camOn = readBoolPref(PREF_CAMERA_SIGNALS, false);
+  const camOn = cloudSignedIn && readBoolPref(PREF_CAMERA_SIGNALS, false);
   for (const id of ["setting-camera-signals", "lockin-camera"]) {
     const el = $(`#${id}`) as HTMLInputElement | null;
     if (el) el.checked = camOn;
   }
+  const ack = $("#lockin-screen-ack") as HTMLInputElement | null;
+  const ackRow = $("#lockin-screen-ack-row");
+  if (ack) {
+    const already = readBoolPref(PREF_SCREEN_WATCH_ACK, false);
+    ack.checked = already;
+    if (ackRow) ackRow.hidden = already;
+  }
   applyReduceMotionPref();
+  applyCameraGuestLocks();
 }
 
-/** Consent flags for start_lock_in — screen is always required; camera is a pref. */
+/** Consent flags for start_lock_in — screen is always required; camera needs sign-in. */
 function lockInConsentArgs() {
   return {
     screenEnabled: screenSharingEnabled(),
-    cameraEnabled: readBoolPref(PREF_CAMERA_SIGNALS, false),
+    cameraEnabled: cloudSignedIn && readBoolPref(PREF_CAMERA_SIGNALS, false),
   };
 }
 
@@ -665,6 +675,16 @@ function resetWelcomeSignInState() {
     btn.disabled = false;
     btn.textContent = "Sign in with Google →";
   }
+  const cancel = $("#welcome-cancel-google") as HTMLButtonElement | null;
+  if (cancel) {
+    cancel.disabled = false;
+    cancel.hidden = true;
+  }
+}
+
+function setWelcomeGoogleCancelVisible(visible: boolean) {
+  const cancel = $("#welcome-cancel-google") as HTMLButtonElement | null;
+  if (cancel) cancel.hidden = !visible;
 }
 
 async function submitWelcomeGoogle() {
@@ -680,12 +700,13 @@ async function submitWelcomeGoogle() {
     btn.disabled = true;
     btn.textContent = "Waiting for Google…";
   }
+  setWelcomeGoogleCancelVisible(true);
   try {
     await invoke("sign_in_waypoint_google");
     await refreshStatus();
     if (!appUnlocked) {
       throw new Error(
-        "Google signed in, but Calendar/Drive were not linked. Try Sign in with Google again and accept all permissions.",
+        "Google signed in, but Calendar/Drive were not linked. Use Sign in with Google again and accept Calendar + Drive access.",
       );
     }
   } catch (e) {
@@ -703,9 +724,21 @@ async function submitWelcomeGoogle() {
       alert(nice);
     }
   } finally {
+    setWelcomeGoogleCancelVisible(false);
     // Always clear — otherwise sign-out → sign-in again is a silent no-op.
     resetWelcomeSignInState();
   }
+}
+
+async function cancelWelcomeGoogle() {
+  if (!googleSignInInFlight) return;
+  try {
+    await invoke("cancel_sign_in_waypoint_google");
+  } catch {
+    // ignore — poll will time out if cancel IPC is unavailable
+  }
+  const cancel = $("#welcome-cancel-google") as HTMLButtonElement | null;
+  if (cancel) cancel.disabled = true;
 }
 
 async function submitWelcomeGuest() {
@@ -747,6 +780,15 @@ function wireWelcomeSignIn() {
       event.preventDefault();
       event.stopPropagation();
       void submitWelcomeGoogle();
+    };
+  }
+  const cancel = $("#welcome-cancel-google") as HTMLButtonElement | null;
+  if (cancel && cancel.dataset.wired !== "1") {
+    cancel.dataset.wired = "1";
+    cancel.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void cancelWelcomeGoogle();
     };
   }
   const guest = $("#welcome-continue-guest") as HTMLButtonElement | null;
@@ -859,6 +901,7 @@ function renderHome(status: StatusPayload) {
   const unlocked = isAppUnlocked(status);
   appUnlocked = unlocked;
   guestCloudLocked = Boolean(status.guest_mode && !status.signed_in);
+  cloudSignedIn = Boolean(status.signed_in);
   applyGuestCloudLocks();
 
   const home = $("#view-home");
@@ -1308,15 +1351,48 @@ function friendlyServiceCopy(s: ServiceIndicator): { label: string; detail: stri
             ? "Calendar and Drive linked"
             : "Link Calendar and Drive to continue"),
       };
+    case "companion_live":
+      return {
+        label: "Talk / Live voice",
+        detail:
+          s.detail?.trim() ||
+          (state === "ok"
+            ? "Ready for Talk"
+            : "Talk unavailable — needs Gemini Live and Grok on the API"),
+      };
+    case "presage":
+      return {
+        label: "Camera vitals",
+        detail:
+          s.detail?.trim() ||
+          (state === "ok"
+            ? "Camera accountability vitals ready"
+            : "Presence-only — vitals unavailable on the API"),
+      };
+    case "xai_tts":
+      return {
+        label: "Grok voice",
+        detail:
+          s.detail?.trim() ||
+          (state === "ok"
+            ? "Heads-up and Live speak ready"
+            : "Grok unset — Live unavailable; heads-ups may use macOS say"),
+      };
+    case "storage":
+      return {
+        label: s.label?.trim() || "Storage",
+        detail: s.detail?.trim() || (state === "ok" ? "Configured" : "Needs attention"),
+      };
     default:
       return {
         label: s.label?.trim() || "Service",
         detail:
-          state === "ok"
+          s.detail?.trim() ||
+          (state === "ok"
             ? "Connected"
             : state === "warn"
               ? "Needs attention"
-              : "Unavailable right now",
+              : "Unavailable right now"),
       };
   }
 }
@@ -1674,17 +1750,23 @@ let companionBusy = false;
 let liveSurface: LiveSurface | null = null;
 /** Guest is local-only: cloud Live voice + mission companion chat are unavailable. */
 let guestCloudLocked = false;
+/** Signed-in with JWT — required for camera accountability uploads. */
+let cloudSignedIn = false;
 
 const GUEST_LIVE_HINT =
   "Live voice needs a Google account — Guest mode is local-only. Sign out and sign in with Google to use it.";
 const GUEST_SESSION_CHAT_HINT =
   "Mission copilot chat needs a Google account — Guest mode is local-only.";
+const GUEST_COPILOT_HINT =
+  "Copilot Ask needs a Google account — Guest mode is local-only.";
+const GUEST_CAMERA_HINT =
+  "Camera accountability needs a Google account so clips can reach the Waypoint API.";
 
 const SESSION_IDLE_HINT =
   "Talk for live voice · type + Enter for a turn";
 let guestLocksApplied = false;
 
-/** Disable/badge Live + companion cloud controls for Guest; restores them for Google accounts. */
+/** Disable/badge Live + companion + Copilot cloud controls for Guest; restores for Google. */
 function applyGuestCloudLocks() {
   const pairs: [HTMLButtonElement | null, string, "chat" | "session"][] = [
     [$("#chat-mic") as HTMLButtonElement | null, "Start / end live voice with Copilot", "chat"],
@@ -1715,6 +1797,26 @@ function applyGuestCloudLocks() {
       ? "Companion chat needs a Google account"
       : "Message your copilot…";
   }
+  const chatInput = $("#chat-input") as HTMLTextAreaElement | null;
+  if (chatInput) {
+    chatInput.disabled = guestCloudLocked;
+    chatInput.placeholder = guestCloudLocked
+      ? "Sign in with Google to use Copilot"
+      : COPILOT_IDLE_PLACEHOLDER;
+  }
+  const chatSend = $("#chat-send") as HTMLButtonElement | null;
+  if (chatSend) {
+    chatSend.disabled = guestCloudLocked || chatBusy;
+    chatSend.title = guestCloudLocked ? GUEST_COPILOT_HINT : "Send";
+  }
+  document.querySelectorAll<HTMLButtonElement>("[data-study]").forEach((chip) => {
+    if (!chip.dataset.studyTitle) {
+      chip.dataset.studyTitle = chip.title || chip.textContent?.trim() || "";
+    }
+    chip.disabled = guestCloudLocked || chatBusy;
+    chip.title = guestCloudLocked ? GUEST_COPILOT_HINT : chip.dataset.studyTitle;
+  });
+  applyCameraGuestLocks();
   if (guestCloudLocked) {
     setComposerMicHint(GUEST_LIVE_HINT, "chat");
     setComposerMicHint(GUEST_SESSION_CHAT_HINT, "session");
@@ -1723,6 +1825,23 @@ function applyGuestCloudLocks() {
     setComposerMicHint(SESSION_IDLE_HINT, "session");
   }
   guestLocksApplied = guestCloudLocked;
+}
+
+function applyCameraGuestLocks() {
+  const locked = !cloudSignedIn;
+  for (const id of ["lockin-camera", "setting-camera-signals"]) {
+    const el = $(`#${id}`) as HTMLInputElement | null;
+    if (!el) continue;
+    el.disabled = locked;
+    el.title = locked ? GUEST_CAMERA_HINT : "Optional camera accountability";
+    if (locked && el.checked) {
+      el.checked = false;
+      writeBoolPref(PREF_CAMERA_SIGNALS, false);
+    }
+  }
+  const row = $("#lockin-camera")?.closest(".mission-toggle-row");
+  row?.classList.toggle("is-guest-locked", locked);
+  syncMissionSetupLaunchUi();
 }
 
 const CHAT_FAIL_MSG =
@@ -1965,6 +2084,10 @@ function resizeCopilotComposerInput() {
 }
 
 async function sendChat() {
+  if (guestCloudLocked) {
+    setComposerMicHint(GUEST_COPILOT_HINT, "chat");
+    return;
+  }
   const input = $<HTMLTextAreaElement>("#chat-input");
   if (chatBusy || !input?.value.trim()) return;
   const message = input.value.trim();
@@ -2639,7 +2762,8 @@ function appendBreakSuggestionCard(reason?: string) {
   const accept = document.createElement("button");
   accept.type = "button";
   accept.className = "primary break-suggest-card__accept";
-  accept.textContent = "Accept";
+  accept.textContent = "Accept — fullscreen break";
+  accept.title = "Opens a fullscreen break timer on your primary display (Resume from here anytime).";
 
   decline.addEventListener("click", () => {
     dismissBreakSuggestion();
@@ -2939,6 +3063,66 @@ function currentEarnedFlightMinutes(): number {
   return flightMinutesEarned(currentEndsAt, currentSessionDurationSecs);
 }
 
+let modalFocusReturn: HTMLElement | null = null;
+let modalKeyHandler: ((event: KeyboardEvent) => void) | null = null;
+
+function getFocusable(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((el) => !el.hasAttribute("disabled") && !el.closest("[hidden]"));
+}
+
+function openModal(modal: HTMLElement, focusSelector?: string) {
+  modalFocusReturn =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  modal.hidden = false;
+  const focusables = getFocusable(modal);
+  const preferred = focusSelector
+    ? (modal.querySelector(focusSelector) as HTMLElement | null)
+    : null;
+  (preferred ?? focusables[0])?.focus();
+  if (modalKeyHandler) {
+    document.removeEventListener("keydown", modalKeyHandler, true);
+  }
+  modalKeyHandler = (event: KeyboardEvent) => {
+    if (modal.hidden) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeModal(modal);
+      return;
+    }
+    if (event.key !== "Tab" || focusables.length === 0) return;
+    const live = getFocusable(modal);
+    const first = live[0];
+    const last = live[live.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+    if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first?.focus();
+    }
+  };
+  document.addEventListener("keydown", modalKeyHandler, true);
+}
+
+function closeModal(modal: HTMLElement) {
+  if (modal.id === "end-session-modal") {
+    setSessionEndingUi(false);
+  }
+  modal.hidden = true;
+  if (modalKeyHandler) {
+    document.removeEventListener("keydown", modalKeyHandler, true);
+    modalKeyHandler = null;
+  }
+  const ret = modalFocusReturn;
+  modalFocusReturn = null;
+  ret?.focus();
+}
+
 function openEndSessionModal() {
   const modal = $("#end-session-modal");
   const body = $("#end-session-modal-body");
@@ -2947,13 +3131,13 @@ function openEndSessionModal() {
     body.textContent = `Your ${earned} flight ${earned === 1 ? "minute" : "minutes"} will be saved. You can reflect on your objective next.`;
   }
   setSessionEndingUi(true);
-  if (modal) modal.hidden = false;
+  if (modal) openModal(modal, "#end-session-keep");
 }
 
 function closeEndSessionModal() {
   const modal = $("#end-session-modal");
-  if (modal) modal.hidden = true;
-  setSessionEndingUi(false);
+  if (modal) closeModal(modal);
+  else setSessionEndingUi(false);
 }
 
 function formatPresenceSummary(raw?: string | null): string {
@@ -3055,7 +3239,7 @@ function renderSessionCoachLog(prompts: CoachPrompt[]) {
   const recent = prompts.slice(-SESSION_COACH_MAX);
   if (!recent.length) {
     log.innerHTML =
-      '<p class="muted session-coach-empty">Coach messages will show here.</p>';
+      '<p class="muted session-coach-empty">Desktop check-in toasts appear over your other apps. Longer notes show here when available.</p>';
     return;
   }
   log.innerHTML = recent.map((p) => `<div class="prompt">${escapeHtml(p.text)}</div>`).join("");
@@ -3067,12 +3251,18 @@ function renderSessionCoachLog(prompts: CoachPrompt[]) {
  * before a session exists, fall back to the saved prefs.
  */
 function syncSessionSignalPills(session?: Pick<LockInSession, "screen_enabled" | "camera_enabled"> | null) {
-  const cameraOn = session?.camera_enabled ?? readBoolPref(PREF_CAMERA_SIGNALS, false);
+  const optedIn = session?.camera_enabled ?? readBoolPref(PREF_CAMERA_SIGNALS, false);
+  // Unsigned / Guest never run observe — don't claim "Camera on".
+  const cameraOn = optedIn && cloudSignedIn;
   const screenOn = session?.screen_enabled ?? screenSharingEnabled();
   const camera = $("#session-pill-camera");
   const screen = $("#session-pill-screen");
   if (camera) {
-    camera.textContent = cameraOn ? "Camera on" : "Camera off";
+    camera.textContent = !cloudSignedIn
+      ? "Camera unavailable"
+      : cameraOn
+        ? "Camera on"
+        : "Camera off";
     camera.classList.toggle("is-on", cameraOn);
   }
   if (screen) {
@@ -3241,22 +3431,22 @@ function setCameraToggleChecked(on: boolean) {
 
 function showPermissionHandoffModal(_source: CameraHandoffSource) {
   const modal = $("#permission-handoff-modal");
-  if (modal) modal.hidden = false;
+  if (modal) openModal(modal, "#permission-handoff-continue");
 }
 
 function hidePermissionHandoffModal() {
   const modal = $("#permission-handoff-modal");
-  if (modal) modal.hidden = true;
+  if (modal) closeModal(modal);
 }
 
 function showPermissionDeniedModal() {
   const modal = $("#permission-denied-modal");
-  if (modal) modal.hidden = false;
+  if (modal) openModal(modal, "#permission-denied-setup");
 }
 
 function hidePermissionDeniedModal() {
   const modal = $("#permission-denied-modal");
-  if (modal) modal.hidden = true;
+  if (modal) closeModal(modal);
 }
 
 async function continueCameraHandoff() {
@@ -3290,6 +3480,12 @@ function cancelCameraHandoff() {
 function wireCameraPermissionHandoff(inputId: string, source: CameraHandoffSource) {
   $(`#${inputId}`)?.addEventListener("change", (event) => {
     const input = event.target as HTMLInputElement;
+    if (!cloudSignedIn) {
+      input.checked = false;
+      writeBoolPref(PREF_CAMERA_SIGNALS, false);
+      applyCameraGuestLocks();
+      return;
+    }
     if (!input.checked) {
       writeBoolPref(PREF_CAMERA_SIGNALS, false);
       syncMissionSetupLaunchUi();
@@ -3369,9 +3565,12 @@ async function toggleSessionMute() {
   try {
     const settings = await invoke<UserSettings>("get_settings");
     const next = !settings.silent_mode;
-    // Audio off only mutes *future* coach heads-ups — never cut an in-flight
-    // companion reply (use Stop for that). Live Web Audio is unchanged.
+    // Mute also stops the current heads-up TTS; Live Web Audio is unchanged
+    // (use Stop for an in-flight companion reply).
     await invoke("save_settings", { settings: { silent_mode: next } });
+    if (next) {
+      void invoke("voice_stop").catch(() => {});
+    }
     syncSilentModeInputs(next);
     await syncSessionMuteButton();
   } catch (err) {
@@ -3965,24 +4164,52 @@ async function bootApp() {
       errEl.hidden = true;
       errEl.textContent = "";
     }
-    let duration = Math.min(180, Math.max(1, parsedDuration || 25));
-    let durationAdjusted = false;
-    if (rawDuration === "" || Number.isNaN(parsedDuration)) {
-      duration = 25;
-      durationAdjusted = true;
+    if (rawDuration === "" || Number.isNaN(parsedDuration) || parsedDuration < 1 || parsedDuration > 180) {
       if (errEl) {
         errEl.hidden = false;
-        errEl.textContent = "Enter 1–180 minutes; using 25.";
+        errEl.textContent = "Enter a duration between 1 and 180 minutes.";
       }
-    } else if (parsedDuration < 1 || parsedDuration > 180) {
-      durationAdjusted = true;
+      durationInput?.focus();
+      return;
+    }
+    const duration = Math.min(180, Math.max(1, parsedDuration));
+    const screenAck = $("#lockin-screen-ack") as HTMLInputElement | null;
+    if (!readBoolPref(PREF_SCREEN_WATCH_ACK, false) && !screenAck?.checked) {
       if (errEl) {
         errEl.hidden = false;
-        errEl.textContent = `Duration must be 1–180 minutes; using ${duration}.`;
+        errEl.textContent =
+          "Confirm that missions watch your screen and may scan open browser tabs.";
+      }
+      screenAck?.focus();
+      return;
+    }
+    if (screenAck?.checked) writeBoolPref(PREF_SCREEN_WATCH_ACK, true);
+    if (!goals) {
+      const ok = window.confirm(
+        "Launch without a goal? Coaching is sharper when you name what you want to finish.",
+      );
+      if (!ok) {
+        goalsInput?.focus();
+        return;
       }
     }
-    if (durationInput && durationAdjusted) {
-      durationInput.value = String(duration);
+    try {
+      const perms = await invoke<SystemPermissions>("get_system_permissions");
+      if (!perms.screen_recording) {
+        if (errEl) {
+          errEl.hidden = false;
+          errEl.textContent =
+            "Allow Screen Recording for Waypoint in System Settings → Privacy & Security → Screen Recording, then quit and reopen the app.";
+        }
+        return;
+      }
+      if (!perms.accessibility && errEl) {
+        errEl.hidden = false;
+        errEl.textContent =
+          "Accessibility isn’t granted yet — tab coaching may be limited. Continuing launch; grant it in System Settings for full coaching.";
+      }
+    } catch {
+      // Preflight best-effort; Rust still gates capture.
     }
     const missionGoals = goals;
     setMissionLaunchButton(true);
@@ -4207,11 +4434,11 @@ async function bootApp() {
   const deleteModal = $("#delete-data-modal");
   const deleteResult = $("#delete-data-result");
   const closeDeleteModal = () => {
-    if (deleteModal) deleteModal.hidden = true;
+    if (deleteModal) closeModal(deleteModal);
   };
   const openDeleteModal = () => {
     if (deleteResult) deleteResult.textContent = "";
-    if (deleteModal) deleteModal.hidden = false;
+    if (deleteModal) openModal(deleteModal, "#delete-data-cancel");
   };
   $("#delete-data-start")?.addEventListener("click", () => openDeleteModal());
   deleteModal?.querySelectorAll("[data-delete-dismiss]").forEach((el) => {
@@ -4254,7 +4481,12 @@ async function bootApp() {
             : "Deleted and signed out.";
       }
     } catch (err) {
-      if (deleteResult) deleteResult.textContent = `Delete failed: ${String(err)}`;
+      const raw = String(err ?? "");
+      if (deleteResult) {
+        deleteResult.textContent = /cloud delete failed|local data kept|API is reachable/i.test(raw)
+          ? raw
+          : `Cloud delete failed — local data kept. Check Connection, then retry. ${raw}`;
+      }
     } finally {
       if (btn) btn.disabled = false;
     }

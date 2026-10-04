@@ -53,7 +53,60 @@ export type CompanionLiveHandlers = {
 
 type LiveInfo = { ws_url: string; protocols: string[] };
 
+type LiveStatusService = {
+  id: string;
+  state?: string;
+  status?: string;
+  detail?: string;
+};
+
+type LiveStatusPayload = {
+  services?: LiveStatusService[];
+};
+
 const AUDIO_PROTOCOL = "wp1";
+
+/** Map `/v1/status` + known upgrade codes to Talk UI copy (mirrors chatErrorMessage spirit). */
+function liveErrorMessage(codeOrDetail: string): string {
+  const raw = codeOrDetail.trim();
+  const lower = raw.toLowerCase();
+  if (
+    lower.includes("gemini_not_configured") ||
+    lower.includes("xai_not_configured") ||
+    lower.includes("cloud voice unavailable") ||
+    lower.includes("live companion is not configured")
+  ) {
+    return "Cloud voice unavailable on this server. Check Connection (Talk / Live voice), then try again.";
+  }
+  if (lower.includes("unauthorized") || lower.includes("sign in")) {
+    return "Sign in with Google to use Talk.";
+  }
+  if (
+    lower.includes("too_many_live_sessions") ||
+    lower.includes("live_capacity") ||
+    lower.includes("at capacity") ||
+    lower.includes("too many live")
+  ) {
+    return "Live voice is busy. Close another Talk session or try again in a moment.";
+  }
+  if (lower.includes("unavailable") || lower.includes("needs xai") || lower.includes("grok")) {
+    return raw || "Talk isn’t ready yet. Check Connection for Live voice.";
+  }
+  return raw || "Couldn't start live voice. Check your connection and try again.";
+}
+
+async function liveReadinessError(): Promise<string | null> {
+  try {
+    const status = await invoke<LiveStatusPayload>("service_status");
+    const live = status.services?.find((s) => s.id === "companion_live");
+    if (!live) return null;
+    const state = String(live.state ?? "");
+    if (state === "ok") return null;
+    return liveErrorMessage(live.detail || live.status || "Talk unavailable");
+  } catch {
+    return null;
+  }
+}
 const AUDIO_KIND_DOWNLINK = 1;
 const AUDIO_KIND_UPLINK = 2;
 const HEADER_BYTES = 16;
@@ -515,6 +568,13 @@ export class CompanionLiveSession {
   async start(context: CompanionContext): Promise<void> {
     if (this.phase !== "idle") return;
     this.debug = audioDebugEnabled();
+
+    const readiness = await liveReadinessError();
+    if (readiness) {
+      this.handlers.onError?.(readiness);
+      return;
+    }
+
     const info = await invoke<LiveInfo>("companion_live_info");
 
     // Mic before AudioContext so Bluetooth HFP rate is settled first.
@@ -542,12 +602,40 @@ export class CompanionLiveSession {
 
     this.socket = new WebSocket(info.ws_url, info.protocols);
     this.socket.binaryType = "arraybuffer";
-    await new Promise<void>((resolve, reject) => {
-      if (!this.socket) return reject(new Error("No socket"));
-      this.socket.onopen = () => resolve();
-      this.socket.onerror = () =>
-        reject(new Error("Couldn't start live voice. Check your connection and try again."));
-    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        if (!this.socket) return reject(new Error("No socket"));
+        let settled = false;
+        const fail = (msg: string) => {
+          if (settled) return;
+          settled = true;
+          reject(new Error(msg));
+        };
+        this.socket.onopen = () => {
+          settled = true;
+          resolve();
+        };
+        this.socket.onerror = () =>
+          fail(
+            "Couldn't start live voice. Check Connection (Talk / Live voice) and try again.",
+          );
+        this.socket.onclose = (ev) => {
+          // Browsers rarely expose upgrade JSON; reason/code still help capacity/auth cases.
+          if (ev.reason) {
+            fail(liveErrorMessage(ev.reason));
+            return;
+          }
+          fail(
+            "Couldn't start live voice. Check Connection (Talk / Live voice) and try again.",
+          );
+        };
+      });
+    } catch (err) {
+      const mapped = liveErrorMessage(err instanceof Error ? err.message : String(err));
+      this.handlers.onError?.(mapped);
+      this.end(false);
+      return;
+    }
     this.socket.onmessage = (event) => {
       if (typeof event.data === "string") this.handleMessage(event.data);
       else if (event.data instanceof ArrayBuffer) this.handleBinary(event.data);
@@ -571,8 +659,14 @@ export class CompanionLiveSession {
       await this.startMic();
     } catch (err) {
       // Keep Live open for typed turns — do not tear down or desync phase/UI.
+      const raw = err instanceof Error ? err.name || err.message : String(err);
+      const denied =
+        /NotAllowedError|PermissionDenied|denied/i.test(raw) ||
+        (err instanceof Error && /NotAllowedError|PermissionDenied/i.test(err.message));
       this.handlers.onError?.(
-        `Microphone unavailable (${err instanceof Error ? err.message : String(err)}). You can still type.`,
+        denied
+          ? "Microphone access was denied. Allow Microphone for Waypoint in System Settings → Privacy & Security, then quit and reopen. You can still type."
+          : "Microphone unavailable. Check System Settings → Privacy & Security → Microphone, then try Talk again. You can still type.",
       );
     }
   }

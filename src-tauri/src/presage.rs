@@ -53,9 +53,10 @@ impl PresageClient {
         let file_size = file_bytes.len();
 
         let headers = [("x-api-key", self.api_key.as_str())];
+        // Presage retired /v1/upload-url (API Gateway 403 Missing Authentication Token).
         let start = self
             .http
-            .post(format!("{BASE}/v1/upload-url"))
+            .post(format!("{BASE}/v2/upload-url"))
             .headers(
                 headers
                     .into_iter()
@@ -132,7 +133,7 @@ impl PresageClient {
 
         let complete = self
             .http
-            .post(format!("{BASE}/v1/complete"))
+            .post(format!("{BASE}/v2/complete"))
             .header("x-api-key", &self.api_key)
             .json(&json!({
                 "id": vid_id,

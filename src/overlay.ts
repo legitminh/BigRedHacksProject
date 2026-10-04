@@ -80,16 +80,7 @@ function clearPrompt() {
   void hideOverlayWindow();
 }
 
-declare global {
-  interface Window {
-    __waypointShow?: (prompt: CoachPrompt) => void;
-    __waypointClear?: () => void;
-  }
-}
-
 window.addEventListener("DOMContentLoaded", async () => {
-  window.__waypointShow = showPrompt;
-  window.__waypointClear = clearPrompt;
   await passClicksThrough();
   await listen<CoachPrompt>("overlay-prompt", (event) => showPrompt(event.payload));
   await listen("overlay-clear", () => clearPrompt());

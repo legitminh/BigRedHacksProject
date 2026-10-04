@@ -26,7 +26,6 @@ use tauri::{AppHandle, State};
 use config::AppConfig;
 use gemini::{ChatMessage, StudySessionSuggestion};
 use google::GoogleContext;
-use presage::PresageClient;
 use session::{LockInSession, SessionSummary};
 use settings::UserSettings;
 
@@ -153,6 +152,25 @@ async fn get_status(state: State<'_, AppState>) -> Result<StatusPayload, String>
             .is_some_and(|u| u.eq_ignore_ascii_case("guest"));
     // Gemini is server-side only; ready once the user has a JWT.
     let gemini_ready = signed_in;
+    // Camera vitals readiness = server PRESAGE_API_KEY (via /v1/status), not a local key.
+    let presage_ready = if signed_in {
+        match api::authed_json::<ServiceStatusPayload>(
+            &cfg,
+            reqwest::Method::GET,
+            "/v1/status",
+            None,
+        )
+        .await
+        {
+            Ok(status) => status
+                .services
+                .iter()
+                .any(|s| s.id == "presage" && s.state == "ok"),
+            Err(_) => false,
+        }
+    } else {
+        false
+    };
     Ok(StatusPayload {
         signed_in,
         guest_mode,
@@ -163,7 +181,7 @@ async fn get_status(state: State<'_, AppState>) -> Result<StatusPayload, String>
         gemini_ready,
         // Google OAuth is required — ready means API can run the sign-in flow.
         google_oauth_ready: true,
-        presage_ready: cfg.presage_api_key.is_some(),
+        presage_ready,
         local_llm_model: cfg.local_llm_model.clone(),
         local_llm_enabled: cfg.local_llm_enabled,
         session: state.session.lock().clone(),
@@ -248,6 +266,11 @@ async fn gemini_status(state: State<'_, AppState>) -> Result<GeminiLiveStatus, S
     }
     let (ok, detail) = gemini::probe_status_via_api(&cfg).await;
     Ok(GeminiLiveStatus { ok, detail })
+}
+
+#[tauri::command]
+fn cancel_sign_in_waypoint_google() {
+    auth::request_cancel_google_sign_in();
 }
 
 #[tauri::command]
@@ -1215,15 +1238,44 @@ async fn start_lock_in(
     }
 
     let cfg = state.config.lock().clone();
-    // Camera accountability runs through the API; local PRESAGE_API_KEY is optional/legacy.
-    // Mark ready when signed in so the session UI reflects that server analysis can run.
-    let presage_ready = auth::load_tokens(&cfg).is_some() || PresageClient::configured(&cfg);
+    // Camera accountability runs through the API (`PRESAGE_API_KEY` server-side).
+    // Derive readiness from `/v1/status` presage row — not JWT alone or a local baked key.
+    let presage_ready = if auth::load_tokens(&cfg).is_some() {
+        match api::authed_json::<ServiceStatusPayload>(
+            &cfg,
+            reqwest::Method::GET,
+            "/v1/status",
+            None,
+        )
+        .await
+        {
+            Ok(status) => status
+                .services
+                .iter()
+                .any(|s| s.id == "presage" && s.state == "ok"),
+            Err(e) => {
+                tracing::warn!("presage readiness via /v1/status failed: {e}");
+                false
+            }
+        }
+    } else {
+        false
+    };
 
-    // Screen watching is required. Probe Screen Recording on launch;
-    // timeout so a stuck permission prompt can't freeze the UI.
+    // Screen watching is required. Preflight TCC first so we never burn a 12s capture
+    // hang when Screen Recording is denied; then a short probe confirms capture works.
     if screen_enabled {
+        let preflight_ok = tokio::task::spawn_blocking(screen_recording_preflight)
+            .await
+            .unwrap_or(false);
+        if !preflight_ok {
+            return Err(
+                "Allow Screen Recording for Waypoint in System Settings → Privacy & Security → Screen Recording, then quit and reopen the app."
+                    .into(),
+            );
+        }
         match tokio::time::timeout(
-            std::time::Duration::from_secs(12),
+            std::time::Duration::from_secs(4),
             tokio::task::spawn_blocking(capture::screen::grab_primary_jpeg),
         )
         .await
@@ -1359,9 +1411,8 @@ async fn delete_all_user_data(
             .await
             .map_err(|e| {
                 format!(
-                    "Couldn’t delete your cloud account data ({e}). \
-                     Check that the Waypoint API is reachable, then try again. \
-                     Local files were not wiped."
+                    "Cloud delete failed — local data kept. \
+                     Check Connection status, then retry when the Waypoint API is reachable. ({e})"
                 )
             })?;
         removed.push("cloud account data".into());
@@ -1519,6 +1570,7 @@ pub fn run() {
             gemini_status,
             sign_in_waypoint,
             sign_in_waypoint_google,
+            cancel_sign_in_waypoint_google,
             sign_in_waypoint_guest,
             sign_out_waypoint,
             study_memory_stats,

@@ -170,6 +170,12 @@ async fn probe(app: &AppConfig, cfg: &LocalJudgeConfig) -> (bool, String) {
     }
 }
 
+/// Strip query/fragment before cloud coach payloads (tokens in URLs stay local).
+fn url_for_judge(url: &str) -> String {
+    let base = url.split('#').next().unwrap_or(url);
+    base.split('?').next().unwrap_or(base).to_string()
+}
+
 /// Classify focus from text only (goals + app/title/url/excerpt). No screenshot.
 pub async fn judge_on_task(
     cfg: &AppConfig,
@@ -185,6 +191,7 @@ pub async fn judge_on_task(
     }
     let local = LocalJudgeConfig::from_app(cfg);
     let excerpt: String = page_text.chars().take(1200).collect();
+    let safe_url = url_for_judge(url);
     let goal_hint = goals_snippet(goals, 48);
     let prompt = format!(
         r#"You are a strict study lock-in classifier. Decide if the student is ON TASK for their goals.
@@ -206,7 +213,7 @@ goals: {goals}
 kind: {kind}
 app: {app}
 title: {title}
-url: {url}
+url: {safe_url}
 page_text: {excerpt}"#
     );
 

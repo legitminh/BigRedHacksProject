@@ -43,6 +43,8 @@ const PRESAGE_FPS: u32 = 12;
 /// instantly (no clip wall-time), so we don't 429-spam. With a 12s clip, successful
 /// observe cadence lands ~38s (target 25–40s).
 const PRESAGE_GAP_SECS: u64 = 26;
+/// Quiet-phase JPEG heartbeats share the observe rate bucket — keep them sparse.
+const PRESAGE_QUIET_GAP_SECS: u64 = 60;
 /// Brief settle so opener / local watch start before the first webcam grab.
 const PRESAGE_START_DELAY_SECS: u64 = 20;
 /// Let the student settle before distraction tracking / nags begin.
@@ -347,11 +349,15 @@ async fn run_local_watch_loop(
                 let state = app.state::<AppState>();
                 let mut guard = state.session.lock();
                 if let Some(session) = guard.as_mut() {
-                    session.watching_note = format!("Settling in — tracking in {left}s…");
-                    session.status = SessionStatusKind::OnTask;
-                    let snap = session.clone();
-                    drop(guard);
-                    let _ = app.emit("session-update", &snap);
+                    let note = format!("Settling in — tracking in {left}s…");
+                    // Emit ≤1 Hz during warmup (only when the displayed second changes).
+                    if session.watching_note != note {
+                        session.watching_note = note;
+                        session.status = SessionStatusKind::OnTask;
+                        let snap = session.clone();
+                        drop(guard);
+                        let _ = app.emit("session-update", &snap);
+                    }
                 }
             }
             tokio::time::sleep(Duration::from_millis(500)).await;
@@ -846,11 +852,27 @@ async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop
         // Quiet phases: heartbeat with phase=paused|break (tiny JPEG, no webcam) so the
         // server refreshes stress cooldown and stays silent. Active: record + upload clip
         // for Presage (VIDEOINPUT) — never run local LLM on webcam frames.
+        let mut gap_secs = if paused {
+            PRESAGE_QUIET_GAP_SECS
+        } else {
+            PRESAGE_GAP_SECS
+        };
+
+        enum ObserveOutcome {
+            Ok(camera_observe::ObserveResponse),
+            Stopped,
+            NoClip,
+            Err(crate::api::ApiClientError),
+        }
+
         let observe_result = if paused {
             if stop.load(Ordering::SeqCst) {
-                Err("stopped".into())
+                ObserveOutcome::Stopped
             } else {
-                camera_observe::observe_quiet_phase(&cfg, &session_id, phase).await
+                match camera_observe::observe_quiet_phase(&cfg, &session_id, phase).await {
+                    Ok(r) => ObserveOutcome::Ok(r),
+                    Err(e) => ObserveOutcome::Err(e),
+                }
             }
         } else {
             let dir = match capture::temp_session_dir(&session_id) {
@@ -868,7 +890,7 @@ async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop
                 })
                 .await
                 {
-                    Ok(Ok(path)) => Some(path),
+                    Ok(Ok(clip)) => Some(clip),
                     Ok(Err(e)) => {
                         tracing::warn!("camera clip record: {e}");
                         None
@@ -880,41 +902,65 @@ async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop
                 }
             };
 
-            if let Some(path) = clip {
-                let cleanup = path.clone();
+            if let Some(clip) = clip {
+                let cleanup = clip.path.clone();
+                let brightness = Some(clip.brightness);
                 let result = if stop.load(Ordering::SeqCst) {
-                    Err("stopped".into())
+                    ObserveOutcome::Stopped
                 } else {
-                    camera_observe::observe_clip(&cfg, &session_id, phase, &path).await
+                    match camera_observe::observe_clip(
+                        &cfg,
+                        &session_id,
+                        phase,
+                        &clip.path,
+                        brightness,
+                    )
+                    .await
+                    {
+                        Ok(r) => ObserveOutcome::Ok(r),
+                        Err(e) => ObserveOutcome::Err(e),
+                    }
                 };
                 let _ = tokio::fs::remove_file(&cleanup).await;
+                capture::remove_temp_session_dir(&session_id);
                 result
             } else {
-                Err("no_clip".into())
+                capture::remove_temp_session_dir(&session_id);
+                ObserveOutcome::NoClip
             }
         };
 
         match observe_result {
-            Ok(resp) => {
+            ObserveOutcome::Ok(resp) => {
                 apply_observe_response(&app, &resp, paused);
             }
-            Err(e) if e == "stopped" => break,
-            Err(e) if e == "no_clip" => {
+            ObserveOutcome::Stopped => break,
+            ObserveOutcome::NoClip => {
                 // Clip failed — still wait out the gap so we don't spin the camera.
             }
-            Err(e) if is_quiet_observe_error(&e) => {
+            ObserveOutcome::Err(e) if is_quiet_observe_error(&e.message) => {
                 // 429 / auth: stay quiet; stop on auth so we don't retry-spam.
                 tracing::debug!("camera observe (quiet): {e}");
-                if is_auth_observe_error(&e) {
+                if e.is_rate_limited() {
+                    if let Some(retry) = e.retry_after_secs {
+                        gap_secs = gap_secs.max(retry);
+                    }
+                }
+                if is_auth_observe_error(&e.message) {
                     break;
                 }
             }
-            Err(e) => {
+            ObserveOutcome::Err(e) => {
+                if e.is_rate_limited() {
+                    if let Some(retry) = e.retry_after_secs {
+                        gap_secs = gap_secs.max(retry);
+                    }
+                }
                 tracing::warn!("camera observe: {e}");
             }
         }
 
-        for _ in 0..PRESAGE_GAP_SECS {
+        for _ in 0..gap_secs {
             if stop.load(Ordering::SeqCst) {
                 break;
             }
@@ -1545,6 +1591,11 @@ mod camera_observe_timing_tests {
             PRESAGE_GAP_SECS >= 25,
             "gap {}s must be >= ~25s server observe floor",
             PRESAGE_GAP_SECS
+        );
+        assert!(
+            PRESAGE_QUIET_GAP_SECS >= 60,
+            "quiet gap {}s should stay sparse vs the 3/75s observe bucket",
+            PRESAGE_QUIET_GAP_SECS
         );
     }
 

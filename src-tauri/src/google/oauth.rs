@@ -41,20 +41,18 @@ fn client(cfg: &AppConfig, redirect: &str) -> Result<BasicClient, String> {
 
 pub fn load_tokens(cfg: &AppConfig) -> Option<StoredTokens> {
     let path = cfg.google_token_path();
+    if !crate::auth::ensure_owner_only_or_fix(&path) {
+        tracing::warn!("refusing to load Google tokens — file permissions too open");
+        return None;
+    }
     let data = fs::read_to_string(path).ok()?;
     serde_json::from_str(&data).ok()
 }
 
 pub fn save_tokens(cfg: &AppConfig, tokens: &StoredTokens) -> Result<(), String> {
     let path = cfg.google_token_path();
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(
-        path,
-        serde_json::to_string_pretty(tokens).map_err(|e| e.to_string())?,
-    )
-    .map_err(|e| e.to_string())
+    let raw = serde_json::to_string(tokens).map_err(|e| e.to_string())?;
+    crate::auth::write_secret_file(&path, &raw)
 }
 
 pub fn clear_tokens(cfg: &AppConfig) {

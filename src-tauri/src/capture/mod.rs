@@ -23,9 +23,22 @@ pub fn jpeg_from_rgb(width: u32, height: u32, rgb: &[u8]) -> Result<Vec<u8>, Str
 }
 
 pub fn temp_session_dir(session_id: &str) -> Result<PathBuf, String> {
-    let dir = std::env::temp_dir().join("waypoint").join(session_id);
+    let root = std::env::temp_dir().join("waypoint");
+    let dir = root.join(session_id);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700));
+        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
+    }
     Ok(dir)
+}
+
+/// Best-effort wipe of a session temp directory (clips/frames).
+pub fn remove_temp_session_dir(session_id: &str) {
+    let dir = std::env::temp_dir().join("waypoint").join(session_id);
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[allow(dead_code)]
