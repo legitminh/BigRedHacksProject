@@ -4225,7 +4225,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` ·
   kicker `5:59`/`5:60` · crop `_verify/tick38-welcome-kicker-crop.png`
-- commit: PENDING
+- commit: 4877bf7
 - change: |
     Superseded by `fp-welcome-kicker-regular-12` (tick43 Regular 12 /
     lh 1.4 / `#326c78` is source of truth; not Bold ~11 / 0.08em).
@@ -4606,7 +4606,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` ·
   title `5:61` · card `5:58` ·
   crop `_verify/tick43-welcome-title-crop.png`
-- commit: PENDING
+- commit: 4877bf7
 - change: |
     `.welcome-signin-title` → ink `#282237` (Medium 32 / lh 1.4 kept);
     Google/guest wiring unchanged.
@@ -4617,7 +4617,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` ·
   kicker `5:59`/`5:60` ·
   crop `_verify/tick43-welcome-kicker-crop.png`
-- commit: PENDING
+- commit: 4877bf7
 - change: |
     `.welcome-signin-kicker` → Regular 12px / weight 400 / lh 1.4 /
     mint `#326c78` on `#e9ddfd` (drop Bold 700 + 0.12em tracking).
@@ -4629,7 +4629,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
   send `6:1731` · composer `6:1726` ·
   crop `_verify/tick43-lost-composer-crop.png` · full `_verify/tick43-lost-full.png`
-- commit: PENDING
+- commit: 4877bf7
 - change: |
     `.view-session .session-copilot-composer .copilot-send.primary` →
     solid `#6750a4` (match Copilot Send after `97e3086`); 52 circle + ↑
