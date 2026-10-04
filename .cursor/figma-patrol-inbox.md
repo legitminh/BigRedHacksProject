@@ -3787,25 +3787,15 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     keep Pause/End + composer. Pair with open surface/height items.
 - escalate: scrutinous
 
-## open: fp-connection-lost-meta-muted
+## done: fp-connection-lost-meta-muted
 - screen: active
 - ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
   AT LAUNCH `6:1714` · YOU `6:1717` · crop `_verify/tick33-lost-panel-crop.png`
-- expected: |
-    Live history metas (`6:1714` / `6:1717`, h≈14): uppercase caps
-    muted **`#645d73`** Regular/Medium 12 — “AT LAUNCH”, “YOU · JUST NOW”
-    — not lilac `#8a7fa8`.
-- actual: |
-    Opens lock history presence + 20px stack gaps — not meta color.
-    `.session-chat-meta` is `color: var(--mc-text-muted, #8a7fa8)` at
-    0.62rem / 700. Lost UI still missing (`fp-connection-lost-panel`).
-- deviation: |
-    Tick33 — lost/history meta muted token vs live `6:1714`/`6:1717`.
-    Distinct from history-stack-gap / keeps-history / presence-pill;
-    under-covered `2:48`.
-- fix_hint: |
-    Set `.session-chat-meta` to `#645d73` (~12px); keep AT LAUNCH seed +
-    YOU kicker wiring. Preserve Pause/End.
+- commit: e4e9930
+- change: |
+    Superseded/updated by tick47 `fp-connection-lost-meta-10`: live metas
+    are Regular **10px** / lh 1.4 / `#645d73` (not ~12px). Same commit
+    applied `.session-chat-meta` to that token.
 - escalate: scrutinous
 
 ## open: fp-relaunch-next-step-label-type
@@ -4195,30 +4185,16 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Pause/End on normal active.
 - escalate: scrutinous
 
-## open: fp-connection-lost-composer-pill
+## done: fp-connection-lost-composer-pill
 - screen: active
 - ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
   input `6:1726` · composer `6:1725` ·
   crop `_verify/tick38-lost-composer-crop.png`
-- expected: |
-    Live lost Message composer input (`6:1726`, 376×78): **pill**
-    radius (full stadium) fill `#f7f2ff` / border `#c8bfd7` with Mic+↑
-    52 circles — same chrome language as Copilot `5:249`, not a 16px
-    rounded rectangle.
-- actual: |
-    Opens lock composer **height** 78 (`fp-connection-lost-composer-input-height`)
-    + placeholder-type / hint-type — not radius. Session wrap
-    `.view-session .session-copilot-composer .copilot-input-wrap` uses
-    `border-radius: 1rem` (multi-row look). Lost UI still missing
-    (`fp-connection-lost-panel`).
-- deviation: |
-    Tick38 — lost/session composer pill radius vs live `6:1726`. Distinct
-    from composer-input-height / placeholder-type / hint-type /
-    composer-stays; under-covered `2:48`. Pause/End still on flight card.
-- fix_hint: |
-    When mounting lost (shared session) 78px composer, use
-    `border-radius: var(--radius-pill)` + `#f7f2ff` / `#c8bfd7`; keep
-    Mic/Send + Pause/End.
+- commit: e4e9930
+- change: |
+    Superseded by tick47 `fp-connection-lost-composer-radius-16`: live
+    `6:1726` is **16px** rect (not stadium). Same commit set session
+    `.copilot-input-wrap` to `border-radius: 16px`.
 - escalate: scrutinous
 
 ## done: fp-welcome-kicker-type
@@ -4518,30 +4494,16 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     empty copy `#645d73` + Mic/Send/chip wiring unchanged.
 - escalate: scrutinous
 
-## open: fp-relaunch-end-label-type
+## done: fp-relaunch-end-label-type
 - screen: active
 - ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
   End `6:647` · controls `6:643` ·
   crop `_verify/tick42-end-mission.png` · panel `_verify/tick42-relaunch-live.png`
-- expected: |
-    Live left “End mission” (`6:647`, 180×52 tonal `#e9ddfd`): Regular
-    **16px** / lh 1.4 ink **`#282237`** (no border stroke) — same
-    secondary-label token as card Take a break / lost Retry.
-- actual: |
-    Opens lock left CTA hierarchy (Take a break filled + End tonal) +
-    flight-take-break **label** — not End **label type**. App
-    `#end-session.session-control-pill--end` is ~0.9rem / weight **600**
-    on bordered lavender (`--mc-surface-lavender`), not 16/400/`#282237`
-    on `#e9ddfd`.
-- deviation: |
-    Tick42 — End mission label type/fill vs live `6:647`. Distinct from
-    flight-take-break-label-type / cta-hierarchy / take-break-label-type /
-    primary-label-type; under-covered `2:41`. Spot-check: handoff
-    Continue/badge (`91131e0`) + session Mic — no live regression.
-- fix_hint: |
-    Align `.session-control-pill--end` to 16px / 400 / `#282237` on
-    `#e9ddfd` 52px (drop border); keep End wiring. Preserve Pause/End on
-    normal active / lost.
+- commit: e4e9930
+- change: |
+    `#end-session` / `.session-control-pill--end` → Regular 16px / weight
+    400 / ink `#282237` on tonal `#e9ddfd` (drop bordered lavender /
+    weight 600). Pause/End wiring unchanged.
 - escalate: scrutinous
 
 ## done: fp-relaunch-timer-caption-type
@@ -4878,4 +4840,98 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When adding YOUR CHOICE view, set kicker **12px / 700** / lh 1.4 /
     `#6750a4`; keep Medium 44 title `#282237` + muted 16 sub + Lock-in
     nav. Preserve Settings five-tab; do not block Launch.
+- escalate: scrutinous
+
+## done: fp-connection-lost-composer-radius-16
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  input `6:1726` · composer `6:1725` ·
+  crop `_verify/tick47-lost-panel-crop.png`
+- commit: e4e9930
+- change: |
+    `.view-session .session-copilot-composer .copilot-input-wrap` →
+    `border-radius: 16px` (was 1rem / not stadium). Supersedes
+    `fp-connection-lost-composer-pill`. Mic/Send + Copilot 16px /
+    session Send `#6750a4` unchanged.
+- escalate: scrutinous
+
+## done: fp-connection-lost-meta-10
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  AT LAUNCH `6:1714` · YOU `6:1717` ·
+  crop `_verify/tick47-lost-panel-crop.png`
+- commit: e4e9930
+- change: |
+    `.session-chat-meta` → Regular 10px / weight 400 / lh 1.4 /
+    muted `#645d73` (was ~0.62rem / 700 / lilac `#8a7fa8`). Supersedes
+    `fp-connection-lost-meta-muted` 12px claim. Pause/End unchanged.
+- escalate: scrutinous
+
+## open: fp-relaunch-badge-regular-12
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  badge `8:414` · text `8:415` ·
+  crop `_verify/tick47-relaunch-panel-crop.png`
+- expected: |
+    Live relaunch card badge text (`8:415`, h=17): Regular **12px** /
+    weight **400** / lh 1.4 purple **`#6750a4`** on raised `#e9ddfd` —
+    “→  READY TO RELAUNCH?” — not Bold/700.
+- actual: |
+    Open `fp-relaunch-badge-type` expected Bold/Semibold ~700 — now wrong
+    vs live `get_design_context` Regular 400. Arrow glyph stays on
+    `fp-relaunch-badge-arrow`. App has no relaunch card.
+- deviation: |
+    Tick47 — relaunch badge weight vs live `8:415` (Regular 400). Distinct
+    from badge-type (Bold claim) / badge-arrow / progress-pill-mint /
+    footer-mint; under-covered `2:41`. Do not re-add badge-type.
+- fix_hint: |
+    When mounting relaunch badge, set label **12px / 400** / lh 1.4 /
+    `#6750a4` on `#e9ddfd`; pair with → glyph. Preserve Pause/End.
+- escalate: scrutinous
+
+## open: fp-relaunch-next-step-label-bold
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  label `8:420` · stack `8:419` ·
+  crop `_verify/tick47-relaunch-panel-crop.png`
+- expected: |
+    Live Next step label (`8:420`, h=20): **Bold 14px** / weight **700** /
+    lh 1.4 ink **`#282237`** above the 64px editable — not Semibold 600 /
+    `#2a2440`.
+- actual: |
+    Open `fp-relaunch-next-step-label-type` expected Semibold/Medium 14 /
+    `#2a2440` — wrong vs live Bold 700 / `#282237`. Gap 10 + field 64
+    stay on sibling opens. App has no relaunch Next step.
+- deviation: |
+    Tick47 — Next step label weight/ink vs live `8:420` (Bold 700 /
+    `#282237`). Distinct from next-step-label-type / label-gap /
+    field / field-fill; under-covered `2:41`. Do not re-add label-type.
+- fix_hint: |
+    When mounting Next step, style label **14px / 700** / lh 1.4 /
+    `#282237`; keep 10px gap + 64px editable + Relaunch. Preserve
+    Pause/End.
+- escalate: scrutinous
+
+## open: fp-relaunch-field-radius-12
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  field `8:421` · stack `8:419` ·
+  crop `_verify/tick47-relaunch-panel-crop.png`
+- expected: |
+    Live Next step Editable field (`8:421`, 386×64): control radius
+    **12px** fill `#f7f2ff` / border `#c8bfd7` — same `radius-control`
+    as welcome Email/Password fields — not pill and not 16/28 card
+    radius.
+- actual: |
+    Opens lock field **height** 64 / fill / value type / label — not
+    **corner radius**. App has no relaunch field; risk: reuse session
+    textarea pill or 1rem wrap when mounting.
+- deviation: |
+    Tick47 — relaunch Next step field radius vs live `8:421` (12px).
+    Distinct from next-step-field / field-fill / field-value-type /
+    label-bold; under-covered `2:41`. Welcome inputs already 12.
+- fix_hint: |
+    When mounting Next step editable, set `border-radius: 12px` with
+    `#f7f2ff` / `#c8bfd7` / h 64; keep Relaunch / Take a break.
+    Preserve Pause/End.
 - escalate: scrutinous
