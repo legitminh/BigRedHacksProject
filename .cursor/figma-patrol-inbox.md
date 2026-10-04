@@ -3585,7 +3585,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Catch-up compliance: live `5:223` = 262×52 flat; HEAD min-height 52
     + box-shadow none + stretch.
 
-## open: fp-permission-handoff-pad-33
+## done: fp-permission-handoff-pad-33
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   modal `7:415` · crop `_verify/tick-catchup-handoff-crop.png`
@@ -3606,6 +3606,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     Set `.mc-perm-modal__card` padding to 33px; keep gap 22 + Not now ·
     Continue + camera strings. Preserve Settings five-tab; do not block
     Launch.
+- commit: 8eb02fd
+- change: |
+    `.mc-perm-modal__card` padding → 33px (gap 22 kept); Not now · Continue wiring unchanged.
 - escalate: scrutinous
 
 ## open: fp-relaunch-next-step-label-gap
@@ -3687,7 +3690,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     (live `5:227`). Start a mission wiring + `#e9ddfd` card kept.
 - escalate: scrutinous
 
-## open: fp-welcome-signin-lead-type
+## done: fp-welcome-signin-lead-type
 - screen: welcome
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · lead `5:62` ·
   crop `_verify/tick32-welcome-live.png`
@@ -3705,6 +3708,9 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - fix_hint: |
     Set `.welcome-signin-lead` to 16px / weight 400 / lh 1.4 / `#645d73`;
     keep Google auth wiring until form open lands Email/Password.
+- commit: 8eb02fd
+- change: |
+    `.welcome-signin-lead` → 16px / weight 400 / lh 1.4 / `#645d73`; Google-only form left alone.
 - escalate: scrutinous
 
 ## open: fp-connection-lost-panel-surface
@@ -3728,4 +3734,123 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - fix_hint: |
     When mounting lost panel, use `#fffbff` / `#c8bfd7` / 28px / pad 24 +
     gap 20; keep Pause/End + composer. Pair with open height/stack items.
+- escalate: scrutinous
+
+## done: fp-permission-handoff-share-optional-live
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  modal `7:415` · title `7:418` · body `7:419` · foot `7:427` ·
+  crop `_verify/tick33-handoff-modal-crop.png`
+- expected: |
+    Tick33 isolated get_screenshot of `7:415` (580×340): badge
+    “PERMISSION HANDOFF”; title **“Share an optional input?”**; body
+    “Your browser will ask for camera or screen access. You can decline
+    and keep flying.”; foot “Design reference: the next step is the
+    browser’s native permission prompt.” Not now · Continue. (Layer
+    names match visible text — prior camera-signals OCR was stale.)
+- actual: |
+    `#permission-handoff-title` is “Allow camera accountability?”; body
+    is product API/desk-check copy; foot “Nothing is recorded…”. Pad-33
+    open still has app at 32. Verified `fp-permission-handoff-camera-live`
+    locked the OCR camera variant — live frame now shows share-optional.
+- deviation: |
+    Tick33 — handoff visible copy vs live `7:415` crop. Distinct from
+    pad-33 / choice-surface / choice-scrim; supersedes camera-live strings
+    when mounting against current Figma.
+- fix_hint: |
+    Align handoff title/body/foot to tick33 live share-optional +
+    keep-flying + Design-reference prompt; keep Not now · Continue +
+    pad 33. Preserve Settings five-tab; do not block Launch.
+- commit: 8eb02fd
+- change: |
+    `#permission-handoff-modal` → badge PERMISSION HANDOFF; title “Share an optional input?”; body “Your browser will ask for camera or screen access. You can decline and keep flying.”; foot “Design reference: the next step is the browser’s native permission prompt.”; Not now · Continue kept. Ref 17 refreshed from live `7:415`.
+- escalate: scrutinous
+
+## open: fp-connection-lost-panel-pad-25
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  panel `6:1707` · crop `_verify/tick33-lost-panel-crop.png`
+- expected: |
+    Live lost Copilot panel (`6:1707`, 434×678): outer pad **25px**
+    (header at y=25; composer ends y=653 → bottom pad 25). Surface
+    `#fffbff` / `#c8bfd7` / 28 stay on sibling panel-surface.
+- actual: |
+    Open `fp-connection-lost-panel-surface` expected pad **24** from an
+    older design_context read. Metadata + crop lock 25. App
+    `.session-copilot-panel` uses ~1.1rem pad (~17–18px).
+- deviation: |
+    Tick33 — lost panel pad 25 vs sibling 24 claim / app denser pad.
+    Distinct from panel-surface (fill/border/radius) + panel-height /
+    stack-gaps; under-covered `2:48`.
+- fix_hint: |
+    Prefer pad **25px** when mounting lost (and shared session) panel;
+    keep Pause/End + composer. Pair with open surface/height items.
+- escalate: scrutinous
+
+## open: fp-connection-lost-meta-muted
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  AT LAUNCH `6:1714` · YOU `6:1717` · crop `_verify/tick33-lost-panel-crop.png`
+- expected: |
+    Live history metas (`6:1714` / `6:1717`, h≈14): uppercase caps
+    muted **`#645d73`** Regular/Medium 12 — “AT LAUNCH”, “YOU · JUST NOW”
+    — not lilac `#8a7fa8`.
+- actual: |
+    Opens lock history presence + 20px stack gaps — not meta color.
+    `.session-chat-meta` is `color: var(--mc-text-muted, #8a7fa8)` at
+    0.62rem / 700. Lost UI still missing (`fp-connection-lost-panel`).
+- deviation: |
+    Tick33 — lost/history meta muted token vs live `6:1714`/`6:1717`.
+    Distinct from history-stack-gap / keeps-history / presence-pill;
+    under-covered `2:48`.
+- fix_hint: |
+    Set `.session-chat-meta` to `#645d73` (~12px); keep AT LAUNCH seed +
+    YOU kicker wiring. Preserve Pause/End.
+- escalate: scrutinous
+
+## open: fp-relaunch-next-step-label-type
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  label `8:420` · stack `8:419` ·
+  crop `_verify/tick33-relaunch-panel-crop.png`
+- expected: |
+    Live Next step label (`8:420`, h=20): Semibold/Medium **14px** dark
+    `#2a2440` above the 64px editable (label→field gap 10 already open
+    on `fp-relaunch-next-step-label-gap`).
+- actual: |
+    Opens lock 64px field / fill / 10px gap / panel stack — not label
+    type scale. App has no relaunch Next step; risk: reuse denser
+    `.welcome-field-label` 0.82rem (~13) when mounting.
+- deviation: |
+    Tick33 — relaunch Next step label type vs live `8:420`. Distinct from
+    next-step-label-gap / next-step-field / body-type; under-covered
+    `2:41`.
+- fix_hint: |
+    When mounting Next step, style label 14px / weight 600 / lh 20 /
+    `#2a2440`; keep 10px gap + 64px editable + Relaunch CTA. Preserve
+    Pause/End on normal active.
+- escalate: scrutinous
+
+## open: fp-permissions-choice-art-y
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  intro `7:393` · planet `7:397` · ship `7:402` ·
+  crop `_verify/tick33-perm-live.png`
+- expected: |
+    Live YOUR CHOICE art under intro: ringed planet (`7:397`) at
+    **y=456** (218×218, x=81); ship (`7:402`) at **y=570** (160×110,
+    x=1178). Intro block ends ~y=263 → large atmosphere gap before art;
+    modal/scrim sit above.
+- actual: |
+    Opens lock art sizes (`fp-permissions-choice-art`) + surface/scrim/
+    intro-gap — not absolute y placement on the 960 frame. App still has
+    no YOUR CHOICE interstitial under handoff.
+- deviation: |
+    Tick33 — planet/ship y positions vs live `7:397`/`7:402`. Distinct
+    from art size open + intro-gap (kicker→title→sub only) + scrim;
+    under-covered YOUR CHOICE.
+- fix_hint: |
+    When adding YOUR CHOICE view, place planet ~y=456 left + ship ~y=570
+    right on the constellation field; keep Lock-in nav + handoff over
+    scrim. Preserve Settings five-tab; do not block Launch.
 - escalate: scrutinous
