@@ -5,20 +5,12 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
-use reqwest::Client;
 use serde_json::{json, Value};
 
+use crate::api;
 use crate::capture::{ocr, screen};
 use crate::config::AppConfig;
 use crate::gemini::CoachVisionResult;
-
-fn with_coach_auth(req: reqwest::RequestBuilder, cfg: &AppConfig) -> reqwest::RequestBuilder {
-    if let Some((name, value)) = cfg.coach_auth_header() {
-        req.header(name, value)
-    } else {
-        req
-    }
-}
 
 const OCR_MAX_CHARS: usize = 2200;
 const VLM_PROBE_TTL_SECS: u64 = 60;
@@ -82,12 +74,16 @@ pub async fn vlm_status_line(cfg: &AppConfig) -> String {
 }
 
 async fn probe_vlm(cfg: &AppConfig) -> (bool, String) {
-    let client = match Client::builder().timeout(Duration::from_secs(2)).build() {
-        Ok(c) => c,
-        Err(e) => return (false, e.to_string()),
-    };
     let url = format!("{}/api/tags", cfg.local_llm_base.trim_end_matches('/'));
-    let res = match with_coach_auth(client.get(url), cfg).send().await {
+    let res = match api::coach_authed_raw(
+        cfg,
+        reqwest::Method::GET,
+        &url,
+        None,
+        Duration::from_secs(2),
+    )
+    .await
+    {
         Ok(r) => r,
         Err(_) => {
             return (
@@ -147,7 +143,7 @@ pub async fn judge_frame(
     let prompt = format!(
         r#"You are a study lock-in classifier. Look at the screenshot (and OCR hint).
 Reply ONLY JSON: {{"on_task":true|false,"confidence":0.0-1.0,"distraction":null|"youtube"|"instagram"|"shopping"|"email"|"discord"|"phone"|"other","coach_line":"Leave that tab and get back to {goal_hint}."}}
-Rules: on_task only if the visible content advances the goals. YouTube entertainment/music/gaming = false. Lectures matching goals = true.
+Rules: on_task only if the visible content advances the goals. YouTube entertainment/music = false; lectures matching goals = true; gameplay only if goals include that game/playtest. Academic papers/PDFs only if they match goals (academic ≠ on-task). Gaming/Steam only if goals include that game.
 Set distraction from the visible site/app (youtube.com/Shorts → "youtube", never "instagram"). Use "phone" only if a phone UI/screen is clearly visible.
 coach_line must name the real distraction and reuse words from goals only — never invent other courses/quizzes (e.g. BIOMG/ENGL) not in goals. Never meta text like "short" or "one short sentence".
 When off-task, tell them to leave the distraction and refocus — NEVER suggest taking a break (breaks are only for stress/tiredness).
@@ -155,10 +151,6 @@ goals: {goals}
 ocr_hint: {hint}"#
     );
 
-    let client = Client::builder()
-        .timeout(Duration::from_secs(25))
-        .build()
-        .map_err(|e| e.to_string())?;
     let url = format!("{}/api/generate", cfg.local_llm_base.trim_end_matches('/'));
     let body = json!({
         "model": cfg.local_vision_model,
@@ -171,11 +163,15 @@ ocr_hint: {hint}"#
             "num_predict": 100
         }
     });
-    let res = with_coach_auth(client.post(url), cfg)
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("coach VLM request: {e}"))?;
+    let res = api::coach_authed_raw(
+        cfg,
+        reqwest::Method::POST,
+        &url,
+        Some(&body),
+        Duration::from_secs(25),
+    )
+    .await
+    .map_err(|e| format!("coach VLM request: {e}"))?;
     let status = res.status();
     let text = res.text().await.unwrap_or_default();
     if !status.is_success() {

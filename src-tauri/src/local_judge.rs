@@ -4,20 +4,12 @@
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use crate::api;
 use crate::config::AppConfig;
 use crate::gemini::CoachVisionResult;
-
-fn with_coach_auth(req: reqwest::RequestBuilder, cfg: &AppConfig) -> reqwest::RequestBuilder {
-    if let Some((name, value)) = cfg.coach_auth_header() {
-        req.header(name, value)
-    } else {
-        req
-    }
-}
 
 const MIN_CONFIDENCE: f32 = 0.55;
 const PROBE_TTL_SECS: u64 = 45;
@@ -102,15 +94,16 @@ pub async fn status_line(cfg: &AppConfig) -> String {
 }
 
 async fn probe(app: &AppConfig, cfg: &LocalJudgeConfig) -> (bool, String) {
-    let client = match Client::builder()
-        .timeout(Duration::from_secs(2))
-        .build()
-    {
-        Ok(c) => c,
-        Err(e) => return (false, e.to_string()),
-    };
     let url = format!("{}/api/tags", cfg.base_url.trim_end_matches('/'));
-    let res = match with_coach_auth(client.get(&url), app).send().await {
+    let res = match api::coach_authed_raw(
+        app,
+        reqwest::Method::GET,
+        &url,
+        None,
+        Duration::from_secs(2),
+    )
+    .await
+    {
         Ok(r) => r,
         Err(_) => {
             return (
@@ -201,10 +194,12 @@ Reply with ONLY compact JSON, no markdown:
 Rules:
 - Decide from title, url, and page_text — NOT from the kind label alone, and NOT from tab-group names like "School".
 - on_task=true only if this clearly advances the goals (coursework, lecture, tutorial matching goals).
-- YouTube/video are CONTEXTUAL: lecture/tutorial matching goals → on_task=true; music/rap/artist tracks/"no music"/gaming/vlogs/memes/entertainment → false, distraction="youtube".
-- Discord is CONTEXTUAL: study/homework help matching goals → may be true; meme/gaming spam → false, distraction="discord".
+- YouTube/video are CONTEXTUAL: lecture/tutorial matching goals → on_task=true; music/rap/artist tracks/"no music"/vlogs/memes/entertainment → false, distraction="youtube". Gameplay matching game-design/playtest goals → may be true.
+- Discord is CONTEXTUAL: study/homework help matching goals → may be true; meme spam → false; gaming channels matching playtest/game goals → may be true, else false, distraction="discord".
+- Reading/papers/PDFs/scholar/arxiv are CONTEXTUAL: on_task=true ONLY if the paper/title advances the goals — being academic is not enough; off-topic papers → false, distraction="reading".
+- Gaming/Steam/Epic are CONTEXTUAL: on_task=true ONLY if goals clearly include that game/playtest; otherwise false, distraction="gaming".
 - Instagram, shopping, email, texting-class → ALWAYS on_task=false (never study).
-- If unsure, confidence < 0.5 and lean on_task=false for entertainment content.
+- If unsure, confidence < 0.5 and lean on_task=false for entertainment / off-topic content.
 - coach_line MUST name the distraction AND reuse words from the goals field only — never invent other courses, assignments, or discussion posts that are not in goals.
 - When off-task, coach_line must tell them to leave the distraction and refocus on goals — NEVER suggest taking a break, resting, or stepping away (breaks are only for stress/tiredness).
 - Never output meta text like "one short sentence" or "short nudge".
@@ -217,10 +212,6 @@ url: {safe_url}
 page_text: {excerpt}"#
     );
 
-    let client = Client::builder()
-        .timeout(Duration::from_secs(20))
-        .build()
-        .map_err(|e| e.to_string())?;
     let url_api = format!("{}/api/generate", local.base_url.trim_end_matches('/'));
     let body = json!({
         "model": local.model,
@@ -233,11 +224,15 @@ page_text: {excerpt}"#
         }
     });
 
-    let res = with_coach_auth(client.post(url_api), cfg)
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("coach model request failed: {e}"))?;
+    let res = api::coach_authed_raw(
+        cfg,
+        reqwest::Method::POST,
+        &url_api,
+        Some(&body),
+        Duration::from_secs(20),
+    )
+    .await
+    .map_err(|e| format!("coach model request failed: {e}"))?;
     let status = res.status();
     let text = res.text().await.unwrap_or_default();
     if !status.is_success() {
@@ -737,6 +732,7 @@ fn is_verbatim_coach_kind(kind: &str) -> bool {
             | "on_task"
             | "left_desk"
             | "left_desk_pause"
+            | "look_back"
             | "welcome_back"
             | "camera_obstructed"
             | "camera"
@@ -799,6 +795,7 @@ fn is_status_kind_token(s: &str) -> bool {
             | "camera"
             | "left_desk"
             | "left_desk_pause"
+            | "look_back"
             | "welcome_back"
             | "camera_obstructed"
     )
@@ -906,6 +903,12 @@ fn fallback_templates(kind: &str, distraction: &str, goals: &str, nag_n: u32) ->
         "welcome_back" => vec![
             "Welcome back — good to see you. Let's pick the work back up.".into(),
             "Welcome back. Stay with the work.".into(),
+        ],
+        // VIDEOINPUT head_turned / looking_away — face still here, never left_desk.
+        "look_back" => vec![
+            "You're looking away. Turn back to the work.".into(),
+            "Eyes back on your work — look at the screen.".into(),
+            "Eyes on the work — put the phone down if you're on it.".into(),
         ],
         "camera_obstructed" | "camera" => vec![
             "I can’t see you clearly. Check the camera or lighting.".into(),
@@ -1023,16 +1026,6 @@ context: {detail_short}
 mission goals: {goals_short}"#
     );
 
-    let client = match Client::builder()
-        .timeout(Duration::from_secs(4))
-        .build()
-    {
-        Ok(c) => c,
-        Err(_) => {
-            remember_line(&fallback);
-            return fallback;
-        }
-    };
     let url_api = format!("{}/api/generate", local.base_url.trim_end_matches('/'));
     let body = json!({
         "model": local.model,
@@ -1044,10 +1037,14 @@ mission goals: {goals_short}"#
         }
     });
 
-    let Ok(res) = with_coach_auth(client.post(url_api), cfg)
-        .json(&body)
-        .send()
-        .await
+    let Ok(res) = api::coach_authed_raw(
+        cfg,
+        reqwest::Method::POST,
+        &url_api,
+        Some(&body),
+        Duration::from_secs(4),
+    )
+    .await
     else {
         remember_line(&fallback);
         return fallback;
@@ -1239,6 +1236,10 @@ mod tests {
             (
                 "welcome_back",
                 "Welcome back — good to see you. Let's pick the work back up.",
+            ),
+            (
+                "look_back",
+                "You're looking away. Turn back to the work.",
             ),
             (
                 "camera_obstructed",

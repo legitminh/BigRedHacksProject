@@ -2,7 +2,9 @@ mod api;
 mod auth;
 mod break_timer;
 mod camera_observe;
+mod camera_presence_live;
 mod capture;
+mod concept_map;
 mod coach;
 mod companion;
 mod config;
@@ -13,6 +15,7 @@ mod local_vision;
 mod overlay;
 mod presage;
 mod session;
+mod session_notes;
 mod settings;
 mod study_memory;
 
@@ -37,6 +40,8 @@ pub struct AppState {
     pub companion_history: Mutex<Vec<ChatMessage>>,
     pub coach_stop: Mutex<Option<Arc<AtomicBool>>>,
     pub silent_mode: AtomicBool,
+    /// Session notes on by default. Updated from settings load/save.
+    pub notes_enabled: AtomicBool,
     /// When the current pause began (UTC), if any.
     pub pause_started: Mutex<Option<chrono::DateTime<chrono::Utc>>>,
     /// Pomodoro break window is showing (mission should be paused).
@@ -207,6 +212,13 @@ async fn get_status(state: State<'_, AppState>) -> Result<StatusPayload, String>
     } else {
         false
     };
+    // Only expose a live mission — never a half-cleared `active=false` leftover.
+    let session = state
+        .session
+        .lock()
+        .as_ref()
+        .filter(|s| s.active)
+        .cloned();
     Ok(StatusPayload {
         signed_in,
         guest_mode,
@@ -220,7 +232,7 @@ async fn get_status(state: State<'_, AppState>) -> Result<StatusPayload, String>
         presage_ready,
         local_llm_model: cfg.local_llm_model.clone(),
         local_llm_enabled: cfg.local_llm_enabled,
-        session: state.session.lock().clone(),
+        session,
     })
 }
 
@@ -770,7 +782,11 @@ async fn chat_send(state: State<'_, AppState>, message: String) -> Result<ChatMe
         }
     }
 
-    let lock_in_active = state.session.lock().is_some();
+    let lock_in_active = state
+        .session
+        .lock()
+        .as_ref()
+        .is_some_and(|s| s.active);
     let recent_suggestion = history
         .iter()
         .rev()
@@ -1274,29 +1290,6 @@ async fn start_lock_in(
     }
 
     let cfg = state.config.lock().clone();
-    // Camera accountability runs through the API (`PRESAGE_API_KEY` server-side).
-    // Derive readiness from `/v1/status` presage row — not JWT alone or a local baked key.
-    let presage_ready = if auth::load_tokens(&cfg).is_some() {
-        match api::authed_json::<ServiceStatusPayload>(
-            &cfg,
-            reqwest::Method::GET,
-            "/v1/status",
-            None,
-        )
-        .await
-        {
-            Ok(status) => status
-                .services
-                .iter()
-                .any(|s| s.id == "presage" && s.state == "ok"),
-            Err(e) => {
-                tracing::warn!("presage readiness via /v1/status failed: {e}");
-                false
-            }
-        }
-    } else {
-        false
-    };
 
     // Screen watching is required. Don't hard-fail on CGPreflight alone (adhoc rebuilds /
     // /Applications installs often look "denied" there). Prompt + short capture probe.
@@ -1328,16 +1321,45 @@ async fn start_lock_in(
         }
     }
 
-    // Camera is opt-in and optional. Only probe when enabled, with a short wait —
-    // do not block on the system dialog.
-    let camera_ready = camera_enabled
-        && (capture::camera::permission_granted()
+    // Camera accountability is opt-in. When preference is off: no permission prompt,
+    // no Presage readiness probe, no observe loop.
+    let (camera_ready, presage_ready) = if camera_enabled {
+        // Derive readiness from `/v1/status` presage row — not JWT alone or a local baked key.
+        let presage_ready = if auth::load_tokens(&cfg).is_some() {
+            match api::authed_json::<ServiceStatusPayload>(
+                &cfg,
+                reqwest::Method::GET,
+                "/v1/status",
+                None,
+            )
+            .await
+            {
+                Ok(status) => status
+                    .services
+                    .iter()
+                    .any(|s| s.id == "presage" && s.state == "ok"),
+                Err(e) => {
+                    tracing::warn!("presage readiness via /v1/status failed: {e}");
+                    false
+                }
+            }
+        } else {
+            false
+        };
+        // Short wait only — do not block lock-in on the system dialog.
+        let camera_ready = capture::camera::permission_granted()
             || capture::camera::request_permission_timeout(std::time::Duration::from_secs(2))
                 .await
-                .is_ok());
-    if camera_enabled && !camera_ready {
-        tracing::info!("camera accountability on but camera unavailable; presence checks will stay offline");
-    }
+                .is_ok();
+        if !camera_ready {
+            tracing::info!(
+                "camera accountability on but camera unavailable; presence checks will stay offline"
+            );
+        }
+        (camera_ready, presage_ready)
+    } else {
+        (false, false)
+    };
 
     let modality = gemini::infer_modality(&goals);
 
@@ -1354,8 +1376,32 @@ async fn start_lock_in(
     *state.session.lock() = Some(session.clone());
     companion::clear_history(&state);
 
-    coach::spawn_coach_loop(app, id, screen_enabled, camera_ready, presage_ready);
+    // Gate webcam/observe on opt-in + readiness (never spawn when preference is off).
+    let use_camera = camera_enabled && camera_ready;
+    coach::spawn_coach_loop(app, id, screen_enabled, use_camera, presage_ready);
     Ok(session)
+}
+
+/// When session notes are on, write and upload one note from sources snapshotted before clear.
+/// Returns whether a note was started (`notes_pending` on the summary).
+pub(crate) fn maybe_spawn_session_note(
+    app: &tauri::AppHandle,
+    session: &LockInSession,
+    user_utterances: Vec<String>,
+) -> bool {
+    use tauri::Manager;
+    if !app
+        .state::<AppState>()
+        .notes_enabled
+        .load(Ordering::SeqCst)
+    {
+        return false;
+    }
+    session_notes::spawn_session_note(
+        app,
+        session_notes::NoteJob::from_session(session, user_utterances),
+    );
+    true
 }
 
 /// Append the finished session to study memory and sync it to the account (best effort).
@@ -1391,31 +1437,52 @@ pub(crate) fn persist_session_summary(app: &tauri::AppHandle, summary: &SessionS
     });
 }
 
+/// Result of `stop_lock_in`. Always clears running state on the Rust side; FE should
+/// treat `ended: true` as authoritative for the mission-running banner / timer.
+#[derive(Clone, Serialize)]
+struct StopLockInResult {
+    /// Always true after a successful invoke (command is idempotent).
+    ended: bool,
+    /// Present when this call owned the end (first end). `null` on double-end.
+    summary: Option<SessionSummary>,
+    /// True when there was already no live session (second End / race with natural finish).
+    already_ended: bool,
+}
+
 #[tauri::command]
 async fn stop_lock_in(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
-) -> Result<Option<SessionSummary>, String> {
+) -> Result<StopLockInResult, String> {
+    use tauri::Emitter;
+    // Stop loops first — must not half-set session.active (see coach::stop_coach).
     coach::stop_coach(&app);
+    // Snapshot before clear — this command used to drop companion turns before summarize.
+    let utterances = companion::user_utterances(&state);
     companion::clear_history(&state);
     waypoint_voice::stop_speaking();
     break_timer::force_close_break_window(&app, &state);
     let open_pause = state.pause_started.lock().take();
     let summary = {
         let mut guard = state.session.lock();
-        let summary = guard.as_mut().map(|s| {
-            s.finalize_open_pause(open_pause);
-            s.active = false;
-            s.paused = false;
-            s.summarize()
-        });
-        *guard = None;
-        summary
+        LockInSession::take_finished(&mut guard, open_pause).map(|session| {
+            let mut summary = session.summarize();
+            summary.notes_pending = maybe_spawn_session_note(&app, &session, utterances);
+            summary
+        })
     };
+    let already_ended = summary.is_none();
     if let Some(ref summary) = summary {
         persist_session_summary(&app, summary);
     }
-    Ok(summary)
+    let result = StopLockInResult {
+        ended: true,
+        summary,
+        already_ended,
+    };
+    // UI chrome clear (banner / timer). Natural expiry still uses `session-ended` for summary.
+    let _ = app.emit("lock-in-stopped", &result);
+    Ok(result)
 }
 
 #[derive(Serialize)]
@@ -1437,6 +1504,7 @@ async fn delete_all_user_data(
     companion::clear_history(&state);
     waypoint_voice::stop_speaking();
     state.silent_mode.store(true, Ordering::SeqCst);
+    state.notes_enabled.store(true, Ordering::SeqCst);
 
     let cfg = state.config.lock().clone();
     let mut removed = Vec::new();
@@ -1481,7 +1549,12 @@ async fn set_lock_in_paused(
 
 #[tauri::command]
 fn get_session(state: State<'_, AppState>) -> Option<LockInSession> {
-    state.session.lock().clone()
+    state
+        .session
+        .lock()
+        .as_ref()
+        .filter(|s| s.active)
+        .cloned()
 }
 
 #[tauri::command]
@@ -1491,6 +1564,9 @@ fn get_settings(state: State<'_, AppState>) -> UserSettings {
     state
         .silent_mode
         .store(loaded.silent_mode, Ordering::SeqCst);
+    state
+        .notes_enabled
+        .store(loaded.notes_enabled, Ordering::SeqCst);
     loaded
 }
 
@@ -1501,6 +1577,9 @@ fn save_settings(state: State<'_, AppState>, settings: UserSettings) -> Result<(
     state
         .silent_mode
         .store(settings.silent_mode, Ordering::SeqCst);
+    state
+        .notes_enabled
+        .store(settings.notes_enabled, Ordering::SeqCst);
     Ok(())
 }
 
@@ -1572,6 +1651,7 @@ pub fn run() {
             companion_history: Mutex::new(Vec::new()),
             coach_stop: Mutex::new(None),
             silent_mode: AtomicBool::new(initial_settings.silent_mode),
+            notes_enabled: AtomicBool::new(initial_settings.notes_enabled),
             pause_started: Mutex::new(None),
             break_active: AtomicBool::new(false),
             break_allow_close: AtomicBool::new(false),
@@ -1619,6 +1699,7 @@ pub fn run() {
             clear_chat,
             companion::companion_send,
             companion::companion_clear,
+            companion::companion_record_user,
             companion::companion_live_info,
             companion::companion_grab_screencap,
             companion::voice_stop,
@@ -1634,6 +1715,7 @@ pub fn run() {
             save_settings,
             voice_speak,
             voice_listen_test,
+            concept_map::concept_map,
             delete_all_user_data
         ])
         .run(tauri::generate_context!())

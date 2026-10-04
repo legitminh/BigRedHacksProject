@@ -313,6 +313,7 @@
                     id="chat-input"
                     rows="1"
                     aria-label="Message Copilot"
+                    aria-describedby="chat-hint"
                     placeholder="Message your copilot…"
                   ></textarea>
                   <button
@@ -341,6 +342,7 @@
                   </button>
                 </div>
               </form>
+              <p id="chat-hint" class="composer-hint copilot-hint" hidden></p>
             </footer>
           </div>
         </div>
@@ -796,7 +798,7 @@
         ></div>
         <div id="session-vitals" class="vitals-panel visually-hidden" hidden aria-hidden="true">
           <p class="vitals-label">Camera accountability</p>
-          <p id="vitals-line">Running quietly in the background.</p>
+          <p id="vitals-line">Camera accountability off.</p>
         </div>
       </section>
 
@@ -817,7 +819,7 @@
           <nav class="settings-nav" aria-label="Primary">
             <button type="button" class="settings-nav-link" data-session-nav="home">Home</button>
             <button type="button" class="settings-nav-link" data-session-nav="copilot">Copilot</button>
-            <span class="settings-nav-link settings-nav-link--active" aria-current="page">Lock in</span>
+            <span class="settings-nav-link settings-nav-link--active" aria-current="page">Quest complete</span>
           </nav>
           <div class="settings-nav-end">
             <button type="button" class="settings-nav-link" data-session-nav="settings">Settings</button>
@@ -858,6 +860,18 @@
               <p class="quest-copilot-kicker" hidden>✦  A note from your copilot</p>
               <p id="summary-closing" class="quest-copilot-body"></p>
             </div>
+            <article id="summary-session-note" class="quest-session-note" hidden>
+              <h2 class="quest-session-note-kicker">Session note</h2>
+              <p id="summary-session-note-status" class="quest-session-note-status" hidden>Writing your note…</p>
+              <h3 id="summary-session-note-title" class="quest-session-note-title" hidden></h3>
+              <div id="summary-session-note-body" class="quest-session-note-body" hidden></div>
+              <div id="summary-concept-map" class="quest-concept-map" hidden>
+                <button type="button" class="quest-session-summary-btn" id="summary-concept-map-btn">
+                  Share brag sheet
+                </button>
+                <p id="summary-concept-map-status" class="quest-concept-map-status" hidden></p>
+              </div>
+            </article>
             <details class="quest-flight-details visually-hidden" hidden>
               <summary>Flight details</summary>
               <div id="summary-body" class="summary-body quest-flight-details-body flight-log-details"></div>
@@ -894,12 +908,12 @@
             Waypoint
           </p>
           <nav class="settings-nav" aria-label="Primary">
-            <button type="button" class="settings-nav-link settings-nav-link--active" data-settings-nav="home" aria-current="page">Home</button>
+            <button type="button" class="settings-nav-link" data-settings-nav="home">Home</button>
             <button type="button" class="settings-nav-link" data-settings-nav="copilot">Copilot</button>
             <button type="button" class="settings-nav-link" data-settings-nav="lockin">Lock in</button>
           </nav>
           <div class="settings-nav-end">
-            <span class="settings-nav-link">Settings</span>
+            <span class="settings-nav-link settings-nav-link--active" aria-current="page">Settings</span>
             <span id="settings-avatar" class="settings-avatar" aria-hidden="true">—</span>
           </div>
         </header>
@@ -996,6 +1010,17 @@
                         <input id="setting-camera-signals" type="checkbox" />
                         <span class="mc-switch-track" aria-hidden="true"></span>
                         <span class="visually-hidden">Camera accountability</span>
+                      </label>
+                    </li>
+                    <li class="settings-toggle-row">
+                      <div class="settings-toggle-copy">
+                        <strong>Session notes</strong>
+                        <span>Waypoint writes a readable note when the lock-in ends.</span>
+                      </div>
+                      <label class="mc-switch">
+                        <input id="setting-session-notes" type="checkbox" checked />
+                        <span class="mc-switch-track" aria-hidden="true"></span>
+                        <span class="visually-hidden">Session notes</span>
                       </label>
                     </li>
                     <li class="settings-toggle-row">
@@ -1257,6 +1282,43 @@
           <p class="mc-perm-modal__foot">
             Clips leave this Mac for API analysis. You can turn camera accountability off anytime from mission controls.
           </p>
+        </div>
+      </div>
+
+      <div
+        id="brag-sheet-modal"
+        class="brag-sheet-modal"
+        hidden
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="brag-sheet-modal-title"
+      >
+        <div class="brag-sheet-modal__backdrop" data-brag-sheet-dismiss></div>
+        <div class="brag-sheet-modal__card">
+          <div class="brag-sheet-modal__header">
+            <h2 id="brag-sheet-modal-title" class="brag-sheet-modal__title">Mission brag sheet</h2>
+            <button
+              type="button"
+              class="brag-sheet-modal__close"
+              data-brag-sheet-dismiss
+              aria-label="Close brag sheet"
+            >
+              Close
+            </button>
+          </div>
+          <img
+            id="summary-concept-map-image"
+            class="quest-concept-map-image brag-sheet-modal__image"
+            alt="Mission brag sheet"
+            hidden
+          />
+          <button
+            type="button"
+            class="quest-session-summary-download"
+            id="summary-concept-map-download"
+          >
+            Download
+          </button>
         </div>
       </div>
 

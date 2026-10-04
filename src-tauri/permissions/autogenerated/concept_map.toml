@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-concept-map"
+description = "Enables the concept_map command without any pre-configured scope."
+commands.allow = ["concept_map"]
+
+[[permission]]
+identifier = "deny-concept-map"
+description = "Denies the concept_map command without any pre-configured scope."
+commands.deny = ["concept_map"]

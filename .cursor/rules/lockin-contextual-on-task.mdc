@@ -1,0 +1,27 @@
+---
+description: On-task vs off-task from session goals + screen context, not category hardcoding
+alwaysApply: true
+---
+
+# Lock-in coaching: contextual on-task (goals + screen)
+
+On-task / off-task must be decided **intelligently from session goals/prompt + screen context** (title, URL, OCR/page text, local judge). Do **not** hardcode whole categories as always-bad or always-good.
+
+## Examples that must hold
+
+1. **On-topic YouTube = fine** — lecture/tutorial matching goals (e.g. ENGL 1140).
+2. **Off-topic YouTube = not fine** — entertainment, Shorts, unclear music/meme videos.
+3. **Off-topic academic papers = not fine** — arxiv/scholar/PDF that does not advance *this* session’s goals; “academic” alone is not enough.
+4. **On-topic gaming = alright** — goals clearly include that game / playtest / game-design work.
+
+## Policy shape
+
+- **Contextual (goal-aware):** YouTube/video, Discord, reading/papers/PDFs, gaming/Steam/Epic.
+- **AlwaysOff (OK to keep hard):** Instagram-class social, shopping, email, texting, Netflix/Twitch/Spotify-class entertainment streams.
+- Prefer cheap local signals first (see `lockin-prefer-local-over-vision.mdc`). Do not add frequent full-desktop Gemini vision to “fix” category bans.
+
+## Do / don't
+
+- **Do** interrupt unclear YouTube/gaming by default; clear goal match may allow.
+- **Do** treat papers/PDFs as NeedsJudgment / goal-overlap — never auto-clear because the host looks scholarly.
+- **Don't** ban “all gaming” or clear “all academic sites” without checking goals + title/URL.

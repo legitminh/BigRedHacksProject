@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-companion-record-user"
+description = "Enables the companion_record_user command without any pre-configured scope."
+commands.allow = ["companion_record_user"]
+
+[[permission]]
+identifier = "deny-companion-record-user"
+description = "Denies the companion_record_user command without any pre-configured scope."
+commands.deny = ["companion_record_user"]

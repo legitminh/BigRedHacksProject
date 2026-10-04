@@ -1071,6 +1071,13 @@ body:has(.view-home.view-home--guest.active) .grain {
   color: #282237;
 }
 
+/* `display: inline-flex` above beats the UA `[hidden]` rule — keep Cancel sign-in
+   invisible until JS shows it during an in-flight Google sign-in. */
+.welcome-guest-link[hidden],
+#welcome-cancel-google[hidden] {
+  display: none !important;
+}
+
 /* Live 01 foot (5:77): muted #645d73 at 13px / lh 1.4 left under Quiet guest */
 .welcome-signin-foot {
   margin: 0;
@@ -3653,13 +3660,17 @@ body:has(.view-mission-setup.active) .grain {
   width: 100%;
   max-width: 72rem;
   margin: 0 auto;
-  padding: 0 clamp(0.75rem, 3vw, 1.25rem) 1.5rem;
+  /* Match other Mission Control views — zero top pad let focus-scroll bury the nav. */
+  padding: 1rem clamp(0.75rem, 3vw, 1.25rem) 1.5rem;
   overflow: hidden;
+  box-sizing: border-box;
+  min-height: 0;
 }
 
 .session-top-bar {
   width: 100%;
   max-width: none;
+  flex-shrink: 0;
 }
 
 .session-page {
@@ -3669,6 +3680,9 @@ body:has(.view-mission-setup.active) .grain {
   display: flex;
   flex-direction: column;
   gap: clamp(1rem, 2.5vw, 1.5rem);
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .session-mission-header {
@@ -3677,6 +3691,7 @@ body:has(.view-mission-setup.active) .grain {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem 1.25rem;
+  flex-shrink: 0;
 }
 
 .session-mission-header-main {
@@ -3751,11 +3766,20 @@ body:has(.view-mission-setup.active) .grain {
   border-color: var(--mc-accent-purple);
 }
 
+/* Camera opted-in + ready, but accountability stuck checking / unavailable. */
+.session-signal-pill.is-unclear {
+  color: #5c4a1f;
+  background: rgba(226, 163, 90, 0.22);
+  border-color: rgba(226, 163, 90, 0.55);
+}
+
 .session-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
   gap: clamp(0.85rem, 2vw, 1.25rem);
   align-items: stretch;
+  flex: 1;
+  min-height: 0;
 }
 
 @media (max-width: 860px) {
@@ -4080,8 +4104,8 @@ body:has(.view-mission-setup.active) .grain {
 
 .session-copilot-log {
   flex: 1;
-  min-height: 12rem;
-  max-height: min(48vh, 28rem);
+  min-height: 0;
+  max-height: none;
   overflow: auto;
   padding: 0.25rem 0.15rem;
   margin-bottom: 0.65rem;
@@ -4555,13 +4579,19 @@ body:has(.view-session.active) .grain {
   display: flex;
 }
 
+/* `display: flex` above beats the UA `[hidden]` rule — keep dismissed invite
+   invisible until JS removes [hidden]. */
+.session-break-suggest[hidden] {
+  display: none !important;
+}
+
 #view-session.is-session-checkin .session-break-suggest,
 #view-session.is-session-ending .session-break-suggest {
   display: none !important;
 }
 
 /* Stress break invite wins over check-in if both classes overlap briefly. */
-#view-session.is-break-suggested.is-session-checkin .session-break-suggest {
+#view-session.is-break-suggested.is-session-checkin .session-break-suggest:not([hidden]) {
   display: flex !important;
 }
 
@@ -5145,6 +5175,219 @@ body:has(.view-quest-complete.active) .grain {
   font-size: 15px;
   line-height: 1.4;
   color: #282237;
+}
+
+.quest-session-note {
+  margin: 0.35rem 0 1rem;
+  padding: 20px;
+  border-radius: 28px;
+  background: #e9ddfd;
+  border: 1px solid #c8bfd7;
+  box-shadow: 0 6px 18px rgba(42, 36, 64, 0.04);
+  color: #282237;
+}
+
+.quest-session-note-kicker {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #326c78;
+}
+
+.quest-session-note-title {
+  margin: 0 0 12px;
+  font-size: 1.15rem;
+  font-weight: 650;
+  line-height: 1.35;
+  color: #2a2440;
+}
+
+.quest-session-note-title[hidden] {
+  display: none !important;
+}
+
+.quest-session-note-status {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: #4a4560;
+}
+
+.quest-session-note-body {
+  font-size: 15px;
+  line-height: 1.45;
+  color: #282237;
+}
+
+.quest-session-note-body,
+.quest-session-note-body[hidden] {
+  display: none !important;
+}
+
+.brag-sheet-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+.brag-sheet-modal[hidden] {
+  display: none !important;
+}
+
+.brag-sheet-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 16, 36, 0.55);
+}
+
+.brag-sheet-modal__card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 560px);
+  max-height: min(92vh, 860px);
+  overflow: auto;
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: 20px;
+  background: #fffbff;
+  border: 1px solid #c8bfd7;
+  box-shadow: 0 18px 48px rgba(20, 16, 36, 0.28);
+}
+
+.brag-sheet-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.brag-sheet-modal__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+  color: #2a2440;
+}
+
+.brag-sheet-modal__close {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(42, 36, 64, 0.14);
+  background: rgba(255, 255, 255, 0.85);
+  color: #4a4560;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.brag-sheet-modal__image {
+  width: 100%;
+  border-radius: 14px;
+}
+
+.quest-session-note-body > :first-child {
+  margin-top: 0;
+}
+
+.quest-session-note-body > :last-child {
+  margin-bottom: 0;
+}
+
+.quest-session-note-body h1,
+.quest-session-note-body h2,
+.quest-session-note-body h3 {
+  margin: 0.85rem 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 650;
+  color: #2a2440;
+}
+
+.quest-session-note-body h1 {
+  font-size: 1.15rem;
+}
+
+.quest-session-note-body p {
+  margin: 0.35rem 0;
+}
+
+.quest-session-note-body ul,
+.quest-session-note-body ol {
+  margin: 0.35rem 0;
+  padding-left: 1.2rem;
+}
+
+.quest-session-note-body code {
+  font-size: 0.9em;
+}
+
+.quest-concept-map {
+  margin-top: 14px;
+}
+
+.quest-session-summary-btn {
+  margin-top: 4px;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(50, 108, 120, 0.35);
+  background: #326c78;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(50, 108, 120, 0.22);
+}
+
+.quest-session-summary-btn:hover:not(:disabled) {
+  background: #2a5d67;
+}
+
+.quest-session-summary-btn:disabled {
+  background: rgba(42, 36, 64, 0.12);
+  border-color: transparent;
+  color: rgba(42, 36, 64, 0.45);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.quest-concept-map-status {
+  margin: 8px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: #4a4560;
+}
+
+.quest-concept-map-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.quest-concept-map-image[hidden],
+.quest-concept-map-image:not([src]) {
+  display: none !important;
+}
+
+.quest-session-summary-download {
+  margin-top: 10px;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(50, 108, 120, 0.28);
+  background: rgba(255, 255, 255, 0.72);
+  color: #326c78;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.quest-session-summary-download:hover {
+  background: #fff;
 }
 
 .quest-flight-details {

@@ -19,7 +19,9 @@ Full-desktop screenshot → Gemini vision is expensive (tokens + free-tier RPD).
 ## Do / don't
 
 - **Do** interrupt on app/tab open/switch without waiting for vision.
-- **Do** treat YouTube as contextual (study vs entertainment) via text, not “any YouTube = bad”.
+- **Do** treat YouTube, papers/PDFs, Discord, and gaming as **contextual** (goals + title/URL/page text) — not whole-category always-bad/always-good. See `lockin-contextual-on-task.mdc`.
+- **Do** keep Instagram-class social / shopping / email / texting as hard off-task.
 - **Don't** add new frequent `grab_desktop_jpeg` / `analyze_session` loops.
 - **Don't** retry failed vision calls aggressively — that burns daily quota.
 - **Don't** send screenshots when URL/title/page text is enough to decide.
+- **Don't** auto-clear arxiv/scholar/PDFs just because they look academic, or AlwaysOff Steam when goals name that game.

@@ -13,12 +13,25 @@ use crate::config::AppConfig;
 const HEADS_UP_TTS_TIMEOUT: Duration = Duration::from_millis(3_800);
 /// Settings “Test speak” can wait longer for a cold Grok/xAI synthesis.
 const TEST_SPEAK_TTS_TIMEOUT: Duration = Duration::from_secs(15);
+/// Default authenticated JSON timeout (status, Google, short RPCs).
+const DEFAULT_HTTP_TIMEOUT: Duration = Duration::from_secs(60);
+/// Gemini / companion chat — BE `GEMINI_CHAT_TIMEOUT_MS` is 90s; client must outlive it.
+pub const CHAT_HTTP_TIMEOUT: Duration = Duration::from_secs(120);
 
 fn http() -> Client {
     Client::builder()
-        .timeout(Duration::from_secs(60))
+        .timeout(DEFAULT_HTTP_TIMEOUT)
         .build()
         .expect("HTTP client")
+}
+
+/// Pick client timeout from path. Chat must exceed BE Gemini 90s; everything else stays snappy.
+fn timeout_for_path(path: &str) -> Duration {
+    if path.contains("/gemini/chat") || path.contains("/companion/chat") {
+        CHAT_HTTP_TIMEOUT
+    } else {
+        DEFAULT_HTTP_TIMEOUT
+    }
 }
 
 fn http_with_timeout(timeout: Duration) -> Client {
@@ -26,10 +39,6 @@ fn http_with_timeout(timeout: Duration) -> Client {
         .timeout(timeout)
         .build()
         .expect("HTTP client")
-}
-
-fn http_tts(timeout: Duration) -> Client {
-    http_with_timeout(timeout)
 }
 
 /// Structured API failure — keeps `Retry-After` for observe/chat backoff.
@@ -102,9 +111,9 @@ async fn fetch_grok_tts(
     if snippet.is_empty() {
         return Err("empty heads-up text".into());
     }
-    let auth = cfg
-        .coach_auth_header()
-        .ok_or_else(|| "Sign in with Google to use Grok voice.".to_string())?;
+    if coach_authorization(cfg).is_none() {
+        return Err("Sign in with Google to use Grok voice.".into());
+    }
     let url = format!("{}/v1/voice/tts", cfg.api_base().trim_end_matches('/'));
     // No voice_id → API `XAI_TTS_VOICE` (default eve), same as Live `connectGrokTts`.
     let body = if extended_wait {
@@ -112,13 +121,7 @@ async fn fetch_grok_tts(
     } else {
         json!({ "text": snippet, "language": "en" })
     };
-    let res = http_tts(timeout)
-        .post(url)
-        .header(auth.0, auth.1)
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
+    let res = coach_authed_raw(cfg, reqwest::Method::POST, &url, Some(&body), timeout).await?;
     if !res.status().is_success() {
         return Err(read_error(res).await);
     }
@@ -141,6 +144,89 @@ async fn fetch_grok_tts(
     }
     .to_string();
     Ok(HeadsUpAudio { bytes, extension })
+}
+
+/// Fresh coach Authorization header (disk JWT preferred, else baked coach token).
+/// Prefer [`coach_authed_raw`] for HTTP — it refreshes once on 401.
+pub fn coach_authorization(cfg: &AppConfig) -> Option<(String, String)> {
+    if let Some(tokens) = auth::load_tokens(cfg) {
+        if !tokens.access_token.is_empty() {
+            return Some((
+                "Authorization".into(),
+                format!("Bearer {}", tokens.access_token),
+            ));
+        }
+    }
+    cfg.coach_api_token
+        .as_ref()
+        .filter(|t| !t.is_empty())
+        .map(|t| ("Authorization".into(), format!("Bearer {t}")))
+}
+
+fn coach_uses_refreshable_jwt(cfg: &AppConfig) -> bool {
+    auth::load_tokens(cfg)
+        .map(|t| !t.access_token.is_empty() && !t.refresh_token.is_empty())
+        .unwrap_or(false)
+}
+
+fn baked_coach_authorization(cfg: &AppConfig) -> Option<(String, String)> {
+    cfg.coach_api_token
+        .as_ref()
+        .filter(|t| !t.is_empty())
+        .map(|t| ("Authorization".into(), format!("Bearer {t}")))
+}
+
+/// Coach/Ollama-proxy HTTP with one JWT refresh retry on 401 (same policy as [`authed_json`]).
+/// `url` is absolute (e.g. `{local_llm_base}/api/generate` or `{api_base}/v1/voice/tts`).
+pub async fn coach_authed_raw(
+    cfg: &AppConfig,
+    method: reqwest::Method,
+    url: &str,
+    body: Option<&Value>,
+    timeout: Duration,
+) -> Result<reqwest::Response, String> {
+    let auth = coach_authorization(cfg);
+    let res = coach_once(method.clone(), url, body, timeout, auth.as_ref()).await?;
+    if res.status().as_u16() != 401 || !coach_uses_refreshable_jwt(cfg) {
+        return Ok(res);
+    }
+    let Some(tokens) = auth::load_tokens(cfg) else {
+        return Ok(res);
+    };
+    drop(res);
+    match refresh_tokens(cfg, &tokens).await {
+        Ok(tokens) => {
+            let auth = Some((
+                "Authorization".into(),
+                format!("Bearer {}", tokens.access_token),
+            ));
+            coach_once(method, url, body, timeout, auth.as_ref()).await
+        }
+        // Refresh failed — fall through to baked coach token so lock-in can keep judging.
+        Err(_) => {
+            let Some(auth) = baked_coach_authorization(cfg) else {
+                return Err("Sign in again, or configure coach_api_token.".into());
+            };
+            coach_once(method, url, body, timeout, Some(&auth)).await
+        }
+    }
+}
+
+async fn coach_once(
+    method: reqwest::Method,
+    url: &str,
+    body: Option<&Value>,
+    timeout: Duration,
+    auth: Option<&(String, String)>,
+) -> Result<reqwest::Response, String> {
+    let mut req = http_with_timeout(timeout).request(method, url);
+    if let Some((name, value)) = auth {
+        req = req.header(name, value);
+    }
+    if let Some(b) = body {
+        req = req.json(b);
+    }
+    req.send().await.map_err(|e| e.to_string())
 }
 
 #[derive(Debug, Deserialize)]
@@ -259,13 +345,16 @@ pub async fn send_empty(
 }
 
 /// Authenticated request with one refresh retry on 401.
+/// Chat paths (`/gemini/chat`, `/companion/chat`) use [`CHAT_HTTP_TIMEOUT`] (120s);
+/// other routes keep [`DEFAULT_HTTP_TIMEOUT`] (60s). Lock-in judge/OCR callers do not
+/// go through this helper — leave their short budgets alone.
 pub async fn authed_json<T: DeserializeOwned>(
     cfg: &AppConfig,
     method: reqwest::Method,
     path: &str,
     body: Option<&Value>,
 ) -> Result<T, String> {
-    authed_json_timeout(cfg, method, path, body, Duration::from_secs(60))
+    authed_json_timeout(cfg, method, path, body, timeout_for_path(path))
         .await
         .map_err(|e| e.message)
 }
@@ -360,7 +449,24 @@ struct RefreshResponse {
     expires_in: i64,
 }
 
+/// Serializes concurrent 401→refresh so rotated refresh tokens are not replayed
+/// (`refresh_reuse` would revoke the session family and force logout).
+static REFRESH_SINGLEFLIGHT: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 async fn refresh_tokens(cfg: &AppConfig, tokens: &AuthTokens) -> Result<AuthTokens, String> {
+    let _guard = REFRESH_SINGLEFLIGHT.lock().await;
+
+    // Another waiter may have already rotated while we queued on the lock.
+    if let Some(current) = auth::load_tokens(cfg) {
+        if current.refresh_token != tokens.refresh_token
+            || current.access_token != tokens.access_token
+        {
+            return Ok(current);
+        }
+    } else {
+        return Err("Session expired. Sign in again.".into());
+    }
+
     #[derive(Serialize)]
     struct Body<'a> {
         refresh_token: &'a str,
@@ -375,8 +481,25 @@ async fn refresh_tokens(cfg: &AppConfig, tokens: &AuthTokens) -> Result<AuthToke
         .await
         .map_err(|e| e.to_string())?;
     if !res.status().is_success() {
-        auth::clear_tokens(cfg);
-        return Err(read_error(res).await);
+        // Another path may have rotated while the request was in flight — prefer disk.
+        if let Some(current) = auth::load_tokens(cfg) {
+            if current.refresh_token != tokens.refresh_token
+                || current.access_token != tokens.access_token
+            {
+                return Ok(current);
+            }
+        }
+        let status = res.status().as_u16();
+        let err = read_error(res).await;
+        let hard_revoke = status == 401
+            && (err.contains("refresh_reuse")
+                || err.contains("invalid_refresh")
+                || err.to_lowercase().contains("refresh"));
+        // Transient failures must not wipe the session; only hard refresh denials do.
+        if hard_revoke {
+            auth::clear_tokens(cfg);
+        }
+        return Err(err);
     }
     let body: RefreshResponse = res.json().await.map_err(|e| e.to_string())?;
     let next = AuthTokens {

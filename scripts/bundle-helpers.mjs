@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const profile = (process.argv[2] || "debug").replace(/^--/, "");
-const helpers = ["waypoint-ocr", "waypoint-encode-clip"];
+const helpers = ["waypoint-ocr", "waypoint-encode-clip", "waypoint-face-detect"];
 const srcDir = join(root, "src-tauri", "bin");
 const appMacos = join(
   root,

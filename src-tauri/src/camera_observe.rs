@@ -1,14 +1,35 @@
 //! Lightweight client for server-side camera accountability (`POST /v1/camera/observe`).
 
 use std::path::Path;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use serde::Deserialize;
 
 use crate::api::{self, ApiClientError};
+use crate::capture::camera::client_meta_sidecar_path;
 use crate::config::AppConfig;
 use crate::presage::VitalsSnapshot;
+
+/// Kind of the last camera nudge successfully pushed/spoken — sent on the next observe.
+static DELIVERED_NUDGE_ACK: Mutex<Option<String>> = Mutex::new(None);
+
+/// Record that desktop delivered a camera nudge (overlay/TTS or break invite).
+/// Next `observe_clip` / quiet observe posts this as `client_meta.last_nudge_ack`.
+pub fn note_nudge_delivered(kind: &str) {
+    let trimmed = kind.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+    if let Ok(mut guard) = DELIVERED_NUDGE_ACK.lock() {
+        *guard = Some(trimmed.to_string());
+    }
+}
+
+fn take_delivered_nudge_ack() -> Option<String> {
+    DELIVERED_NUDGE_ACK.lock().ok().and_then(|mut g| g.take())
+}
 
 /// Observe can spend ~12s clip + upload + up to ~45s Presage retrieve — above the shared 60s client.
 const OBSERVE_HTTP_TIMEOUT: Duration = Duration::from_secs(120);
@@ -102,13 +123,36 @@ const QUIET_PHASE_JPEG: &[u8] = &[
     0xD9,
 ];
 
+#[derive(Debug, Default, Deserialize)]
+struct SidecarClientMeta {
+    brightness: Option<f64>,
+    face_detected: Option<bool>,
+    attention: Option<String>,
+}
+
+#[derive(Debug, Default, Clone)]
+struct ObserveClientMeta {
+    brightness: Option<f64>,
+    face_detected: Option<bool>,
+    attention: Option<String>,
+    last_nudge_ack: Option<String>,
+}
+
+fn load_sidecar_meta(video_path: &Path) -> SidecarClientMeta {
+    let path = client_meta_sidecar_path(video_path);
+    let Ok(raw) = std::fs::read_to_string(&path) else {
+        return SidecarClientMeta::default();
+    };
+    serde_json::from_str(&raw).unwrap_or_default()
+}
+
 async fn post_observe(
     cfg: &AppConfig,
     session_id: &str,
     phase: &str,
     mime: &str,
     bytes: &[u8],
-    brightness: Option<f64>,
+    meta: ObserveClientMeta,
 ) -> Result<ObserveResponse, ApiClientError> {
     if bytes.is_empty() {
         return Err(ApiClientError::msg("empty clip"));
@@ -122,11 +166,31 @@ async fn post_observe(
         "mime": mime,
         "data_base64": B64.encode(bytes),
     });
-    if let Some(b) = brightness.filter(|v| v.is_finite()) {
-        body["client_meta"] = serde_json::json!({
-            "brightness": b,
-            "brightness_measured": true,
-        });
+    let mut client_meta = serde_json::Map::new();
+    if let Some(b) = meta.brightness.filter(|v| v.is_finite()) {
+        client_meta.insert("brightness".into(), serde_json::json!(b));
+        client_meta.insert("brightness_measured".into(), serde_json::json!(true));
+    }
+    if let Some(f) = meta.face_detected {
+        client_meta.insert("face_detected".into(), serde_json::json!(f));
+    }
+    if let Some(a) = meta
+        .attention
+        .as_deref()
+        .filter(|s| matches!(*s, "absent" | "present" | "looking_down" | "looking_away"))
+    {
+        client_meta.insert("attention".into(), serde_json::json!(a));
+    }
+    if let Some(ack) = meta
+        .last_nudge_ack
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        client_meta.insert("last_nudge_ack".into(), serde_json::json!(ack));
+    }
+    if !client_meta.is_empty() {
+        body["client_meta"] = serde_json::Value::Object(client_meta);
     }
     api::authed_json_timeout::<ObserveResponse>(
         cfg,
@@ -139,6 +203,9 @@ async fn post_observe(
 }
 
 /// Upload a short webcam clip to the API. Server runs Presage + presence; bytes are not kept.
+/// Local Vision face/attention is read from the clip sidecar written by `record_presage_clip`.
+/// Demoted while live webcam owns presence; keep for optional sparse vitals.
+#[allow(dead_code)]
 pub async fn observe_clip(
     cfg: &AppConfig,
     session_id: &str,
@@ -149,7 +216,16 @@ pub async fn observe_clip(
     let bytes = tokio::fs::read(video_path)
         .await
         .map_err(|e| ApiClientError::msg(format!("read clip: {e}")))?;
-    post_observe(cfg, session_id, phase, "video/mp4", &bytes, brightness).await
+    let sidecar = load_sidecar_meta(video_path);
+    let meta = ObserveClientMeta {
+        brightness: brightness.or(sidecar.brightness),
+        face_detected: sidecar.face_detected,
+        attention: sidecar.attention,
+        last_nudge_ack: take_delivered_nudge_ack(),
+    };
+    let result = post_observe(cfg, session_id, phase, "video/mp4", &bytes, meta).await;
+    let _ = tokio::fs::remove_file(client_meta_sidecar_path(video_path)).await;
+    result
 }
 
 /// Tell the API the mission is paused/on break without recording the webcam.
@@ -160,7 +236,18 @@ pub async fn observe_quiet_phase(
     session_id: &str,
     phase: &str,
 ) -> Result<ObserveResponse, ApiClientError> {
-    post_observe(cfg, session_id, phase, "image/jpeg", QUIET_PHASE_JPEG, None).await
+    post_observe(
+        cfg,
+        session_id,
+        phase,
+        "image/jpeg",
+        QUIET_PHASE_JPEG,
+        ObserveClientMeta {
+            last_nudge_ack: take_delivered_nudge_ack(),
+            ..ObserveClientMeta::default()
+        },
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -172,5 +259,14 @@ mod tests {
         assert!(QUIET_PHASE_JPEG.len() > 32);
         assert_eq!(&QUIET_PHASE_JPEG[..2], &[0xFF, 0xD8]);
         assert_eq!(&QUIET_PHASE_JPEG[QUIET_PHASE_JPEG.len() - 2..], &[0xFF, 0xD9]);
+    }
+
+    #[test]
+    fn note_nudge_delivered_is_taken_once() {
+        // Clear any leftover from other tests.
+        let _ = take_delivered_nudge_ack();
+        note_nudge_delivered("left_desk");
+        assert_eq!(take_delivered_nudge_ack().as_deref(), Some("left_desk"));
+        assert_eq!(take_delivered_nudge_ack(), None);
     }
 }
