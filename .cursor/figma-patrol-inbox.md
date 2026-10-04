@@ -4544,27 +4544,16 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     normal active / lost.
 - escalate: scrutinous
 
-## open: fp-relaunch-timer-caption-type
+## done: fp-relaunch-timer-caption-type
 - screen: active
 - ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
   caption `6:642` · countdown `6:640` ·
   crop `_verify/tick43-relaunch-caption-crop.png` · panel `_verify/tick43-relaunch-full.png`
-- expected: |
-    Live relaunch timer caption (`6:642`): Regular **11px** / weight **400** /
-    lh 1.4 muted **`#645d73`** — “REMAINING · TIMER PAUSED” (no heavy
-    tracking / semibold). Digits stay Bold 86 (`6:641`).
-- actual: |
-    Opens lock caption **string** (`fp-relaunch-live-panel-copy`) only.
-    `.session-timer-caption` is ~0.72rem / weight **600** /
-    `letter-spacing: 0.12em` uppercase — denser than live 11/400.
-- deviation: |
-    Tick43 — relaunch timer caption type vs live `6:642`. Distinct from
-    live-panel-copy / end-label-type / progress-pill-type / earned-type;
-    under-covered `2:41`. Spot-check: Copilot Send/CTA `#6750a4`
-    (`97e3086`) — no regression on 03.
-- fix_hint: |
-    Set `.session-timer-caption` (relaunch/paused) to 11px / 400 / lh 1.4 /
-    `#645d73` / light tracking; keep TIMER PAUSED string + Pause/End swap.
+- commit: c6b2e58
+- change: |
+    `.session-timer-caption` → Regular 11px / weight 400 / lh 1.4 /
+    muted `#645d73` (drop 0.12em tracking + weight 600). TIMER PAUSED
+    string + Pause/End wiring unchanged.
 - escalate: scrutinous
 
 ## open: fp-relaunch-earned-type
@@ -4671,25 +4660,15 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     (tabular); keep TIMER PAUSED caption open + Pause/End swap.
 - escalate: scrutinous
 
-## open: fp-connection-lost-header-ink
+## done: fp-connection-lost-header-ink
 - screen: active
 - ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
   title `6:1710` · header `6:1708` ·
   crop `_verify/tick44-lost-live.png`
-- expected: |
-    Live lost “Your copilot” title (`6:1710`): Medium ~22px / lh 1.4 ink
-    **`#282237`** beside ✦ — same darkest ink as Copilot page title.
-- actual: |
-    Open `fp-connection-lost-header-type` locks scale/weight (~22 / 500)
-    only — not ink. `.session-copilot-kicker` still
-    `color: var(--mc-text-primary)` (`#2a2440`) at 0.95rem/700.
-- deviation: |
-    Tick44 — lost/session header ink vs live `6:1710` `#282237`. Distinct
-    from header-type / panel-surface / meta-muted / latest-*; under-covered
-    `2:48`. Spot-check: session Send `#6750a4` (`4877bf7`) OK.
-- fix_hint: |
-    Pair with header-type: set `.session-copilot-kicker` color `#282237`
-    (+ ~22px / 500); keep ✦ Your copilot + composer + Pause/End.
+- commit: c6b2e58
+- change: |
+    `.session-copilot-kicker` → ink `#282237` (scale/weight left for open
+    `fp-connection-lost-header-type`); ✦ Your copilot + Pause/End kept.
 - escalate: scrutinous
 
 ## open: fp-permissions-choice-kicker-type
@@ -4714,4 +4693,107 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When adding YOUR CHOICE view, set kicker 12px / 400 / lh 1.4 /
     `#6750a4` (no heavy tracking); keep Medium 44 title + muted 16 sub +
     Lock-in nav. Preserve Settings five-tab; do not block Launch.
+- escalate: scrutinous
+
+## open: fp-relaunch-title-ink
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  title `8:416` · panel `6:653` ·
+  crop `_verify/tick45-relaunch-panel-crop.png`
+- expected: |
+    Live relaunch title (`8:416`): Medium 28 / lh 1.4 ink **`#282237`**
+    (“Let’s pick one / small next step.”) — same darkest text token as
+    welcome/copilot titles (`var(--color-text)`).
+- actual: |
+    Open `fp-relaunch-title-medium-28` locks size/weight/lh only — not
+    ink. App has no relaunch card; risk: inherit `--mc-text-primary`
+    (`#2a2440`) when mounting.
+- deviation: |
+    Tick45 — relaunch title ink vs live `8:416` `#282237`. Distinct from
+    title-medium-28 / title-scale / body-type / live-panel-copy;
+    under-covered `2:41`. Spot-check: Copilot empty/sidebar ink +
+    divider (`02df760`) — no regression on `2:35` glance. Local refs
+    match live (hash identical).
+- fix_hint: |
+    When mounting relaunch title, set color `#282237` with Medium 28 /
+    lh 1.4; keep Relaunch / Take a break. Preserve Pause/End.
+- escalate: scrutinous
+
+## open: fp-connection-lost-divider
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  divider `6:1713` · mid `6:1716` · panel `6:1707` ·
+  crop `_verify/tick45-lost-panel-crop.png`
+- expected: |
+    Live lost Copilot panel hairlines (`6:1713` under presence,
+    `6:1716` under AT LAUNCH seed): 1px **`#c8bfd7`** / 386 wide —
+    same border token as relaunch divider `8:418` / panel chrome.
+- actual: |
+    Opens lock panel surface/pad/stack / presence / history — not the
+    history **divider** strokes. App has no lost panel; session chat
+    has no `#c8bfd7` rules between presence → AT LAUNCH → YOU.
+- deviation: |
+    Tick45 — lost panel dividers vs live `6:1713`/`6:1716`. Distinct from
+    panel-surface / header-ink / meta-muted / history-stack-gap /
+    latest-*; under-covered `2:48`. Relaunch divider open does not cover
+    lost.
+- fix_hint: |
+    When mounting lost history, insert `#c8bfd7` 1px rules after presence
+    and after AT LAUNCH seed (before YOU); keep composer + Pause/End.
+- escalate: scrutinous
+
+## open: fp-permissions-choice-title-ink
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  title `7:395` · intro `7:393` ·
+  crop `_verify/tick45-choice-intro-crop.png`
+- expected: |
+    Live YOUR CHOICE title (`7:395`): Medium ~44 ink **`#282237`**
+    “Fly on your own terms.” — `var(--color-text)`, not lilac/primary
+    purple.
+- actual: |
+    Open `fp-permissions-choice-title-size` locks Medium 44 + “dark”
+    only — not exact ink. Kicker purple / sub muted stay on sibling
+    opens. App still has no YOUR CHOICE page under handoff/denied.
+- deviation: |
+    Tick45 — choice title ink vs live `7:395` `#282237`. Distinct from
+    title-size / kicker-type / sub-type / choice-surface / scrim;
+    under-covered YOUR CHOICE.
+- fix_hint: |
+    When adding YOUR CHOICE view, set title color `#282237` with Medium
+    44; keep purple Regular-12 kicker + muted 16 sub + Lock-in nav.
+    Preserve Settings five-tab; do not block Launch.
+- escalate: scrutinous
+
+## open: fp-connection-lost-latest-title-ink
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  Latest title `6:1720` · card `6:1719` ·
+  crop `_verify/tick45-lost-panel-crop.png`
+- expected: |
+    Live Latest-response title (`6:1720`): Medium ~18 ink **`#282237`**
+    “Connection lost. Your flight keeps going.” — darkest text on
+    lavender card (body stays muted `#645d73` via latest-type).
+- actual: |
+    Open `fp-connection-lost-latest-type` locks Medium 18 + body 14/muted
+    — not title **ink**. App has no lost Latest card; risk: inherit
+    `--mc-text-primary` (`#2a2440`) or muted for the title line.
+- deviation: |
+    Tick45 — lost Latest title ink vs live `6:1720` `#282237`. Distinct
+    from latest-type / latest-card / latest-height / body-copy /
+    header-ink; under-covered `2:48`.
+- fix_hint: |
+    When mounting Latest card, set title color `#282237` (Medium 18);
+    keep body `#645d73` 14 + Retry tonal + composer. Preserve Pause/End.
+- escalate: scrutinous
+
+## done: fp-relaunch-controls-gap
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  controls `6:643` · Take a break `6:644` · End `6:647` ·
+  crop `_verify/tick45-relaunch-live.png`
+- commit: c6b2e58
+- change: |
+    `.session-controls` → `gap: 12px` between Take a break / End pills
+    (was 0.55rem); Pause/End / Take a break wiring unchanged.
 - escalate: scrutinous
