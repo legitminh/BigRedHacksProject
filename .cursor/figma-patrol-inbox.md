@@ -3859,7 +3859,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · foot `5:257` ·
   crop `_verify/tick34-copilot-foot-crop.png`
-- commit: PENDING
+- commit: c0bb46e
 - change: |
     Restored `.copilot-responses-foot` under composer with live
     Responses/Audio copy; `margin-top: auto` pins toward `.copilot-main`
@@ -3872,7 +3872,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   page-sub `5:234` · empty body `5:239` · sidebar body `5:221` ·
   crop `_verify/tick34-copilot-live.png`
-- commit: PENDING
+- commit: c0bb46e
 - change: |
     `.copilot-page-sub` / `.copilot-empty-copy` / `.copilot-sidebar-body`
     → muted `#645d73` (not lilac `--mc-text-muted`). Mic/Send/chips +
@@ -3883,7 +3883,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   status `5:226` · crop `_verify/tick34-copilot-sidebar-crop.png`
-- commit: PENDING
+- commit: c0bb46e
 - change: |
     `.copilot-sidebar-status` → 0.875rem (~14px) / weight 400 / `#645d73`;
     planet remains 20px under status via sidebar gap. Start a mission
