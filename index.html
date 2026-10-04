@@ -313,6 +313,7 @@
                     id="chat-input"
                     rows="1"
                     aria-label="Message Copilot"
+                    aria-describedby="chat-hint"
                     placeholder="Message your copilot…"
                   ></textarea>
                   <button
@@ -341,6 +342,7 @@
                   </button>
                 </div>
               </form>
+              <p id="chat-hint" class="composer-hint copilot-hint" hidden></p>
             </footer>
           </div>
         </div>
@@ -817,7 +819,7 @@
           <nav class="settings-nav" aria-label="Primary">
             <button type="button" class="settings-nav-link" data-session-nav="home">Home</button>
             <button type="button" class="settings-nav-link" data-session-nav="copilot">Copilot</button>
-            <span class="settings-nav-link settings-nav-link--active" aria-current="page">Lock in</span>
+            <span class="settings-nav-link settings-nav-link--active" aria-current="page">Quest complete</span>
           </nav>
           <div class="settings-nav-end">
             <button type="button" class="settings-nav-link" data-session-nav="settings">Settings</button>
@@ -906,12 +908,12 @@
             Waypoint
           </p>
           <nav class="settings-nav" aria-label="Primary">
-            <button type="button" class="settings-nav-link settings-nav-link--active" data-settings-nav="home" aria-current="page">Home</button>
+            <button type="button" class="settings-nav-link" data-settings-nav="home">Home</button>
             <button type="button" class="settings-nav-link" data-settings-nav="copilot">Copilot</button>
             <button type="button" class="settings-nav-link" data-settings-nav="lockin">Lock in</button>
           </nav>
           <div class="settings-nav-end">
-            <span class="settings-nav-link">Settings</span>
+            <span class="settings-nav-link settings-nav-link--active" aria-current="page">Settings</span>
             <span id="settings-avatar" class="settings-avatar" aria-hidden="true">—</span>
           </div>
         </header>

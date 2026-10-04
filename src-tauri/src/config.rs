@@ -210,18 +210,11 @@ impl AppConfig {
         self.waypoint_api_base.trim_end_matches('/')
     }
 
-    /// Attach Bearer auth when talking to the Waypoint coach proxy.
-    /// Prefers the signed-in user JWT when present; otherwise the baked coach token.
+    /// Sync Bearer header for the Waypoint coach proxy (JWT preferred, else baked token).
+    ///
+    /// Does **not** refresh on 401 — HTTP callers must use [`crate::api::coach_authed_raw`].
     pub fn coach_auth_header(&self) -> Option<(&str, String)> {
-        if let Some(tokens) = crate::auth::load_tokens(self) {
-            if !tokens.access_token.is_empty() {
-                return Some(("Authorization", format!("Bearer {}", tokens.access_token)));
-            }
-        }
-        self.coach_api_token
-            .as_ref()
-            .filter(|t| !t.is_empty())
-            .map(|t| ("Authorization", format!("Bearer {t}")))
+        crate::api::coach_authorization(self).map(|(_, value)| ("Authorization", value))
     }
 
     pub fn google_token_path(&self) -> PathBuf {

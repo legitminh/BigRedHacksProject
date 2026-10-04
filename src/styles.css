@@ -4572,13 +4572,19 @@ body:has(.view-session.active) .grain {
   display: flex;
 }
 
+/* `display: flex` above beats the UA `[hidden]` rule — keep dismissed invite
+   invisible until JS removes [hidden]. */
+.session-break-suggest[hidden] {
+  display: none !important;
+}
+
 #view-session.is-session-checkin .session-break-suggest,
 #view-session.is-session-ending .session-break-suggest {
   display: none !important;
 }
 
 /* Stress break invite wins over check-in if both classes overlap briefly. */
-#view-session.is-break-suggested.is-session-checkin .session-break-suggest {
+#view-session.is-break-suggested.is-session-checkin .session-break-suggest:not([hidden]) {
   display: flex !important;
 }
 

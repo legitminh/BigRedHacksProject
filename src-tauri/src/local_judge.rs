@@ -4,20 +4,12 @@
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use crate::api;
 use crate::config::AppConfig;
 use crate::gemini::CoachVisionResult;
-
-fn with_coach_auth(req: reqwest::RequestBuilder, cfg: &AppConfig) -> reqwest::RequestBuilder {
-    if let Some((name, value)) = cfg.coach_auth_header() {
-        req.header(name, value)
-    } else {
-        req
-    }
-}
 
 const MIN_CONFIDENCE: f32 = 0.55;
 const PROBE_TTL_SECS: u64 = 45;
@@ -102,15 +94,16 @@ pub async fn status_line(cfg: &AppConfig) -> String {
 }
 
 async fn probe(app: &AppConfig, cfg: &LocalJudgeConfig) -> (bool, String) {
-    let client = match Client::builder()
-        .timeout(Duration::from_secs(2))
-        .build()
-    {
-        Ok(c) => c,
-        Err(e) => return (false, e.to_string()),
-    };
     let url = format!("{}/api/tags", cfg.base_url.trim_end_matches('/'));
-    let res = match with_coach_auth(client.get(&url), app).send().await {
+    let res = match api::coach_authed_raw(
+        app,
+        reqwest::Method::GET,
+        &url,
+        None,
+        Duration::from_secs(2),
+    )
+    .await
+    {
         Ok(r) => r,
         Err(_) => {
             return (
@@ -219,10 +212,6 @@ url: {safe_url}
 page_text: {excerpt}"#
     );
 
-    let client = Client::builder()
-        .timeout(Duration::from_secs(20))
-        .build()
-        .map_err(|e| e.to_string())?;
     let url_api = format!("{}/api/generate", local.base_url.trim_end_matches('/'));
     let body = json!({
         "model": local.model,
@@ -235,11 +224,15 @@ page_text: {excerpt}"#
         }
     });
 
-    let res = with_coach_auth(client.post(url_api), cfg)
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("coach model request failed: {e}"))?;
+    let res = api::coach_authed_raw(
+        cfg,
+        reqwest::Method::POST,
+        &url_api,
+        Some(&body),
+        Duration::from_secs(20),
+    )
+    .await
+    .map_err(|e| format!("coach model request failed: {e}"))?;
     let status = res.status();
     let text = res.text().await.unwrap_or_default();
     if !status.is_success() {
@@ -1025,16 +1018,6 @@ context: {detail_short}
 mission goals: {goals_short}"#
     );
 
-    let client = match Client::builder()
-        .timeout(Duration::from_secs(4))
-        .build()
-    {
-        Ok(c) => c,
-        Err(_) => {
-            remember_line(&fallback);
-            return fallback;
-        }
-    };
     let url_api = format!("{}/api/generate", local.base_url.trim_end_matches('/'));
     let body = json!({
         "model": local.model,
@@ -1046,10 +1029,14 @@ mission goals: {goals_short}"#
         }
     });
 
-    let Ok(res) = with_coach_auth(client.post(url_api), cfg)
-        .json(&body)
-        .send()
-        .await
+    let Ok(res) = api::coach_authed_raw(
+        cfg,
+        reqwest::Method::POST,
+        &url_api,
+        Some(&body),
+        Duration::from_secs(4),
+    )
+    .await
     else {
         remember_line(&fallback);
         return fallback;

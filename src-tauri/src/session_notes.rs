@@ -438,15 +438,29 @@ fn accept_model_markdown(raw: &str, kind: NoteKind) -> Option<String> {
             .to_string();
     }
     text = strip_retired_note_sections(&text);
-    if text.chars().count() < 40 {
+    if text.trim().is_empty() {
         return None;
     }
+    // Title required. Sections are optional — omit empty ones; title-only is fine.
+    // Grounding / vacuous checks in write_with_models still reject invention and
+    // empty bodies when the session actually had evidence.
+    let has_title = text.lines().any(|line| {
+        let t = line.trim();
+        t.starts_with("# ") || t == "#"
+    });
+    if !has_title {
+        return None;
+    }
+    let has_h2 = text.lines().any(|line| line.trim().starts_with("## "));
+    if !has_h2 {
+        return Some(text);
+    }
     let lower = text.to_lowercase();
-    if kind
+    let has_known_section = kind
         .section_markers()
         .iter()
-        .all(|marker| lower.contains(&marker.to_lowercase()))
-    {
+        .any(|marker| lower.contains(&marker.to_lowercase()));
+    if has_known_section {
         Some(text)
     } else {
         None
@@ -771,6 +785,81 @@ Not captured.";
         assert!(!md.contains("Not captured."));
         assert!(note_is_vacuous(&md));
         assert!(!sources_have_evidence(&quiet));
+    }
+
+    #[test]
+    fn accept_model_markdown_allows_title_only_and_omit_empty_sections() {
+        let title_only = "# Reviewing Chinese\n";
+        assert_eq!(
+            accept_model_markdown(title_only, NoteKind::Study).as_deref(),
+            Some("# Reviewing Chinese")
+        );
+        assert!(note_is_vacuous(title_only));
+
+        let learning_only = "\
+# heaps
+
+## What I was learning
+- Chrome · priority queues lecture
+";
+        let accepted = accept_model_markdown(learning_only, NoteKind::Study).unwrap();
+        assert!(accepted.contains("## What I was learning"));
+        assert!(!accepted.contains("## In my own words"));
+
+        let words_only = "\
+# biology chapter 3
+
+## In my own words
+- let me explain photosynthesis
+";
+        assert!(accept_model_markdown(words_only, NoteKind::Study).is_some());
+
+        let full = "\
+# biology chapter 3
+
+## What I was learning
+- Safari · textbook
+
+## In my own words
+- let me explain photosynthesis
+";
+        assert!(accept_model_markdown(full, NoteKind::Study).is_some());
+
+        let worked = "\
+# implement the parser
+
+## What I worked on
+- Cursor · repo
+";
+        assert!(accept_model_markdown(worked, NoteKind::Devlog).is_some());
+
+        // Unknown ## body with no kind section → reject (not usable for this kind).
+        let wrong = "\
+# heaps
+
+## Random blurb
+- something
+";
+        assert!(accept_model_markdown(wrong, NoteKind::Study).is_none());
+        assert!(accept_model_markdown("", NoteKind::Study).is_none());
+        assert!(accept_model_markdown("no title here", NoteKind::Study).is_none());
+    }
+
+    #[test]
+    fn title_only_model_note_stays_vacuous_when_sources_have_evidence() {
+        let active = sources(
+            "heaps",
+            "computer",
+            &[],
+            &["Chrome · priority queues lecture"],
+            &[],
+        );
+        let title_only = "# heaps\n";
+        let accepted = accept_model_markdown(title_only, NoteKind::Study).unwrap();
+        assert!(note_is_vacuous(&accepted));
+        assert!(sources_have_evidence(&active));
+        // write_with_models would Err here and use fallback — grounding still ok (few words).
+        assert!(note_is_grounded(&accepted, &active));
     }
 
     #[test]

@@ -79,8 +79,11 @@ Google OAuth is configured **only** on the API (Web client + redirect URIs under
 
 ```bash
 npm run app:dev      # hot reload against secrets.toml (localhost OK)
-npm run app:build    # release Waypoint.app (WAYPOINT_RELEASE=1; needs https:// API base)
+npm run app:build    # release Waypoint.app + helpers (WAYPOINT_RELEASE=1; needs https:// API base)
+npm run app:install  # DEBUG localhost build → /Applications (local only; not for judges/ship)
 ```
+
+**Judges / demo / ship:** use `npm run app:build` (release + `app:bundle-helpers`), then open the release `.app` below — not `app:install`.
 
 ```bash
 open src-tauri/target/release/bundle/macos/Waypoint.app
@@ -94,7 +97,7 @@ Lock-in needs **Screen Recording**; camera is optional (Presage).
 1. Open Waypoint  
 2. **Sign in with Google** (browser)  
 3. Approve Calendar + Drive  
-4. Use **Ask** / **Lock in**
+4. Use **Copilot** / **Lock in**
 
 No API keys on the device. Copilot uses Gemini on your server, with silent local Ollama fallback when Gemini is limited.
 
