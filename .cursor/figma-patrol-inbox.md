@@ -4384,7 +4384,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   badge text `7:417` · crop `_verify/tick40-handoff-modal-crop.png`
-- commit: PENDING
+- commit: 91131e0
 - change: |
     `.mc-perm-modal__badge` → font-weight 400 (keep 12px / tracking
     0.08em / `#6750a4` on `#e9ddfd`). Not now · Continue + camera copy +
@@ -4396,7 +4396,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
   Mic `6:1728` · composer `6:1725` ·
   crop `_verify/tick41-lost-mic.png` · panel `_verify/tick41-lost-panel-crop.png`
-- commit: PENDING
+- commit: 91131e0
 - change: |
     Extended Mic type override to
     `.view-session .session-copilot-composer .copilot-mic` → Regular 16px /
@@ -4459,7 +4459,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   Continue `7:424` · actions `7:420` ·
   crop `_verify/tick41-handoff-continue.png` · modal `_verify/tick41-handoff-modal-crop.png`
-- commit: PENDING
+- commit: 91131e0
 - change: |
     `.mc-perm-modal__btn--primary` → Medium 14px / weight 500 / white +
     min-height 52 (override 0.95rem/650). Not now Regular 16 / `#282237`
