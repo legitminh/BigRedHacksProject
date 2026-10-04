@@ -2691,6 +2691,17 @@ button:active {
   height: 1.4em;
   max-height: 1.4em;
   overflow: hidden;
+  /* Live 03 placeholder (5:250): Regular 14px / lh 1.4 */
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.view-copilot .chat-form textarea::placeholder {
+  color: #645d73;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.4;
+  opacity: 1;
 }
 
 .view-session .session-copilot-composer .chat-form textarea {
@@ -2797,19 +2808,22 @@ button:active {
 }
 
 .view-copilot .copilot-hint {
-  color: var(--mc-text-muted);
-  font-size: 0.72rem;
-  line-height: 1.45;
-  margin-top: 0.55rem;
+  /* Live 03 hint (5:256): Regular 11px / lh 1.4 / #645d73 */
+  color: #645d73;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  margin-top: 10px;
 }
 
-/* Live 03 foot (5:257): ~76px under composer — pin to bottom of .copilot-main */
+/* Live 03 foot (5:257): Regular 12px / lh 1.4 / #645d73 — pin to bottom of .copilot-main */
 .view-copilot .copilot-responses-foot {
   margin: auto 0 0;
   flex-shrink: 0;
   color: #645d73;
-  font-size: 0.72rem;
-  line-height: 1.45;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
 }
 
 .view-copilot .bubble.user {

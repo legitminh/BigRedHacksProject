@@ -4038,26 +4038,14 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - escalate: scrutinous
 - reopened: true
 
-## open: fp-copilot-placeholder-type
+## done: fp-copilot-placeholder-type
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   placeholder `5:250` · crop `_verify/tick36-copilot-composer-crop.png`
-- expected: |
-    Live placeholder (`5:250`, h=20): Regular **14px** / lh 1.4 muted
-    **`#645d73`** — “Message your copilot…” — not ~15px denser/primary.
-- actual: |
-    Opens lock ellipsis string (`fp-copilot-placeholder-ellipsis`
-    verified) + composer height — not placeholder type.
-    `.view-copilot .chat-form textarea` is `font-size: 0.95rem` (~15.2)
-    / primary color; placeholder inherits size.
-- deviation: |
-    Tick36 — Copilot placeholder/input type vs live `5:250`. Distinct
-    from composer-input-height / muted-645d73 / hint-copy; Copilot
-    priority after foot/empty dones.
-- fix_hint: |
-    Set Copilot textarea + `::placeholder` to **14px** / 400 / lh 1.4 /
-    `#645d73` for empty placeholder (typed text may stay primary);
-    keep Mic/Send.
+- commit: PENDING
+- change: |
+    `.view-copilot .chat-form textarea` → Regular 14px; `::placeholder`
+    → `#645d73` (typed text stays primary). 78px pill + Mic/Send kept.
 - escalate: scrutinous
 
 ## open: fp-connection-lost-user-type
@@ -4159,4 +4147,101 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `.mc-perm-modal__body` → Regular 16px / lh 1.4 / `#645d73`;
     `__foot` → Regular 12px / lh 1.4 / `#645d73`. Camera copy + pad 33 /
     gap 22 + Not now · Continue unchanged.
+- escalate: scrutinous
+
+## done: fp-copilot-composer-hint-type
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  hint `5:256` · composer `5:248` ·
+  crop `_verify/tick38-copilot-hint-crop.png`
+- commit: PENDING
+- change: |
+    `.view-copilot .copilot-hint` → Regular 11px / lh 1.4 / `#645d73`
+    (not lilac muted); 10px gap under 78px wrap. Enter/mic string +
+    Mic/Send unchanged.
+- escalate: scrutinous
+
+## done: fp-copilot-responses-foot-type
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  foot `5:257` · crop `_verify/tick38-copilot-foot-crop.png`
+- commit: PENDING
+- change: |
+    `.view-copilot .copilot-responses-foot` → Regular 12px / lh 1.4 /
+    `#645d73`; `margin-top: auto` pin + Responses/Audio string kept.
+- escalate: scrutinous
+
+## open: fp-relaunch-badge-type
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  badge `8:414` · text `8:415` ·
+  crop `_verify/tick38-relaunch-badge-crop.png`
+- expected: |
+    Live relaunch card badge text (`8:415`, glyph ~9–11 in 31px pill):
+    Bold/Semibold **~11–12px** uppercase purple **`#6750a4`** on raised
+    `#e9ddfd` — “→  READY TO RELAUNCH?” (→ glyph via
+    `fp-relaunch-badge-arrow`).
+- actual: |
+    Opens lock → glyph (`fp-relaunch-badge-arrow`) + left-pill mint vs
+    card purple (`fp-relaunch-progress-pill-mint`) + footer mint — not
+    badge **type scale**. App has no relaunch card yet.
+- deviation: |
+    Tick38 — relaunch card badge type vs live `8:415`. Distinct from
+    badge-arrow / progress-pill-mint / footer-mint / title-medium-28;
+    under-covered `2:41`. Spot-check: Take a break + End on flight card.
+- fix_hint: |
+    When mounting relaunch badge, set label ~11–12px / weight 700 /
+    `#6750a4` on `#e9ddfd` pill; pair with → glyph open. Preserve
+    Pause/End on normal active.
+- escalate: scrutinous
+
+## open: fp-connection-lost-composer-pill
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  input `6:1726` · composer `6:1725` ·
+  crop `_verify/tick38-lost-composer-crop.png`
+- expected: |
+    Live lost Message composer input (`6:1726`, 376×78): **pill**
+    radius (full stadium) fill `#f7f2ff` / border `#c8bfd7` with Mic+↑
+    52 circles — same chrome language as Copilot `5:249`, not a 16px
+    rounded rectangle.
+- actual: |
+    Opens lock composer **height** 78 (`fp-connection-lost-composer-input-height`)
+    + placeholder-type / hint-type — not radius. Session wrap
+    `.view-session .session-copilot-composer .copilot-input-wrap` uses
+    `border-radius: 1rem` (multi-row look). Lost UI still missing
+    (`fp-connection-lost-panel`).
+- deviation: |
+    Tick38 — lost/session composer pill radius vs live `6:1726`. Distinct
+    from composer-input-height / placeholder-type / hint-type /
+    composer-stays; under-covered `2:48`. Pause/End still on flight card.
+- fix_hint: |
+    When mounting lost (shared session) 78px composer, use
+    `border-radius: var(--radius-pill)` + `#f7f2ff` / `#c8bfd7`; keep
+    Mic/Send + Pause/End.
+- escalate: scrutinous
+
+## open: fp-welcome-kicker-type
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` ·
+  kicker `5:59`/`5:60` · crop `_verify/tick38-welcome-kicker-crop.png`
+- expected: |
+    Live WELCOME ABOARD kicker label (`5:60`, glyph ~9–10 in 31×147
+    pill): Bold **~11px** / tracking uppercase mint **`#326c78`** on
+    `#e9ddfd` — not denser ~10px with heavy 0.12em tracking drift.
+- actual: |
+    Kicker **mint fill/color** verified (`fp-welcome-signin-kicker-mint`).
+    `.welcome-signin-kicker` is `font-size: 0.62rem` (~9.9) /
+    `letter-spacing: 0.12em` / weight 700 — undersized/tracking vs live
+    ~11 caps. Foot align + card shadow (`f5cd1e8`) still match live
+    (no regression). Form shell still Google-only
+    (`fp-welcome-signin-form`).
+- deviation: |
+    Tick38 — welcome kicker type/tracking vs live `5:60`. Distinct from
+    kicker-mint / form / field-height / foot-align / card-shadow;
+    under-covered welcome sign-in.
+- fix_hint: |
+    Set `.welcome-signin-kicker` to ~11px / weight 700 / tighter tracking
+    (~0.08em) / keep mint `#326c78` on `#e9ddfd`; leave Google wiring
+    until form open lands Email/Password.
 - escalate: scrutinous
