@@ -886,7 +886,7 @@ body:has(.view-home.view-home--guest.active) .grain {
   align-items: center;
 }
 
-/* Live 01 Sign in card (5:58): 510×668 surface #fffbff / #c8bfd7 / ~28px; stack 24px */
+/* Live 01 Sign in card (5:58): 510×668 flat #fffbff / #c8bfd7 / ~28px; stack 24px */
 .welcome-signin-card.signin-box {
   width: min(100%, 510px);
   margin: 0;
@@ -894,7 +894,7 @@ body:has(.view-home.view-home--guest.active) .grain {
   background: #fffbff;
   border: 1px solid #c8bfd7;
   border-radius: 28px;
-  box-shadow: 0 16px 40px rgba(42, 36, 64, 0.08);
+  box-shadow: none;
   gap: 24px;
 }
 
@@ -1029,12 +1029,12 @@ body:has(.view-home.view-home--guest.active) .grain {
   color: #282237;
 }
 
-/* Live 01 foot (5:77): muted #645d73 at 13px / lh 1.4 (Google-approval copy kept) */
+/* Live 01 foot (5:77): muted #645d73 at 13px / lh 1.4 left under Quiet guest */
 .welcome-signin-foot {
   margin: 0;
   font-size: 13px;
   line-height: 1.4;
-  text-align: center;
+  text-align: left;
   color: #645d73;
 }
 
@@ -1517,11 +1517,13 @@ body:has(.view-home.view-home--guest.active) .grain {
   color: var(--mc-text-primary, #2a2440);
 }
 
+/* Live 17 handoff body (7:419): Regular 16px / lh 1.4 muted #645d73 */
 .mc-perm-modal__body {
   margin: 0;
-  font-size: 0.95rem;
-  line-height: 1.5;
-  color: var(--mc-text-secondary, #6b6578);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: #645d73;
 }
 
 .mc-perm-modal__actions {
@@ -1558,11 +1560,13 @@ body:has(.view-home.view-home--guest.active) .grain {
   filter: brightness(0.98);
 }
 
+/* Live 17 handoff foot (7:427): Regular 12px / lh 1.4 muted #645d73 */
 .mc-perm-modal__foot {
   margin: 0.15rem 0 0;
-  font-size: 0.78rem;
-  line-height: 1.45;
-  color: #8a8498;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: #645d73;
 }
 
 .account-block {

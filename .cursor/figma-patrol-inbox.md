@@ -4081,3 +4081,82 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     keep meta caps + composer. Preserve Pause/End.
 - escalate: scrutinous
 
+
+## done: fp-welcome-foot-align
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · foot `5:77` ·
+  card `5:58` · crop `_verify/tick37-welcome-card-crop.png`
+- commit: PENDING
+- change: |
+    `.welcome-signin-foot` → `text-align: left` (kept 13px / lh 1.4 /
+    `#645d73`). Google-only form shell unchanged.
+- escalate: scrutinous
+
+## done: fp-welcome-card-shadow
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · card `5:58` ·
+  crop `_verify/tick37-welcome-card-crop.png`
+- commit: PENDING
+- change: |
+    `.welcome-signin-card` → `box-shadow: none` (flat `#fffbff` /
+    `#c8bfd7` / 28 / 37 / 510). Guest Quiet + Sign in wiring unchanged.
+- escalate: scrutinous
+
+## open: fp-connection-lost-composer-placeholder-type
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  placeholder `6:1727` · input `6:1726` ·
+  crop `_verify/tick37-lost-panel-crop.png`
+- expected: |
+    Live lost Message placeholder (`6:1727`, h=20): Regular **14px** /
+    lh 1.4 muted **`#645d73`** — “Message your copilot…” inside the 78px
+    composer pill (Mic+↑ 52).
+- actual: |
+    Opens lock composer height 78 (`fp-connection-lost-composer-input-height`)
+    + hint **string** — not placeholder type. Session textarea is
+    `font-size: 0.95rem` (~15.2) / primary color; placeholder inherits.
+    Lost UI still missing (`fp-connection-lost-panel`).
+- deviation: |
+    Tick37 — lost composer placeholder/input type vs live `6:1727`.
+    Distinct from composer-input-height / hint-copy / header/user/seed;
+    under-covered `2:48`. Do not reopen Copilot `fp-copilot-placeholder-type`.
+- fix_hint: |
+    When mounting lost (shared session) composer, set placeholder (+ empty
+    input) to **14px** / 400 / lh 1.4 / `#645d73`; keep 78px wrap + Mic/Send.
+    Preserve Pause/End.
+- escalate: scrutinous
+
+## open: fp-connection-lost-composer-hint-type
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  hint `6:1734` · composer `6:1725` ·
+  crop `_verify/tick37-lost-panel-crop.png`
+- expected: |
+    Live lost composer hint (`6:1734`, h=15): Regular **11px** / lh 1.4
+    muted **`#645d73`** — “Enter to send · Click the microphone to start
+    or stop a voice turn” under the 78px input (gap 10).
+- actual: |
+    Open `fp-connection-lost-composer-hint-copy` locks the Enter/mic
+    **string** only. `#session-chat-hint` / `.session-composer-hint` is
+    `0.72rem` (~11.5) / `var(--mc-text-muted)` lilac + still wrong Talk-
+    for-live-voice copy until that open lands.
+- deviation: |
+    Tick37 — lost/session composer hint type/color vs live `6:1734`.
+    Distinct from hint-copy string + composer-placeholder-type +
+    composer-height; under-covered `2:48`.
+- fix_hint: |
+    Set `.session-composer-hint` to **11px** / 400 / lh 1.4 / `#645d73`;
+    pair with hint-copy string. Keep Mic/Send + Pause/End.
+- escalate: scrutinous
+
+## done: fp-permission-handoff-body-muted
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  body `7:419` · foot `7:427` · modal `7:415` ·
+  crop `_verify/tick37-handoff-modal-crop.png`
+- commit: PENDING
+- change: |
+    `.mc-perm-modal__body` → Regular 16px / lh 1.4 / `#645d73`;
+    `__foot` → Regular 12px / lh 1.4 / `#645d73`. Camera copy + pad 33 /
+    gap 22 + Not now · Continue unchanged.
+- escalate: scrutinous
