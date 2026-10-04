@@ -3657,7 +3657,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   Conversation `5:232` · card `5:235` ·
   crop `_verify/tick32-copilot-live.png`
-- commit: PENDING
+- commit: ac0e68a
 - change: |
     `.copilot-panel:has(#chat-empty)` → `flex: 0 0 auto` + `min-height: 0`
     so empty Copilot response hugs ~830×117 (live `5:235`); filled-chat
@@ -3668,7 +3668,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · card `5:235` ·
   heading `5:238` · crop `_verify/tick32-copilot-live.png`
-- commit: PENDING
+- commit: ac0e68a
 - change: |
     Empty-state `.copilot-log` padding → `25px` (live `5:235` heading
     y=25); surface `#fffbff` / `#c8bfd7` / 28px radius + 14px heading→
@@ -3680,7 +3680,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   sidebar `5:217` · status `5:226` · planet `5:227` ·
   crop `_verify/tick32-copilot-live.png`
-- commit: PENDING
+- commit: ac0e68a
 - change: |
     `.copilot-sidebar-planet` margin → `0` (drop flex `margin: auto`);
     planet sits 20px under “No mission running” via sidebar gap 1.25rem
