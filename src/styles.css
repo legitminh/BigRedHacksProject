@@ -3383,20 +3383,6 @@ body:has(.view-mission-setup.active) .grain {
     0 20px 48px rgba(42, 36, 64, 0.08);
 }
 
-.mission-setup-step {
-  margin: 0;
-  display: inline-flex;
-  align-self: flex-start;
-  padding: 0.35rem 0.75rem;
-  border-radius: 999px;
-  background: rgba(232, 224, 245, 0.85);
-  border: 1px solid rgba(107, 76, 255, 0.12);
-  color: #326c78;
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-}
-
 .mission-setup-title {
   margin: 0;
   font-family: var(--font-display);
@@ -3824,15 +3810,6 @@ body:has(.view-mission-setup.active) .grain {
   background: var(--mc-accent-purple);
   color: #fff;
   border-color: transparent;
-}
-
-.session-mission-id {
-  margin: 0;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--mc-text-muted);
 }
 
 .session-copilot-panel {
