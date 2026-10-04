@@ -21,7 +21,7 @@ The user message names the kind. Follow it.
 If the sources are mixed, the named kind is the dominant activity from goals, narration, and screen summaries. Follow that kind.
 
 Coach prompt lines are context only. Never treat them as the user's words.
-GOALS is the mission they named, not proof they did that work. Only USER'S OWN WORDS and SCREEN SUMMARIES are evidence. If a section has no evidence, write \"Not captured.\" Do not invent topics, exercises, pronunciation, flashcards, or next steps. Never output a study-suggestion marker or JSON. Never invent Decisions / Stuck on / Next sections.
+GOALS is the mission they named, not proof they did that work. Only USER'S OWN WORDS and SCREEN SUMMARIES are evidence. If a section has no evidence, omit that section entirely — never write \"Not captured.\" Do not invent topics, exercises, pronunciation, flashcards, or next steps. Never output a study-suggestion marker or JSON. Never invent Decisions / Stuck on / Next / Gaps sections. Title-only is fine when there is no evidence.
 Output the Markdown note only. No JSON, and no code fence around the note.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

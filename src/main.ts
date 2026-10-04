@@ -4074,9 +4074,13 @@ function showSessionNotePending() {
   resetConceptMap();
 }
 
-/** Drop retired sections and any ## section whose body is only "Not captured." */
+/** Keep title (+ optional real diglog) for brag/share; strip retired / empty sections. */
 function sanitizeSessionNoteMarkdown(markdown: string): string {
+  // Quest-complete UI never shows these — brag sheet is the diglog surface.
   const alwaysDrop = new Set([
+    "what i worked on",
+    "what i was learning",
+    "in my own words",
     "decisions",
     "stuck on",
     "next",
@@ -4106,8 +4110,27 @@ function sanitizeSessionNoteMarkdown(markdown: string): string {
         .trim();
       if (!bodyText || /^not captured$/i.test(bodyText)) continue;
       out.push(`## ${section.heading}`);
+      out.push(...section.lines);
+      continue;
     }
-    out.push(...section.lines);
+    // Preamble: keep the # title only — drop bare "What I worked on / Not captured." lines.
+    for (const line of section.lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      if (/^#\s+/.test(trimmed)) {
+        out.push(line);
+        continue;
+      }
+      if (/^not captured\.?$/i.test(trimmed.replace(/^[-*]\s+/, ""))) continue;
+      if (
+        /^(what i worked on|what i was learning|in my own words|decisions|stuck on|next|gaps(?:\s*\/\s*shaky parts)?)\b/i.test(
+          trimmed,
+        )
+      ) {
+        continue;
+      }
+      out.push(line);
+    }
   }
   return out.join("\n").trim();
 }
@@ -4131,19 +4154,9 @@ function showSessionNoteMarkdown(markdown: string) {
       titleEl.textContent = "";
     }
   }
-  // Body only when there is real captured content beyond the title.
-  const bodyMd = cleaned
-    .split("\n")
-    .filter((line) => !/^#\s+/.test(line.trim()))
-    .join("\n")
-    .trim();
-  if (bodyMd) {
-    body.hidden = false;
-    renderMarkdown(body, bodyMd);
-  } else {
-    body.hidden = true;
-    body.replaceChildren();
-  }
+  // Never show diglog section fields under the title — Share brag sheet is next.
+  body.hidden = true;
+  body.replaceChildren();
   showConceptMapOffer(markdown);
 }
 

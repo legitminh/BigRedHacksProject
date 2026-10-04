@@ -5208,6 +5208,7 @@ body:has(.view-quest-complete.active) .grain {
   color: #282237;
 }
 
+.quest-session-note-body,
 .quest-session-note-body[hidden] {
   display: none !important;
 }
