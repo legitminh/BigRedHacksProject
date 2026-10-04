@@ -93,6 +93,9 @@ pub fn labels_in_text(text: &str) -> Vec<&'static str> {
 
     let has_youtube_host = lower.contains("youtube.com") || lower.contains("youtu.be");
     let has_instagram_host = lower.contains("instagram.com");
+    // Address-bar / URL evidence for a non-YouTube page (Canvas, docs, …).
+    // A stray "YouTube" chrome line must not win over canvas.cornell.edu.
+    let has_other_page_host = ocr_has_non_youtube_page_host(&lower);
 
     // Tab/app chrome titles OCR sometimes reads as their own line.
     for line in lower.lines() {
@@ -105,7 +108,11 @@ pub fn labels_in_text(text: &str) -> Vec<&'static str> {
         {
             out.push("instagram");
         }
-        if title_is_brand_chrome(t, "youtube") && !out.contains(&"youtube") {
+        // YouTube chrome alone is not enough when OCR also saw another page host.
+        if title_is_brand_chrome(t, "youtube")
+            && !out.contains(&"youtube")
+            && (has_youtube_host || !has_other_page_host)
+        {
             out.push("youtube");
         }
         if title_is_brand_chrome(t, "tiktok") && !out.contains(&"tiktok") {
@@ -117,8 +124,58 @@ pub fn labels_in_text(text: &str) -> Vec<&'static str> {
     if has_youtube_host && !has_instagram_host {
         out.retain(|l| *l != "instagram");
     }
+    // Canvas / school hosts: never keep a youtube label without youtube.com / youtu.be.
+    if has_other_page_host && !has_youtube_host {
+        out.retain(|l| *l != "youtube");
+    }
 
     out
+}
+
+/// True when OCR text shows a URL/host that is clearly not YouTube (Canvas, LMS, …).
+fn ocr_has_non_youtube_page_host(lower: &str) -> bool {
+    const OTHER: &[&str] = &[
+        "canvas.",
+        "instructure.com",
+        "blackboard.",
+        "moodle.",
+        "classroom.google",
+        "docs.google.com",
+        "drive.google.com",
+        "github.com",
+        "gitlab.com",
+        "notion.so",
+        "notion.site",
+        "cornell.edu",
+        ".edu/",
+        ".edu?",
+        "arxiv.org",
+        "scholar.google",
+        "wikipedia.org",
+        "stackoverflow.com",
+        "stackexchange.com",
+    ];
+    if OTHER.iter().any(|n| lower.contains(n)) {
+        return true;
+    }
+    // Generic https://host/… that isn't youtube / youtu.be.
+    for token in lower.split_whitespace() {
+        let t = token.trim_matches(|c: char| "()[]<>,;\"'".contains(c));
+        if let Some(rest) = t
+            .strip_prefix("https://")
+            .or_else(|| t.strip_prefix("http://"))
+        {
+            let host = rest.split('/').next().unwrap_or("").to_lowercase();
+            if !host.is_empty()
+                && !host.contains("youtube.com")
+                && !host.contains("youtu.be")
+                && host.contains('.')
+            {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn title_is_brand_chrome(line: &str, brand: &str) -> bool {
@@ -173,5 +230,58 @@ Shorts
             "Why Instagram changed its algorithm — The Verge\nhttps://www.theverge.com/article",
         );
         assert!(!labels.contains(&"instagram"));
+    }
+
+    #[test]
+    fn canvas_page_without_youtube_host_is_not_youtube() {
+        let text = "\
+https://canvas.cornell.edu/courses/12345/discussion_topics/678
+ENGL 1140
+Alright, I am working on my discussion post now
+Historian as Curandera by Aurora Levins Morales
+Indigo Kifer
+";
+        let labels = labels_in_text(text);
+        assert!(
+            !labels.contains(&"youtube"),
+            "Canvas discussion must not yield youtube: {labels:?}"
+        );
+    }
+
+    #[test]
+    fn canvas_with_stray_youtube_chrome_line_is_not_youtube() {
+        // Desktop OCR sometimes catches a background tab title or misreads a line.
+        let text = "\
+https://canvas.cornell.edu/courses/12345/discussion_topics/678
+ENGL 1140 Discussion
+YouTube
+Alright, I am working on my discussion post now
+";
+        let labels = labels_in_text(text);
+        assert!(
+            !labels.contains(&"youtube"),
+            "stray YouTube chrome must not win over canvas host: {labels:?}"
+        );
+    }
+
+    #[test]
+    fn youtube_watch_host_still_labels_youtube() {
+        let labels = labels_in_text(
+            "KSI - Thick of it - YouTube\nhttps://www.youtube.com/watch?v=SbTT1f3xZVg\nHome",
+        );
+        assert_eq!(labels.first().copied(), Some("youtube"));
+    }
+
+    #[test]
+    fn youtube_mention_in_canvas_discussion_is_ignored() {
+        let text = "\
+canvas.cornell.edu/courses/1/discussion_topics/2
+I watched a youtube explainer last week for ENGL 1140
+";
+        let labels = labels_in_text(text);
+        assert!(
+            !labels.contains(&"youtube"),
+            "bare youtube mention on Canvas must not label: {labels:?}"
+        );
     }
 }

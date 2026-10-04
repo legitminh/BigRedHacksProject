@@ -94,13 +94,15 @@ end tell"#,
     }
 }
 
-/// Classify the current focus for the coach (hard vs needs context vs clear).
-/// `goals` lets YouTube study lectures pass; everything else YouTube interrupts.
-/// Editors / terminals used to do real work — never hard-nag; OCR must not call these off-task.
-pub fn is_productive_work_app(app_name: &str) -> bool {
+/// Waypoint itself — never nag about the coach UI.
+pub fn is_coach_app(app_name: &str) -> bool {
+    app_name.to_lowercase().contains("waypoint")
+}
+
+/// Code editors / IDEs / terminals. Not auto on-task — judged against session goals.
+pub fn is_editor_app(app_name: &str) -> bool {
     let app = app_name.to_lowercase();
-    app.contains("waypoint")
-        || app.contains("cursor")
+    app.contains("cursor")
         || app == "code"
         || app.contains("visual studio code")
         || app.contains("vscode")
@@ -112,7 +114,12 @@ pub fn is_productive_work_app(app_name: &str) -> bool {
         || app.contains("terminal")
         || app.contains("iterm")
         || app.contains("warp")
-        || app.contains("notion")
+}
+
+/// Writing / notes apps — usually fine for essay/discussion goals.
+pub fn is_writing_app(app_name: &str) -> bool {
+    let app = app_name.to_lowercase();
+    app.contains("notion")
         || app.contains("obsidian")
         || app.contains("word")
         || app.contains("pages")
@@ -123,20 +130,94 @@ pub fn is_productive_work_app(app_name: &str) -> bool {
         || app.contains("keynote")
 }
 
+/// Legacy helper: coach UI + writing apps (not IDEs — those are goal-checked).
+/// Coach OCR skip must use [`is_coach_app`] only — editors are goal-checked, not auto-clear.
+#[allow(dead_code)]
+pub fn is_productive_work_app(app_name: &str) -> bool {
+    is_coach_app(app_name) || is_writing_app(app_name)
+}
+
+/// True when the focused window's URL/title corroborates an OCR/distraction label.
+/// Canvas (or any non-YouTube host) must never accept a ghost `youtube` OCR label.
+///
+/// - Known distraction host on the focused URL → must match `label`.
+/// - Non-empty focused URL that is not that host (e.g. canvas.cornell.edu) → reject.
+/// - Empty URL (AppleScript failed): allow title chrome, else allow OCR (URL-unavailable path).
+pub fn focus_supports_distraction_label(label: &str, info: &FrontmostInfo) -> bool {
+    let url_l = info.url.to_lowercase();
+    let title_l = info.window_title.to_lowercase();
+    let want = match label {
+        "video" => "youtube",
+        other => other,
+    };
+
+    if let Some(from_url) = classify_url_host(&url_l) {
+        return from_url == want;
+    }
+    if !url_l.trim().is_empty() {
+        // Focused on a real host that isn't a known distraction for this label
+        // (Canvas, docs, GitHub, …) — never trust OCR brand ghosts.
+        return false;
+    }
+    if let Some(from_title) = classify_title_label(&title_l) {
+        return from_title == want;
+    }
+    // No URL and no brand-chrome title — OCR may be the only signal (automation gap).
+    true
+}
+
+pub fn is_browser_app(app_name: &str) -> bool {
+    let app = app_name.to_lowercase();
+    app.contains("safari")
+        || app.contains("chrome")
+        || app.contains("firefox")
+        || app.contains("edge")
+        || app.contains("brave")
+        || app.contains("arc")
+        || app.contains("opera")
+}
+
+/// Classify the current focus for the coach (hard vs needs context vs clear).
+/// Verdict comes from the **focused** window's URL/title/page text + goals.
+/// Background YouTube must not override an on-topic Canvas tab.
 pub fn evaluate_focus(goals: &str) -> Result<FocusEvent, String> {
     let info = frontmost_info()?;
 
-    let waypoint_focused = info.app_name.to_lowercase().contains("waypoint");
-    let productive_focused = is_productive_work_app(&info.app_name);
-
-    // While Waypoint itself is frontmost, don't nag about background browser tabs.
-    if waypoint_focused {
-        return Ok(FocusEvent::Clear(info));
+    // Focused URL / browser / known apps decide from the frontmost window alone —
+    // never pull Contextual labels (YouTube) from background tabs.
+    if is_coach_app(&info.app_name)
+        || hard_app_label(&info.app_name).is_some()
+        || contextual_app_label(&info.app_name).is_some()
+        || is_editor_app(&info.app_name)
+        || is_writing_app(&info.app_name)
+        || classify_focus_label(&info).is_some()
+        || !info.url.trim().is_empty()
+        || is_browser_app(&info.app_name)
+    {
+        return decide_focus(info, goals, &[]);
     }
 
-    // Cursor / IDEs / docs apps: on-task locally. Don't let a background YouTube tab
-    // override the focused work app (that was nailing chemistry study in Cursor).
-    if productive_focused {
+    // No focused URL: only surface AlwaysOff background tabs (Instagram/shopping).
+    #[cfg(target_os = "macos")]
+    {
+        let tabs = all_browser_tabs();
+        return decide_focus(info, goals, &tabs);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        decide_focus(info, goals, &[])
+    }
+}
+
+/// Pure focus decision (no AppleScript). Used by `evaluate_focus` and unit tests.
+fn decide_focus(
+    info: FrontmostInfo,
+    goals: &str,
+    background_tabs: &[BrowserTab],
+) -> Result<FocusEvent, String> {
+    // While Waypoint itself is frontmost, don't nag about background browser tabs.
+    if is_coach_app(&info.app_name) {
         return Ok(FocusEvent::Clear(info));
     }
 
@@ -148,9 +229,19 @@ pub fn evaluate_focus(goals: &str) -> Result<FocusEvent, String> {
         }));
     }
 
-    // Discord (and future contextual apps): title/context, not app-name alone.
+    // Discord / Steam / PDF apps: title/context, not app-name alone.
     if let Some(label) = contextual_app_label(&info.app_name) {
         return classify_site(label, info, goals, true);
+    }
+
+    // Cursor / IDEs: on-task only when goals look like coding (or title matches goals).
+    if is_editor_app(&info.app_name) {
+        return classify_editor(info, goals);
+    }
+
+    // Docs / notes: clear for writing/coursework goals; otherwise judge.
+    if is_writing_app(&info.app_name) {
+        return classify_writing_app(info, goals);
     }
 
     // Focused browser URL / window / tab title.
@@ -160,28 +251,66 @@ pub fn evaluate_focus(goals: &str) -> Result<FocusEvent, String> {
         return classify_site(label, info, goals, true);
     }
 
-    // Background tabs: URL host only — never title keywords (articles about Instagram ≠ Instagram).
-    // Disclosed in Settings; full-tab scan remains on while a non-Waypoint app is focused.
-    #[cfg(target_os = "macos")]
-    {
-        for tab in all_browser_tabs().into_iter().take(50) {
-            if !info.url.is_empty() && urls_similar(&info.url, &tab.url) {
+    // Focused browser (or any app with a URL) and no distraction host → judge THIS
+    // screen against goals. Do NOT scan background tabs for YouTube and claim the
+    // student is on YouTube while Canvas is frontmost.
+    if !info.url.trim().is_empty() || is_browser_app(&info.app_name) {
+        return classify_site("screen", info, goals, true);
+    }
+
+    // No focused URL: only surface AlwaysOff background tabs (Instagram/shopping).
+    // Never hard-nag Contextual surfaces (YouTube) from a background tab alone —
+    // that produced "That's youtube" while the student was on Canvas.
+    for tab in background_tabs.iter().take(50) {
+        let url_lower = tab.url.to_lowercase();
+        if let Some(label) = classify_url_host(&url_lower) {
+            if surface_policy(label) != SurfacePolicy::AlwaysOff {
                 continue;
             }
-            let url_lower = tab.url.to_lowercase();
-            if let Some(label) = classify_url_host(&url_lower) {
-                let mut bg = info.clone();
-                if bg.app_name.is_empty() {
-                    bg.app_name = "Browser".into();
-                }
-                bg.url = tab.url.clone();
-                bg.window_title = tab.title.clone();
-                let focused = !info.url.is_empty() && urls_similar(&info.url, &tab.url);
-                return classify_site(label, bg, goals, focused);
+            let mut bg = info.clone();
+            if bg.app_name.is_empty() {
+                bg.app_name = "Browser".into();
             }
+            bg.url = tab.url.clone();
+            bg.window_title = tab.title.clone();
+            return classify_site(label, bg, goals, false);
         }
     }
 
+    Ok(FocusEvent::Clear(info))
+}
+
+fn classify_editor(info: FrontmostInfo, goals: &str) -> Result<FocusEvent, String> {
+    let page_text = format!("{}\n{}", info.window_title, info.app_name);
+    match local_context_guess("editor", &page_text, goals) {
+        Some(true) => Ok(FocusEvent::Clear(info)),
+        Some(false) => Ok(FocusEvent::Hard(DistractionHit {
+            label: "editor",
+            detail: info.summary(),
+            focused: true,
+        })),
+        None => Ok(FocusEvent::NeedsJudgment {
+            kind: "editor",
+            info,
+            page_text,
+        }),
+    }
+}
+
+fn classify_writing_app(info: FrontmostInfo, goals: &str) -> Result<FocusEvent, String> {
+    let page_text = format!("{}\n{}", info.window_title, info.app_name);
+    // Essays / discussion posts / notes — writing apps are usually the work.
+    if goals_look_like_writing(goals) || goals_look_like_coursework(goals) {
+        return Ok(FocusEvent::Clear(info));
+    }
+    if goals_look_like_coding(goals) {
+        // Coding mission in Pages/Word is odd — soft-judge.
+        return Ok(FocusEvent::NeedsJudgment {
+            kind: "screen",
+            info,
+            page_text,
+        });
+    }
     Ok(FocusEvent::Clear(info))
 }
 
@@ -244,7 +373,10 @@ enum SurfacePolicy {
 fn surface_policy(label: &str) -> SurfacePolicy {
     match label {
         // Contextual: judge from goals + page/window context, not the category alone.
-        "youtube" | "video" | "discord" | "reading" | "gaming" => SurfacePolicy::Contextual,
+        // "screen" / "editor" are focused work surfaces — never AlwaysOff defaults.
+        "youtube" | "video" | "discord" | "reading" | "gaming" | "screen" | "editor" => {
+            SurfacePolicy::Contextual
+        }
         // Always-off categories (add hosts/apps via classify_url_host / hard_app_label).
         "instagram" | "tiktok" | "shopping" | "texting" | "email" | "netflix" | "twitch"
         | "spotify" | "facebook" | "twitter" | "reddit" | "pinterest" | "snapchat" => {
@@ -282,7 +414,12 @@ fn classify_site(
                 }));
             }
             Some(true) => {
-                // Clear study signal → confirm with local text judge.
+                // Focused LMS / generic screen with clear goal overlap → Clear immediately
+                // so OCR/background tabs cannot re-label the student as "youtube".
+                // YouTube/video study still goes to NeedsJudgment for local text confirm.
+                if matches!(label, "screen" | "editor") {
+                    return Ok(FocusEvent::Clear(info));
+                }
                 return Ok(FocusEvent::NeedsJudgment {
                     kind: label,
                     info,
@@ -291,8 +428,8 @@ fn classify_site(
             }
             None => {
                 // YouTube/video/gaming: interrupt by default when context is unclear
-                // (tiny models often mark entertainment on-task). Discord / reading stay
-                // judgment-gated so goal-matching study help and papers can still pass.
+                // (tiny models often mark entertainment on-task). screen / editor /
+                // Discord / reading stay judgment-gated (never Hard-as-youtube).
                 if matches!(label, "youtube" | "video" | "gaming") {
                     return Ok(FocusEvent::Hard(DistractionHit {
                         label,
@@ -377,8 +514,177 @@ pub fn local_context_guess(kind: &str, page_text: &str, goals: &str) -> Option<b
         "discord" => guess_discord_context(&blob, goals),
         "reading" => guess_reading_context(&blob, page_text, goals),
         "gaming" => guess_gaming_context(page_text, goals),
+        "screen" => guess_screen_context(&blob, page_text, goals),
+        "editor" => guess_editor_context(page_text, goals),
         _ => None,
     }
+}
+
+/// Focused non-distraction browser tab (Canvas, docs, etc.).
+fn guess_screen_context(blob: &str, page_text: &str, goals: &str) -> Option<bool> {
+    let head = title_url_head(page_text);
+    let hay = format!("{head}\n{blob}");
+    let goal_overlap = goal_keywords(goals)
+        .into_iter()
+        .filter(|k| head.contains(k) || blob.contains(k.as_str()))
+        .count();
+
+    // LMS / course sites matching session goals → on-task (never youtube).
+    if is_study_lms_host(&hay) {
+        if goal_overlap >= 1
+            || goals_look_like_coursework(goals)
+            || goals_look_like_writing(goals)
+        {
+            return Some(true);
+        }
+        // Canvas with unrelated goals still needs judgment — not Hard.
+        return None;
+    }
+
+    if goal_overlap >= 1 {
+        return Some(true);
+    }
+    None
+}
+
+/// IDE / terminal: on-task only for coding goals or when the window title matches goals.
+fn guess_editor_context(page_text: &str, goals: &str) -> Option<bool> {
+    let head = title_url_head(page_text);
+    let goal_overlap = goal_keywords(goals)
+        .into_iter()
+        .filter(|k| head.contains(k))
+        .count();
+
+    if goal_overlap >= 1 {
+        return Some(true);
+    }
+    if goals_look_like_coding(goals) {
+        return Some(true);
+    }
+    // Essay / discussion / coursework missions → Cursor is off-task.
+    if goals_look_like_writing(goals) || goals_look_like_coursework(goals) {
+        return Some(false);
+    }
+    None
+}
+
+/// Canvas / LMS / course portals — study hosts (goal-checked, not auto-youtube).
+pub fn is_study_lms_host(text: &str) -> bool {
+    let t = text.to_lowercase();
+    t.contains("canvas.")
+        || t.contains("instructure.com")
+        || t.contains("blackboard.")
+        || t.contains("blackboard.com")
+        || t.contains("brightspace.")
+        || t.contains("schoology.com")
+        || t.contains("moodle.")
+}
+
+pub fn goals_look_like_coding(goals: &str) -> bool {
+    let g = goals.to_lowercase();
+    const KEYS: &[&str] = &[
+        "code",
+        "coding",
+        "program",
+        "programming",
+        "debug",
+        "leetcode",
+        "software",
+        "hackathon",
+        "rust",
+        "python",
+        "javascript",
+        "typescript",
+        "refactor",
+        "github",
+        "compiler",
+        "algorithm",
+        "data structure",
+        "frontend",
+        "backend",
+        "ide",
+        "c++",
+        "java",
+    ];
+    KEYS.iter().any(|k| g.contains(k))
+}
+
+pub fn goals_look_like_writing(goals: &str) -> bool {
+    let g = goals.to_lowercase();
+    const KEYS: &[&str] = &[
+        "essay",
+        "write",
+        "writing",
+        "draft",
+        "discussion",
+        "paper",
+        "thesis",
+        "paragraph",
+        "journal",
+        "blog",
+        "story",
+        "narrative",
+        "reflection",
+        "response paper",
+        "discussion post",
+    ];
+    KEYS.iter().any(|k| g.contains(k))
+}
+
+pub fn goals_look_like_coursework(goals: &str) -> bool {
+    let g = goals.to_lowercase();
+    const KEYS: &[&str] = &[
+        "homework",
+        "assignment",
+        "quiz",
+        "exam",
+        "midterm",
+        "problem set",
+        "pset",
+        "lab report",
+        "coursework",
+        "schoolwork",
+        "canvas",
+        "lecture",
+        "discussion",
+        "finish",
+        "course ",
+        "class ",
+        "study",
+    ];
+    if KEYS.iter().any(|k| g.contains(k)) {
+        return true;
+    }
+    // Glued course codes: ENGL1140, CS2110
+    for word in goals.split(|c: char| !c.is_alphanumeric()) {
+        let w = word.to_lowercase();
+        let alpha: String = w.chars().take_while(|c| c.is_ascii_alphabetic()).collect();
+        let digits: String = w.chars().skip(alpha.len()).collect();
+        if alpha.len() >= 2
+            && alpha.len() <= 6
+            && digits.len() >= 3
+            && digits.len() <= 5
+            && digits.chars().all(|c| c.is_ascii_digit())
+        {
+            return true;
+        }
+    }
+    // Spaced course codes: "ENGL 1140"
+    let tokens: Vec<&str> = goals.split_whitespace().collect();
+    for pair in tokens.windows(2) {
+        let a = pair[0];
+        let b = pair[1].trim_matches(|c: char| !c.is_ascii_digit());
+        if a.len() >= 2
+            && a.len() <= 6
+            && a.chars().all(|c| c.is_ascii_alphabetic())
+            && b.len() >= 3
+            && b.len() <= 5
+            && b.chars().all(|c| c.is_ascii_digit())
+        {
+            return true;
+        }
+    }
+    false
 }
 
 fn guess_youtube_context(blob: &str, page_text: &str, goals: &str) -> Option<bool> {
@@ -766,6 +1072,13 @@ fn classify_url_host(text: &str) -> Option<&'static str> {
         ("wiley.com", "reading"),
         ("ssrn.com", "reading"),
         ("doi.org", "reading"),
+        // LMS / course portals — contextual screen (goal-overlap → Clear; never youtube).
+        ("canvas.", "screen"),
+        ("instructure.com", "screen"),
+        ("blackboard.", "screen"),
+        ("blackboard.com", "screen"),
+        ("brightspace.", "screen"),
+        ("schoology.com", "screen"),
         // Gaming storefronts / launchers in-browser — contextual via goals.
         ("store.steampowered", "gaming"),
         ("steamcommunity.com", "gaming"),
@@ -800,6 +1113,8 @@ fn page_context_blob(info: &FrontmostInfo) -> String {
     if !info.url.is_empty() {
         parts.push(info.url.clone());
     }
+    // Unit tests must stay hermetic — no live Safari/Chrome AppleScript.
+    #[cfg(not(test))]
     if let Some(excerpt) = grab_page_excerpt(&info.app_name) {
         let cleaned = collapse_ws(&excerpt);
         if !cleaned.is_empty() {
@@ -1095,6 +1410,7 @@ fn osascript_jxa(source: &str) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+#[allow(dead_code)]
 fn urls_similar(a: &str, b: &str) -> bool {
     let ha = url_host(a).unwrap_or_else(|| a.to_lowercase());
     let hb = url_host(b).unwrap_or_else(|| b.to_lowercase());
@@ -1198,6 +1514,92 @@ mod tests {
         assert_eq!(surface_policy("discord"), SurfacePolicy::Contextual);
         assert_eq!(surface_policy("reading"), SurfacePolicy::Contextual);
         assert_eq!(surface_policy("gaming"), SurfacePolicy::Contextual);
+        assert_eq!(surface_policy("screen"), SurfacePolicy::Contextual);
+        assert_eq!(surface_policy("editor"), SurfacePolicy::Contextual);
+    }
+
+    #[test]
+    fn focused_canvas_with_bg_youtube_is_not_youtube_hard() {
+        // Bug repro: Safari on Canvas + background YouTube tab must not say "youtube".
+        let info = FrontmostInfo {
+            app_name: "Safari".into(),
+            window_title: "Week 7: Discussion - ENGL 1140".into(),
+            url: "https://canvas.cornell.edu/courses/73512/discussion_topics/912".into(),
+        };
+        let bg = [BrowserTab {
+            url: "https://www.youtube.com/watch?v=SbTT1f3xZVg".into(),
+            title: "KSI - Thick of it, but with NO MUSIC - YouTube".into(),
+        }];
+        assert_eq!(
+            classify_url_host(&info.url.to_lowercase()),
+            Some("screen")
+        );
+        let event = decide_focus(info, "Finish ENGL 1140 work", &bg).expect("decide");
+        match event {
+            FocusEvent::Hard(hit) => {
+                panic!(
+                    "expected Clear/NeedsJudgment for Canvas, got Hard {} ({})",
+                    hit.label, hit.detail
+                );
+            }
+            FocusEvent::Clear(_) => {}
+            FocusEvent::NeedsJudgment { kind, .. } => {
+                assert_ne!(kind, "youtube", "Canvas must not be labeled youtube");
+                assert_ne!(kind, "video");
+            }
+        }
+    }
+
+    #[test]
+    fn focused_youtube_entertainment_still_hard() {
+        let info = FrontmostInfo {
+            app_name: "Safari".into(),
+            window_title: "KSI - Thick of it, but with NO MUSIC - YouTube".into(),
+            url: "https://www.youtube.com/watch?v=SbTT1f3xZVg".into(),
+        };
+        let event = decide_focus(info, "Finish ENGL 1140 work", &[]).expect("decide");
+        match event {
+            FocusEvent::Hard(hit) => assert_eq!(hit.label, "youtube"),
+            other => panic!("expected youtube Hard, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn editor_with_engl_goals_not_clear() {
+        let info = FrontmostInfo {
+            app_name: "Cursor".into(),
+            window_title: "frontmost.rs — BigRedHacksProject".into(),
+            url: String::new(),
+        };
+        assert_eq!(
+            local_context_guess(
+                "editor",
+                "frontmost.rs — BigRedHacksProject\nCursor",
+                "Finish ENGL 1140 work"
+            ),
+            Some(false)
+        );
+        let event = decide_focus(info, "Finish ENGL 1140 work", &[]).expect("decide");
+        match event {
+            FocusEvent::Clear(_) => panic!("editor must not Clear for ENGL coursework goals"),
+            FocusEvent::Hard(hit) => assert_eq!(hit.label, "editor"),
+            FocusEvent::NeedsJudgment { kind, .. } => assert_eq!(kind, "editor"),
+        }
+    }
+
+    #[test]
+    fn screen_unclear_is_needs_judgment_not_hard() {
+        let info = FrontmostInfo {
+            app_name: "Safari".into(),
+            window_title: "Random docs page".into(),
+            url: "https://example.com/notes".into(),
+        };
+        let event = decide_focus(info, "Finish ENGL 1140 work", &[]).expect("decide");
+        match event {
+            FocusEvent::NeedsJudgment { kind, .. } => assert_eq!(kind, "screen"),
+            FocusEvent::Hard(hit) => panic!("screen unclear must not Hard ({})", hit.label),
+            FocusEvent::Clear(_) => panic!("unclear screen without goal overlap should not Clear"),
+        }
     }
 
     #[test]
@@ -1319,6 +1721,57 @@ mod tests {
         assert_ne!(
             classify_url_host("https://www.youtube.com/shorts/abc123"),
             Some("instagram")
+        );
+    }
+
+    #[test]
+    fn focus_supports_youtube_only_when_host_or_chrome_matches() {
+        let canvas = FrontmostInfo {
+            app_name: "Safari".into(),
+            window_title: "ENGL 1140 Discussion".into(),
+            url: "https://canvas.cornell.edu/courses/1/discussion_topics/2".into(),
+        };
+        assert!(
+            !focus_supports_distraction_label("youtube", &canvas),
+            "Canvas must not corroborate youtube"
+        );
+
+        let yt = FrontmostInfo {
+            app_name: "Safari".into(),
+            window_title: "KSI - Thick of it - YouTube".into(),
+            url: "https://www.youtube.com/watch?v=SbTT1f3xZVg".into(),
+        };
+        assert!(focus_supports_distraction_label("youtube", &yt));
+
+        let title_only = FrontmostInfo {
+            app_name: "Safari".into(),
+            window_title: "Lecture 3 - YouTube".into(),
+            url: String::new(),
+        };
+        assert!(focus_supports_distraction_label("youtube", &title_only));
+    }
+
+    #[test]
+    fn distraction_coach_line_background_youtube_is_not_focused_copy() {
+        let hit = DistractionHit {
+            label: "youtube",
+            detail: "Safari · youtube.com".into(),
+            focused: false,
+        };
+        let line = distraction_coach_line(&hit).to_lowercase();
+        assert!(
+            line.contains("background"),
+            "background youtube must say background, got: {line}"
+        );
+        let focused = DistractionHit {
+            label: "youtube",
+            detail: "Safari · youtube.com".into(),
+            focused: true,
+        };
+        let focused_line = distraction_coach_line(&focused).to_lowercase();
+        assert!(
+            !focused_line.contains("background"),
+            "focused youtube must not say background: {focused_line}"
         );
     }
 

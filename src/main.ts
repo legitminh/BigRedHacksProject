@@ -3834,7 +3834,7 @@ function resetConceptMap() {
   }
 }
 
-/** True when the note has content beyond a title and "Not captured." placeholders. */
+/** True when the note has diglog content beyond a title and "Not captured." placeholders. */
 function noteHasConceptMapTopics(markdown: string): boolean {
   for (const line of markdown.split("\n")) {
     const trimmed = line.trim();
@@ -3845,6 +3845,55 @@ function noteHasConceptMapTopics(markdown: string): boolean {
     return true;
   }
   return false;
+}
+
+function noteMissionTitle(markdown: string): string {
+  for (const line of markdown.split("\n")) {
+    const heading = line.trim().match(/^#\s+(.+)$/);
+    if (heading?.[1]?.trim()) return heading[1].trim();
+  }
+  return "";
+}
+
+/** Brag sheet needs mission, locked-in minutes, or real diglog — empty Not-captured alone is not enough. */
+function canShareBragSheet(markdown: string): boolean {
+  if (noteHasConceptMapTopics(markdown)) return true;
+  const mission =
+    noteMissionTitle(markdown) ||
+    lastSummaryGoals.trim() ||
+    lastSessionSummary?.goals?.trim() ||
+    "";
+  const minutes = lastSessionSummary
+    ? flightMinutesFromSecs(lastSessionSummary.duration_secs)
+    : 0;
+  return Boolean(mission || minutes > 0);
+}
+
+function bragSheetInvokeArgs(markdown: string): {
+  markdown: string;
+  lockedInMinutes?: number;
+  mission?: string;
+  onTaskPercent?: number;
+} {
+  const mission =
+    noteMissionTitle(markdown) ||
+    lastSummaryGoals.trim() ||
+    lastSessionSummary?.goals?.trim() ||
+    undefined;
+  const lockedInMinutes = lastSessionSummary
+    ? flightMinutesFromSecs(lastSessionSummary.duration_secs)
+    : undefined;
+  const checks = lastSessionSummary?.screen_checks ?? 0;
+  const onTaskPercent =
+    lastSessionSummary && checks > 0
+      ? Math.round(lastSessionSummary.on_task_ratio * 100)
+      : undefined;
+  return {
+    markdown,
+    ...(lockedInMinutes && lockedInMinutes > 0 ? { lockedInMinutes } : {}),
+    ...(mission ? { mission } : {}),
+    ...(onTaskPercent !== undefined && onTaskPercent > 0 ? { onTaskPercent } : {}),
+  };
 }
 
 /** Filename: Waypoint-Session-Summary-{goal-slug}-{YYYY-MM-DD}.{ext} */
@@ -3886,7 +3935,8 @@ function showConceptMapOffer(markdown: string) {
     hideSessionSummaryResult();
   }
   wrap.hidden = false;
-  if (!noteHasConceptMapTopics(markdown)) {
+  // Empty diglog ("Not captured.") still allows a proud time+mission brag sheet.
+  if (!canShareBragSheet(markdown)) {
     conceptMapMarkdown = "";
     if (button) {
       button.disabled = true;
@@ -3895,7 +3945,7 @@ function showConceptMapOffer(markdown: string) {
     if (status) {
       status.hidden = false;
       status.textContent =
-        "No captured content yet — a session summary needs session evidence, not empty sections.";
+        "Nothing to brag about yet — need locked-in time or a mission goal.";
     }
     return;
   }
@@ -3911,18 +3961,18 @@ function showConceptMapOffer(markdown: string) {
 
 function conceptMapError(error: unknown): string {
   if (typeof error === "string" && error.trim()) {
-    if (/empty_concept_map|no captured (topics|content)/i.test(error)) {
-      return "No captured content yet — a session summary needs session evidence, not empty sections.";
+    if (/empty_concept_map|nothing to brag|no captured (topics|content)/i.test(error)) {
+      return "Nothing to brag about yet — need locked-in time or a mission goal.";
     }
     return error;
   }
   if (error instanceof Error && error.message.trim()) {
-    if (/empty_concept_map|no captured (topics|content)/i.test(error.message)) {
-      return "No captured content yet — a session summary needs session evidence, not empty sections.";
+    if (/empty_concept_map|nothing to brag|no captured (topics|content)/i.test(error.message)) {
+      return "Nothing to brag about yet — need locked-in time or a mission goal.";
     }
     return error.message;
   }
-  return "Couldn't create the session summary.";
+  return "Couldn't create the brag sheet.";
 }
 
 async function requestConceptMap() {
@@ -3932,15 +3982,24 @@ async function requestConceptMap() {
   const image = $("#summary-concept-map-image") as HTMLImageElement | null;
   const button = $("#summary-concept-map-btn") as HTMLButtonElement | null;
   if (!markdown || !status || !image || !button) return;
+  if (!canShareBragSheet(markdown)) {
+    status.hidden = false;
+    status.textContent =
+      "Nothing to brag about yet — need locked-in time or a mission goal.";
+    return;
+  }
   button.disabled = true;
   status.hidden = false;
-  status.textContent = "Creating your session summary…";
+  status.textContent = "Creating your mission brag sheet…";
   if (result) result.hidden = true;
   image.hidden = true;
   image.removeAttribute("src");
   lastSessionSummaryImage = null;
   try {
-    const generated = await invoke<ConceptMapImage>("concept_map", { markdown });
+    const generated = await invoke<ConceptMapImage>(
+      "concept_map",
+      bragSheetInvokeArgs(markdown),
+    );
     const type = /^image\/(jpeg|png|webp)$/.test(generated.content_type)
       ? generated.content_type
       : "image/jpeg";
@@ -3994,6 +4053,32 @@ function showSessionNotePending() {
   resetConceptMap();
 }
 
+/** Hide retired empty tabs (Decisions / Stuck on / Next / Gaps) from older notes. */
+function sanitizeSessionNoteMarkdown(markdown: string): string {
+  const drop = new Set([
+    "decisions",
+    "stuck on",
+    "next",
+    "gaps / shaky parts",
+    "gaps",
+  ]);
+  const lines = markdown.split("\n");
+  const out: string[] = [];
+  let skipping = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("## ")) {
+      const heading = trimmed.slice(3).trim().toLowerCase();
+      skipping = drop.has(heading);
+      if (skipping) continue;
+    } else if (skipping) {
+      continue;
+    }
+    out.push(line);
+  }
+  return out.join("\n").trim();
+}
+
 function showSessionNoteMarkdown(markdown: string) {
   const card = $("#summary-session-note");
   const status = $("#summary-session-note-status");
@@ -4002,7 +4087,7 @@ function showSessionNoteMarkdown(markdown: string) {
   card.hidden = false;
   status.hidden = true;
   body.hidden = false;
-  renderMarkdown(body, markdown);
+  renderMarkdown(body, sanitizeSessionNoteMarkdown(markdown));
   showConceptMapOffer(markdown);
 }
 

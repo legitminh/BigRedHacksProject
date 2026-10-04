@@ -16,12 +16,12 @@ pub const NOTE_SYSTEM_PROMPT: &str = "\
 You write one readable Markdown session note for a Waypoint lock-in. Use only the sources in the user message. Do not invent facts, files, courses, or decisions that are not there.
 
 The user message names the kind. Follow it.
-- study: the user narrated study in their own words (explaining a concept, teaching it back, \"let me explain\"). Sections, in order: a Markdown title, What I was learning, In my own words, Gaps / shaky parts, Next.
-- devlog: the user was building, coding, or debugging (editor, terminal, repo work, coding modality, implementation goals). Sections, in order: a Markdown title, What I worked on, Decisions, Stuck on, Next.
+- study: the user narrated study in their own words (explaining a concept, teaching it back, \"let me explain\"). Sections, in order: a Markdown title, What I was learning, In my own words. Do not add Gaps, Decisions, Stuck on, or Next.
+- diglog: activity during the mission (apps, tabs, editors). Sections, in order: a Markdown title, What I worked on. Do not add Decisions, Stuck on, Next, or other extra sections.
 If the sources are mixed, the named kind is the dominant activity from goals, narration, and screen summaries. Follow that kind.
 
 Coach prompt lines are context only. Never treat them as the user's words.
-GOALS is the mission they named, not proof they did that work. Only USER'S OWN WORDS and SCREEN SUMMARIES are evidence. If a section has no evidence, write \"Not captured.\" Do not invent topics, exercises, pronunciation, flashcards, or next steps. Never output a study-suggestion marker or JSON.
+GOALS is the mission they named, not proof they did that work. Only USER'S OWN WORDS and SCREEN SUMMARIES are evidence. If a section has no evidence, write \"Not captured.\" Do not invent topics, exercises, pronunciation, flashcards, or next steps. Never output a study-suggestion marker or JSON. Never invent Decisions / Stuck on / Next sections.
 Output the Markdown note only. No JSON, and no code fence around the note.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,7 +41,7 @@ impl NoteKind {
     fn section_markers(self) -> &'static [&'static str] {
         match self {
             Self::Study => &["What I was learning", "In my own words"],
-            Self::Devlog => &["What I worked on", "Decisions"],
+            Self::Devlog => &["What I worked on"],
         }
     }
 }
@@ -218,23 +218,8 @@ pub fn fallback_markdown(sources: &NoteSources, kind: NoteKind) -> String {
             // activity; only fall back to the mission name when nothing else was logged.
             let learning = study_learning_lines(sources);
             let words = bullets_or(&sources.user_utterances, "Not captured.");
-            let mut gap_src = gap_lines(&sources.screen_lines);
-            if gap_src.is_empty() {
-                gap_src.extend(
-                    sources
-                        .screen_lines
-                        .iter()
-                        .filter(|l| l.to_lowercase().contains("distraction:"))
-                        .cloned(),
-                );
-            }
-            let gaps = bullets_or(&gap_src, "Not captured.");
-            let next = bullets_or(
-                &lines_mentioning(&sources.user_utterances, &["next"]),
-                "Not captured.",
-            );
             format!(
-                "# {title}\n\n## What I was learning\n{learning}\n\n## In my own words\n{words}\n\n## Gaps / shaky parts\n{gaps}\n\n## Next\n{next}\n"
+                "# {title}\n\n## What I was learning\n{learning}\n\n## In my own words\n{words}\n"
             )
         }
         NoteKind::Devlog => {
@@ -244,21 +229,8 @@ pub fn fallback_markdown(sources: &NoteSources, kind: NoteKind) -> String {
             }
             worked.extend(sources.screen_lines.iter().cloned());
             let worked = bullets_or(&worked, "Not captured.");
-            let decisions = decision_lines(&sources.user_utterances);
-            let decisions = bullets_or(&decisions, "Not captured.");
-            let mut stuck_src = sources.user_utterances.clone();
-            stuck_src.extend(sources.screen_lines.iter().cloned());
-            let stuck = bullets_or(
-                &lines_mentioning(&stuck_src, &["stuck", "error", "bug", "fail", "debug"]),
-                "Not captured.",
-            );
-            let next = bullets_or(
-                &lines_mentioning(&sources.user_utterances, &["next", "todo"]),
-                "Not captured.",
-            );
-            format!(
-                "# {title}\n\n## What I worked on\n{worked}\n\n## Decisions\n{decisions}\n\n## Stuck on\n{stuck}\n\n## Next\n{next}\n"
-            )
+            // Proud activity trail only — no empty Decisions / Stuck on / Next tabs.
+            format!("# {title}\n\n## What I worked on\n{worked}\n")
         }
     }
 }
@@ -455,6 +427,7 @@ fn accept_model_markdown(raw: &str, kind: NoteKind) -> Option<String> {
             .trim()
             .to_string();
     }
+    text = strip_retired_note_sections(&text);
     if text.chars().count() < 40 {
         return None;
     }
@@ -468,6 +441,40 @@ fn accept_model_markdown(raw: &str, kind: NoteKind) -> Option<String> {
     } else {
         None
     }
+}
+
+/// Drop Decisions / Stuck on / Next / Gaps sections (and empty Not-captured bodies).
+fn strip_retired_note_sections(markdown: &str) -> String {
+    const DROP: &[&str] = &[
+        "decisions",
+        "stuck on",
+        "next",
+        "gaps / shaky parts",
+        "gaps",
+    ];
+    let mut out = Vec::new();
+    let mut skipping = false;
+    for line in markdown.lines() {
+        let trimmed = line.trim();
+        if let Some(rest) = trimmed.strip_prefix("## ") {
+            let heading = rest.trim().to_lowercase();
+            skipping = DROP.iter().any(|h| heading == *h);
+            if skipping {
+                continue;
+            }
+        } else if skipping {
+            // Keep skipping until the next ## heading.
+            if trimmed.starts_with("## ") {
+                // handled above next iteration — unreachable
+            } else {
+                continue;
+            }
+        }
+        if !skipping {
+            out.push(line);
+        }
+    }
+    out.join("\n").trim().to_string()
 }
 
 /// Copilot chat on the API. The desktop does not call Ollama or the lock-in model.
@@ -736,8 +743,8 @@ Not captured.";
         let md = fallback_markdown(&sources, NoteKind::Study);
         assert!(md.contains("## What I was learning"));
         assert!(md.contains("## In my own words"));
-        assert!(md.contains("## Gaps / shaky parts"));
-        assert!(md.contains("## Next"));
+        assert!(!md.contains("## Gaps / shaky parts"));
+        assert!(!md.contains("## Next"));
         assert!(md.contains("let me explain photosynthesis in my own words"));
         assert!(md.contains("biology chapter 3"));
         assert!(md.contains("Safari · textbook"));
@@ -786,7 +793,7 @@ Not captured.";
     }
 
     #[test]
-    fn coding_session_is_devlog_with_stuck_section() {
+    fn coding_session_is_devlog_worked_on_only() {
         let sources = sources(
             "implement the parser",
             "coding",
@@ -799,11 +806,9 @@ Not captured.";
         assert!(md.contains("## What I worked on"));
         assert!(md.contains("implement the parser"));
         assert!(md.contains("Cursor · repo"));
-        assert!(md.contains("## Decisions"));
-        assert!(md.contains("## Stuck on"));
-        assert!(md.contains("borrow checker"));
-        assert!(md.contains("## Next"));
-        assert!(md.contains("Not captured."));
+        assert!(!md.contains("## Decisions"));
+        assert!(!md.contains("## Stuck on"));
+        assert!(!md.contains("## Next"));
         assert!(!md.contains("Nice — this looks on track."));
     }
 

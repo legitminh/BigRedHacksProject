@@ -420,21 +420,59 @@ async fn run_local_watch_loop(
         if let Some(event) = event {
             match event {
                 frontmost::FocusEvent::Hard(hit) => {
+                    // Defensive (works with or without A's frontmost fix): never "leave youtube"
+                    // while the focused host is Canvas / anything non-YouTube.
+                    let front_now = tokio::task::spawn_blocking(frontmost::frontmost_info)
+                        .await
+                        .ok()
+                        .and_then(|r| r.ok());
+                    if matches!(hit.label, "youtube" | "video") {
+                        if let Some(ref info) = front_now {
+                            if !frontmost::focus_supports_distraction_label(hit.label, info) {
+                                append_screen_log(
+                                    &app,
+                                    &format!(
+                                        "Skip {} hard-nag — focused {}",
+                                        hit.label,
+                                        info.summary()
+                                    ),
+                                );
+                                if was_distracted
+                                    || last_fingerprint.contains("youtube")
+                                    || last_fingerprint.contains("video")
+                                {
+                                    was_distracted = false;
+                                    clear_distraction_episode();
+                                    last_fingerprint = info.fingerprint();
+                                    play_back_on_task_ding(&app);
+                                }
+                                mark_local_on_task(&app, info);
+                                // Fall through to OCR tick with a clean distraction state.
+                                tokio::time::sleep(Duration::from_millis(450)).await;
+                                continue;
+                            }
+                        }
+                    }
                     // Key by label only — detail churn was resetting cooldown and stacking voice.
                     let fp = format!("hard:{}", hit.label);
                     last_fingerprint = fp;
                     append_screen_log(&app, &format!("{} · {}", hit.label, hit.detail));
                     let cfg = app.state::<AppState>().config.lock().clone();
                     let nag_n = distraction_episode_nags(hit.label).saturating_add(1);
-                    let coach_line = local_judge::compose_coach_line(
-                        &cfg,
-                        "distracted",
-                        &goals,
-                        hit.label,
-                        &hit.detail,
-                        nag_n,
-                    )
-                    .await;
+                    // Background-tab hits must not say the focused app *is* the distraction.
+                    let coach_line = if !hit.focused {
+                        frontmost::distraction_coach_line(&hit)
+                    } else {
+                        local_judge::compose_coach_line(
+                            &cfg,
+                            "distracted",
+                            &goals,
+                            hit.label,
+                            &hit.detail,
+                            nag_n,
+                        )
+                        .await
+                    };
                     let result = CoachVisionResult {
                         on_task: false,
                         objects: vec![hit.label.into(), hit.detail.clone()],
@@ -452,128 +490,159 @@ async fn run_local_watch_loop(
                     info,
                     page_text,
                 } => {
-                    let fp = info.fingerprint();
-                    let switched = fp != last_fingerprint;
-                    last_fingerprint = fp.clone();
-                    if switched {
-                        append_screen_log(&app, &info.summary());
-                        if !page_text.trim().is_empty() {
-                            append_screen_log(&app, &format!("Page: {page_text}"));
+                    // Defensive: if kind says youtube but focused host isn't, don't imply
+                    // the student is on YouTube (stale/background mislabel).
+                    let kind_supported = !matches!(kind, "youtube" | "video")
+                        || frontmost::focus_supports_distraction_label(kind, &info);
+                    if !kind_supported {
+                        append_screen_log(
+                            &app,
+                            &format!("Skip {kind} judgment — focused {}", info.summary()),
+                        );
+                        if was_distracted {
+                            was_distracted = false;
+                            clear_distraction_episode();
+                            play_back_on_task_ding(&app);
                         }
-                    }
-
-                    // 1) Instant keyword guess for obvious study vs entertainment.
-                    //    Unclear YouTube/video/gaming → off-task (interrupt by default).
-                    let mut heuristic = frontmost::local_context_guess(kind, &page_text, &goals);
-                    if heuristic.is_none() && matches!(kind, "youtube" | "video" | "gaming") {
-                        heuristic = Some(false);
-                    }
-                    if let Some(on_task) = heuristic {
-                        if on_task {
-                            if was_distracted && switched {
-                                was_distracted = false;
-                                play_back_on_task_ding(&app);
+                        last_fingerprint = info.fingerprint();
+                        mark_local_on_task(&app, &info);
+                    } else {
+                        let fp = info.fingerprint();
+                        let switched = fp != last_fingerprint;
+                        last_fingerprint = fp.clone();
+                        if switched {
+                            append_screen_log(&app, &info.summary());
+                            if !page_text.trim().is_empty() {
+                                append_screen_log(&app, &format!("Page: {page_text}"));
                             }
-                            mark_local_on_task(&app, &info);
-                        } else {
-                            let hit = frontmost::DistractionHit {
-                                label: kind,
-                                detail: info.summary(),
-                                focused: true,
-                            };
-                            let cfg = app.state::<AppState>().config.lock().clone();
-                            let nag_n = distraction_episode_nags(kind).saturating_add(1);
-                            let coach_line = local_judge::compose_coach_line(
-                                &cfg,
-                                "distracted",
-                                &goals,
-                                kind,
-                                &hit.detail,
-                                nag_n,
-                            )
-                            .await;
-                            let result = CoachVisionResult {
-                                on_task: false,
-                                objects: vec![kind.into(), info.window_title.clone()],
-                                distraction: Some(kind.into()),
-                                needs_help: false,
-                                stress_cue: last_vitals.stressed,
-                                coach_line,
-                                modality: Some("computer".into()),
-                            };
-                            apply_coach_tick(&app, &result, &mut last_vitals).await;
-                            was_distracted = true;
                         }
-                    } else if switched {
-                        let state = app.state::<AppState>();
-                        let mut guard = state.session.lock();
-                        if let Some(session) = guard.as_mut() {
-                            session.watching_note =
-                                format!("Checking if this {kind} fits your goals…");
-                            let snap = session.clone();
-                            drop(guard);
-                            let _ = app.emit("session-update", &snap);
-                        }
-                    }
 
-                    // 2) Ambiguous → local Ollama/Llama judge only (no Gemini in lock-in).
-                    if heuristic.is_none()
-                        && fp != last_judged_fingerprint
-                        && context_judgments < MAX_CONTEXT_JUDGMENTS_PER_SESSION
-                    {
-                        context_judgments = context_judgments.saturating_add(1);
-                        let judged = tokio::time::timeout(
-                            Duration::from_secs(12),
-                            judge_context_cascade(
-                                &app,
-                                &goals,
-                                kind,
-                                &info,
-                                &page_text,
-                                &mut last_vitals,
-                            ),
-                        )
-                        .await;
-                        match judged {
-                            Ok(Some(on_task)) => {
-                                last_judged_fingerprint = fp;
-                                if on_task {
-                                    if was_distracted {
-                                        was_distracted = false;
-                                        play_back_on_task_ding(&app);
-                                    }
-                                } else {
-                                    was_distracted = true;
+                        // 1) Instant keyword guess for obvious study vs entertainment.
+                        //    Unclear YouTube/video/gaming → off-task (interrupt by default).
+                        let mut heuristic =
+                            frontmost::local_context_guess(kind, &page_text, &goals);
+                        if heuristic.is_none() && matches!(kind, "youtube" | "video" | "gaming")
+                        {
+                            heuristic = Some(false);
+                        }
+                        if let Some(on_task) = heuristic {
+                            if on_task {
+                                if was_distracted && switched {
+                                    was_distracted = false;
+                                    play_back_on_task_ding(&app);
                                 }
-                            }
-                            Ok(None) | Err(_) => {
-                                // Don't pin fingerprint on failure — allow retry next tick.
-                                tracing::warn!(
-                                    "context judge failed/timed out for {kind} — treating as off-task"
-                                );
+                                mark_local_on_task(&app, &info);
+                            } else {
                                 let hit = frontmost::DistractionHit {
                                     label: kind,
                                     detail: info.summary(),
                                     focused: true,
                                 };
+                                let cfg = app.state::<AppState>().config.lock().clone();
+                                let nag_n = distraction_episode_nags(kind).saturating_add(1);
+                                let coach_line = local_judge::compose_coach_line(
+                                    &cfg,
+                                    "distracted",
+                                    &goals,
+                                    kind,
+                                    &hit.detail,
+                                    nag_n,
+                                )
+                                .await;
                                 let result = CoachVisionResult {
                                     on_task: false,
                                     objects: vec![kind.into(), info.window_title.clone()],
                                     distraction: Some(kind.into()),
                                     needs_help: false,
                                     stress_cue: last_vitals.stressed,
-                                    coach_line: frontmost::distraction_coach_line(&hit),
+                                    coach_line,
                                     modality: Some("computer".into()),
                                 };
                                 apply_coach_tick(&app, &result, &mut last_vitals).await;
                                 was_distracted = true;
-                                last_judged_fingerprint = fp;
+                            }
+                        } else if switched {
+                            let state = app.state::<AppState>();
+                            let mut guard = state.session.lock();
+                            if let Some(session) = guard.as_mut() {
+                                session.watching_note =
+                                    format!("Checking if this {kind} fits your goals…");
+                                let snap = session.clone();
+                                drop(guard);
+                                let _ = app.emit("session-update", &snap);
+                            }
+                        }
+
+                        // 2) Ambiguous → local Ollama/Llama judge only (no Gemini in lock-in).
+                        if heuristic.is_none()
+                            && fp != last_judged_fingerprint
+                            && context_judgments < MAX_CONTEXT_JUDGMENTS_PER_SESSION
+                        {
+                            context_judgments = context_judgments.saturating_add(1);
+                            let judged = tokio::time::timeout(
+                                Duration::from_secs(12),
+                                judge_context_cascade(
+                                    &app,
+                                    &goals,
+                                    kind,
+                                    &info,
+                                    &page_text,
+                                    &mut last_vitals,
+                                ),
+                            )
+                            .await;
+                            match judged {
+                                Ok(Some(on_task)) => {
+                                    last_judged_fingerprint = fp;
+                                    if on_task {
+                                        if was_distracted {
+                                            was_distracted = false;
+                                            play_back_on_task_ding(&app);
+                                        }
+                                    } else {
+                                        was_distracted = true;
+                                    }
+                                }
+                                Ok(None) | Err(_) => {
+                                    // Don't pin fingerprint on failure — allow retry next tick.
+                                    tracing::warn!(
+                                        "context judge failed/timed out for {kind} — treating as off-task"
+                                    );
+                                    let hit = frontmost::DistractionHit {
+                                        label: kind,
+                                        detail: info.summary(),
+                                        focused: true,
+                                    };
+                                    let result = CoachVisionResult {
+                                        on_task: false,
+                                        objects: vec![kind.into(), info.window_title.clone()],
+                                        distraction: Some(kind.into()),
+                                        needs_help: false,
+                                        stress_cue: last_vitals.stressed,
+                                        coach_line: frontmost::distraction_coach_line(&hit),
+                                        modality: Some("computer".into()),
+                                    };
+                                    apply_coach_tick(&app, &result, &mut last_vitals).await;
+                                    was_distracted = true;
+                                    last_judged_fingerprint = fp;
+                                }
                             }
                         }
                     }
                 }
                 frontmost::FocusEvent::Clear(info) => {
                     let fp = info.fingerprint();
+                    // School/Canvas Clear must kill a stale youtube episode — don't keep
+                    // firing "leave youtube" from a prior OCR/hard fingerprint.
+                    let stale_youtube = last_fingerprint.contains("youtube")
+                        || last_fingerprint.contains("video")
+                        || last_fingerprint.starts_with("ocr:youtube")
+                        || last_fingerprint.starts_with("hard:youtube");
+                    if (was_distracted || stale_youtube)
+                        && !frontmost::focus_supports_distraction_label("youtube", &info)
+                    {
+                        clear_distraction_episode();
+                    }
                     last_fingerprint = fp;
                     if was_distracted {
                         was_distracted = false;
@@ -603,14 +672,17 @@ async fn run_local_watch_loop(
         let now = chrono::Utc::now();
         if now.signed_duration_since(last_ocr_at).num_seconds() >= OCR_TICK_SECS as i64 {
             last_ocr_at = now;
-            // Skip OCR nags while focused in Cursor / Waypoint / other work apps.
-            let productive_now = tokio::task::spawn_blocking(frontmost::frontmost_info)
+            // Only skip OCR while the Waypoint coach UI is focused — Cursor/editors
+            // must still be goal-checked (English discussion in Cursor ≠ auto-clear).
+            let focus_now = tokio::task::spawn_blocking(frontmost::frontmost_info)
                 .await
                 .ok()
-                .and_then(|r| r.ok())
-                .map(|i| frontmost::is_productive_work_app(&i.app_name))
+                .and_then(|r| r.ok());
+            let coach_focused = focus_now
+                .as_ref()
+                .map(|i| frontmost::is_coach_app(&i.app_name))
                 .unwrap_or(false);
-            if productive_now {
+            if coach_focused {
                 last_ocr_at = now;
                 tokio::time::sleep(Duration::from_millis(450)).await;
                 continue;
@@ -629,32 +701,65 @@ async fn run_local_watch_loop(
                     }
                     // OCR labels are host/chrome-strong only — ignore brand word mentions.
                     if let Some(label) = reading.labels.first().copied() {
-                        // YouTube only skips the OCR nag when title/OCR clearly looks like study.
-                        // Unclear entertainment must still distract (interrupt by default).
-                        let study_ok = label == "youtube"
-                            && frontmost::local_context_guess(
-                                "youtube",
-                                &reading.ocr_text,
-                                &goals,
-                            ) == Some(true);
-                        if !study_ok {
-                            last_fingerprint = format!("ocr:{label}");
-                            let hit = frontmost::DistractionHit {
-                                label,
-                                detail: truncate_note(&reading.ocr_text.replace('\n', " "), 64),
-                                focused: true,
-                            };
-                            let result = CoachVisionResult {
-                                on_task: false,
-                                objects: vec![label.into(), "ocr".into()],
-                                distraction: Some(label.into()),
-                                needs_help: false,
-                                stress_cue: last_vitals.stressed,
-                                coach_line: frontmost::distraction_coach_line(&hit),
-                                modality: Some("computer".into()),
-                            };
-                            apply_coach_tick(&app, &result, &mut last_vitals).await;
-                            was_distracted = true;
+                        // Frontmost URL/title must corroborate the OCR brand. Canvas on
+                        // canvas.cornell.edu must never nag "leave youtube" from a ghost label.
+                        let corroborated = focus_now
+                            .as_ref()
+                            .map(|info| {
+                                frontmost::focus_supports_distraction_label(label, info)
+                            })
+                            .unwrap_or(true);
+                        if !corroborated {
+                            append_screen_log(
+                                &app,
+                                &format!(
+                                    "OCR ignore {label} — focused {}",
+                                    focus_now
+                                        .as_ref()
+                                        .map(|i| i.summary())
+                                        .unwrap_or_default()
+                                ),
+                            );
+                            if was_distracted
+                                && matches!(label, "youtube" | "video")
+                                && focus_now.as_ref().is_some_and(|info| {
+                                    !frontmost::focus_supports_distraction_label("youtube", info)
+                                })
+                            {
+                                was_distracted = false;
+                                clear_distraction_episode();
+                            }
+                        } else {
+                            // YouTube only skips the OCR nag when title/OCR clearly looks like study.
+                            // Unclear entertainment must still distract (interrupt by default).
+                            let study_ok = label == "youtube"
+                                && frontmost::local_context_guess(
+                                    "youtube",
+                                    &reading.ocr_text,
+                                    &goals,
+                                ) == Some(true);
+                            if !study_ok {
+                                last_fingerprint = format!("ocr:{label}");
+                                let hit = frontmost::DistractionHit {
+                                    label,
+                                    detail: truncate_note(
+                                        &reading.ocr_text.replace('\n', " "),
+                                        64,
+                                    ),
+                                    focused: true,
+                                };
+                                let result = CoachVisionResult {
+                                    on_task: false,
+                                    objects: vec![label.into(), "ocr".into()],
+                                    distraction: Some(label.into()),
+                                    needs_help: false,
+                                    stress_cue: last_vitals.stressed,
+                                    coach_line: frontmost::distraction_coach_line(&hit),
+                                    modality: Some("computer".into()),
+                                };
+                                apply_coach_tick(&app, &result, &mut last_vitals).await;
+                                was_distracted = true;
+                            }
                         }
                     } else if !reading.ocr_text.is_empty() {
                         // Feed OCR into local text model when OS signals were Clear/ambiguous.
