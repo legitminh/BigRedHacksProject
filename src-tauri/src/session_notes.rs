@@ -1,5 +1,6 @@
 //! Readable lock-in note. Text sources only — no screenshots, no vision loop.
-//! Cheap local completion first, then Gemini chat when signed in, then a deterministic fallback.
+//! Wording comes from Copilot chat on the API (`POST /v1/gemini/chat`), which
+//! picks Gemini or Ollama. A deterministic note is the fallback.
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -7,7 +8,6 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::api;
 use crate::auth;
 use crate::config::AppConfig;
-use crate::local_judge;
 use crate::session::LockInSession;
 use crate::AppState;
 
@@ -419,26 +419,17 @@ fn accept_model_markdown(raw: &str, kind: NoteKind) -> Option<String> {
     }
 }
 
-/// Local text model, then Gemini when signed in. `Err` means the caller should use the fallback.
+/// Copilot chat on the API. The desktop does not call Ollama or the lock-in model.
+/// `Err` means the caller should use the fallback.
 async fn write_with_models(
     cfg: &AppConfig,
     sources: &NoteSources,
     kind: NoteKind,
 ) -> Result<String, String> {
-    let message = user_message(sources, kind);
-    let local_prompt = format!("{NOTE_SYSTEM_PROMPT}\n\n---\n\n{message}");
-    match local_judge::complete_text(cfg, &local_prompt, 640).await {
-        Ok(raw) => {
-            if let Some(md) = accept_model_markdown(&raw, kind) {
-                return Ok(md);
-            }
-            tracing::warn!("session note: local model output was not usable markdown");
-        }
-        Err(e) => tracing::debug!("session note: local model skipped ({e})"),
-    }
     if auth::load_tokens(cfg).is_none() {
         return Err("signed out".into());
     }
+    let message = user_message(sources, kind);
     #[derive(serde::Deserialize)]
     struct ChatReply {
         content: String,
@@ -450,7 +441,7 @@ async fn write_with_models(
     });
     let out: ChatReply =
         api::authed_json(cfg, reqwest::Method::POST, "/v1/gemini/chat", Some(&body)).await?;
-    accept_model_markdown(&out.content, kind).ok_or_else(|| "gemini note was not usable".into())
+    accept_model_markdown(&out.content, kind).ok_or_else(|| "chat note was not usable".into())
 }
 
 async fn upload_note(cfg: &AppConfig, job: &NoteJob, kind: NoteKind, markdown: &str) {

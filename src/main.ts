@@ -1152,8 +1152,17 @@ function asConnState(value: string): ConnState {
   return "warn";
 }
 
+function lockInCoachReady(services: ServiceIndicator[]): boolean {
+  return services.some(
+    (row) => row.id === "ollama" && asConnState(String(row.state)) === "ok",
+  );
+}
+
 /** Map backend health rows to plain student-facing labels/details. */
-function friendlyServiceCopy(s: ServiceIndicator): { label: string; detail: string } {
+function friendlyServiceCopy(
+  s: ServiceIndicator,
+  services: ServiceIndicator[] = [],
+): { label: string; detail: string } {
   const state = asConnState(String(s.state));
   const status = String(s.status ?? "");
   switch (s.id) {
@@ -1165,13 +1174,15 @@ function friendlyServiceCopy(s: ServiceIndicator): { label: string; detail: stri
       };
     case "gemini":
       return {
-        label: "Cloud coach",
+        label: "Cloud model",
         detail:
           state === "ok"
-            ? "Ready for coaching"
-            : /quota/i.test(status)
-              ? "Daily usage limit reached — try again later"
-              : "Unavailable right now",
+            ? "Ready"
+            : /quota/i.test(status) && lockInCoachReady(services)
+              ? "Limited right now. Lock-in coaching still works."
+              : /quota/i.test(status)
+                ? "Limited right now."
+                : "Unavailable right now",
       };
     case "ollama":
       return {
@@ -1242,7 +1253,7 @@ async function renderConnectionStatus(_status?: StatusPayload) {
     list.innerHTML = payload.services
       .map((s) => {
         const state = asConnState(String(s.state));
-        const copy = friendlyServiceCopy(s);
+        const copy = friendlyServiceCopy(s, payload.services);
         return connectionRow(copy.label, copy.detail, state === "ok", {
           state,
           status: s.status,

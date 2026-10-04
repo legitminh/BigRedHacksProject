@@ -236,7 +236,7 @@ impl LockInSession {
             .collect();
 
         let closing_note = if self.total_ticks == 0 {
-            "Screen checks didn’t land this session (quota limits or capture issues), so focus couldn’t be verified — that wasn’t a perfect lock-in.".into()
+            "Screen checks didn’t land this session, so focus couldn’t be verified — that wasn’t a perfect lock-in.".into()
         } else if !top.is_empty() && ratio < 0.6 {
             format!(
                 "You drifted to {} — next block, keep only the goal app visible.",
@@ -370,6 +370,15 @@ mod tests {
             session.screen_log.last().map(String::as_str),
             Some("line 49")
         );
+    }
+
+    #[test]
+    fn missing_screen_checks_do_not_blame_a_cloud_quota() {
+        let session = test_session();
+        let summary = session.summarize();
+        assert_eq!(summary.screen_checks, 0);
+        assert!(!summary.closing_note.to_lowercase().contains("quota"));
+        assert!(summary.closing_note.contains("Screen checks didn’t land"));
     }
 
     #[test]
