@@ -3916,7 +3916,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` ·
   Email label `5:64` · Password label `5:68` ·
   crop `_verify/tick34-welcome-card-crop.png`
-- commit: PENDING
+- commit: 90df1dc
 - change: `.welcome-field-label` → 14px / weight 600 / lh 20 / `#2a2440` (Google-only form shell unchanged).
 
 ## done: fp-permission-handoff-camera-signals-live
@@ -3924,7 +3924,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
   modal `7:415` · title `7:418` · body `7:419` · foot `7:427` ·
   crop `_verify/tick35-handoff-modal-crop.png`
-- commit: PENDING
+- commit: 90df1dc
 - change: Restored handoff modal to live camera-signals copy (title/body/foot); kept PERMISSION HANDOFF badge, Not now · Continue, pad 33 / gap 22.
 
 ## done: fp-welcome-placeholder-muted
@@ -3932,7 +3932,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` ·
   Email value `5:66` · Password value `5:70` ·
   crop `_verify/tick35-welcome-card-crop.png`
-- commit: PENDING
+- commit: 90df1dc
 - change: `.welcome-signin-card input` + `::placeholder` → 16px / `#645d73` (not lilac `#a89cbd`); Google-only form stays open.
 
 ## open: fp-connection-lost-seed-type
