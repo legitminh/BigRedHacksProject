@@ -240,6 +240,7 @@ test('study suggestion card accepts into lock-in and decline dismisses', async (
     return defaultInvoke(command, args);
   };
   document.querySelector('#end-session')?.click();
+  document.querySelector('#end-session-confirm')?.click();
   await tick();
   await tick();
   window.__TAURI_INTERNALS__.invoke = defaultInvoke;
@@ -271,4 +272,78 @@ test('overload keeps one thinking bubble and silently retries the original messa
   assert.ok(document.querySelector('.bubble.assistant .katex'));
   assert.equal(input.value, 'a new draft');
   assert.equal(document.querySelector('#chat-send').disabled, false);
+});
+
+test('lock-in companion renders assistant markdown and keeps the user turn plain', async () => {
+  const input = document.querySelector('#session-chat-input');
+  const form = document.querySelector('#session-chat-form');
+  let resolveCompanion;
+  const prev = window.__TAURI_INTERNALS__.invoke;
+  window.__TAURI_INTERNALS__.invoke = async (command, args) => {
+    if (command === 'companion_send') {
+      return new Promise((resolve) => {
+        resolveCompanion = resolve;
+      });
+    }
+    return prev(command, args);
+  };
+  input.value = 'Explain **this**';
+  form.dispatchEvent(new window.Event('submit', { cancelable: true }));
+  const user = document.querySelector('#session-chat-log .bubble.user');
+  assert.match(user.textContent, /Explain \*\*this\*\*/);
+  assert.equal(user.querySelector('strong'), null);
+  await tick();
+  resolveCompanion({ content: '## Photosynthesis\n\nPlants use **light**.' });
+  await tick();
+  const assistant = [...document.querySelectorAll('#session-chat-log .bubble.assistant')].at(-1);
+  assert.equal(assistant.querySelector('h2').textContent, 'Photosynthesis');
+  assert.equal(assistant.querySelector('strong').textContent, 'light');
+  window.__TAURI_INTERNALS__.invoke = prev;
+});
+
+test('tools tab connects each permission separately from account sign-in', async () => {
+  const toolsTab = document.querySelector('[data-settings-tab="tools"]');
+  const permissionsTab = document.querySelector('[data-settings-tab="permissions"]');
+  const accountTab = document.querySelector('[data-settings-tab="account"]');
+  assert.equal(toolsTab?.getAttribute('aria-controls'), 'settings-tools');
+  assert.ok(
+    permissionsTab.compareDocumentPosition(toolsTab) & window.Node.DOCUMENT_POSITION_FOLLOWING,
+  );
+  assert.ok(
+    toolsTab.compareDocumentPosition(accountTab) & window.Node.DOCUMENT_POSITION_FOLLOWING,
+  );
+
+  const accountPanel = document.querySelector('#settings-account');
+  assert.equal(accountPanel.querySelector('#account-google-status'), null);
+  assert.equal(accountPanel.querySelector('#account-google-actions'), null);
+  assert.match(accountPanel.textContent, /Waypoint identity/);
+  assert.match(accountPanel.textContent, /Settings → Tools/);
+  assert.doesNotMatch(accountPanel.textContent, /Calendar & Drive|Link Calendar|Required for deadlines/);
+  assert.match(document.querySelector('.welcome-signin-lead').textContent, /optional/);
+  assert.doesNotMatch(document.querySelector('.welcome-signin-lead').textContent, /link your account, Calendar/);
+
+  const panel = document.querySelector('#settings-tools');
+  assert.equal(panel.hidden, true);
+  toolsTab.click();
+  await tick();
+  await tick();
+  assert.equal(panel.hidden, false);
+  assert.equal(document.querySelector('#settings-permissions').hidden, true);
+  assert.equal(document.querySelector('#settings-account').hidden, true);
+  assert.equal(document.querySelector('#settings-lockin').hidden, true);
+  assert.match(panel.textContent, /Each tool has its own permission/);
+  assert.match(panel.textContent, /could not be loaded/i);
+  assert.match(panel.textContent, /Google Calendar/);
+  assert.match(panel.textContent, /Google Drive/);
+  assert.equal(
+    [...panel.querySelectorAll('button')].map((button) => button.textContent).join(','),
+    'Try again',
+  );
+
+  accountTab.click();
+  assert.equal(accountPanel.hidden, false);
+  assert.equal(panel.hidden, true);
+  document.querySelector('[data-settings-tab="lockin"]').click();
+  assert.equal(document.querySelector('#settings-lockin').hidden, false);
+  assert.equal(panel.hidden, true);
 });

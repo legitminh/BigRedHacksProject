@@ -6,6 +6,21 @@
  */
 const REPORT_EVERY = 32 * 128; // ~85ms @ 48kHz
 
+/** WKWebView sometimes delivers posted samples as a plain array, not Float32Array. */
+function readSamples(value) {
+  if (value instanceof Float32Array) return value;
+  if (value instanceof ArrayBuffer) return new Float32Array(value);
+  if (value && value.buffer instanceof ArrayBuffer && typeof value.length === "number") {
+    return new Float32Array(value.buffer, value.byteOffset || 0, value.length);
+  }
+  if (value && typeof value.length === "number" && value.length > 0) {
+    const out = new Float32Array(value.length);
+    for (let i = 0; i < value.length; i += 1) out[i] = Number(value[i]) || 0;
+    return out;
+  }
+  return null;
+}
+
 class PcmPlaybackProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
@@ -28,10 +43,11 @@ class PcmPlaybackProcessor extends AudioWorkletProcessor {
         this.sinceReport = 0;
         return;
       }
-      if (data.type === "pcm" && data.samples instanceof Float32Array) {
-        if (data.samples.length === 0) return;
-        this.queue.push(data.samples);
-        this.available += data.samples.length;
+      if (data.type === "pcm") {
+        const samples = readSamples(data.samples);
+        if (!samples || samples.length === 0) return;
+        this.queue.push(samples);
+        this.available += samples.length;
         this.hadAudio = true;
         this.underrunSent = false;
       }

@@ -40,7 +40,9 @@ class PcmCaptureProcessor extends AudioWorkletProcessor {
       }
       const buffer = pcm.buffer;
       this.pending = [];
-      this.port.postMessage({ pcm: buffer, rms }, [buffer]);
+      // Copy. A transferred buffer arrives empty in the WKWebView worklet port,
+      // so the live socket would uplink silence and never get a spoken reply.
+      this.port.postMessage({ pcm: buffer, rms });
     } else {
       this.port.postMessage({ rms });
     }

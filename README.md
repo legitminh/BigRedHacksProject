@@ -92,9 +92,8 @@ Lock-in needs **Screen Recording**; camera is optional (Presage).
 ### 4) End-user flow
 
 1. Open Waypoint  
-2. **Sign in with Google** (browser)  
-3. Approve Calendar + Drive  
-4. Use **Ask** / **Lock in**
+2. **Sign in with Google** (browser) or continue as Guest. Sign-in is identity only.  
+3. Use **Ask** / **Lock in**. Calendar and Drive are optional tools in **Settings → Tools**, each with its own connect.
 
 No API keys on the device. Copilot uses Gemini on your server, with silent local Ollama fallback when Gemini is limited.
 

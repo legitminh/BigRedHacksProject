@@ -63,7 +63,8 @@
                 <p class="welcome-signin-kicker"><span aria-hidden="true">✦</span> Welcome aboard</p>
                 <h2 class="welcome-signin-title">Your seat is ready.</h2>
                 <p class="welcome-signin-lead">
-                  Sign in with Google to link your account, Calendar, Drive, and study memory.
+                  Sign in with Google for your Waypoint account and study memory.
+                  Calendar and Drive are optional — connect each one later under Settings → Tools.
                   Or continue as a guest: everything stays on this device, with no cloud sync, Live voice, or mission copilot chat.
                 </p>
                 <p class="signin-error" id="wp-signin-error" hidden></p>
@@ -812,6 +813,16 @@
                   type="button"
                   role="tab"
                   aria-selected="false"
+                  aria-controls="settings-tools"
+                  data-settings-tab="tools"
+                >
+                  Tools
+                </button>
+                <button
+                  class="settings-aside-tab"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
                   aria-controls="settings-account"
                   data-settings-tab="account"
                 >
@@ -952,32 +963,34 @@
                 </article>
               </div>
 
+              <div class="settings-panel" id="settings-tools" role="tabpanel" hidden>
+                <article class="mc-settings-card">
+                  <h2 class="settings-heading">Tools</h2>
+                  <p class="settings-copy tight">
+                    Each tool has its own permission. Connecting one does not connect the others. Sign-in stays separate.
+                  </p>
+                  <div id="tools-note" class="settings-copy tight" hidden></div>
+                  <ul id="tools-list" class="mc-permissions-list" aria-live="polite"></ul>
+                </article>
+              </div>
+
               <div class="settings-panel" id="settings-account" role="tabpanel" hidden>
                 <article class="mc-settings-card">
                   <h2 class="settings-heading">Account</h2>
                   <p class="settings-copy tight">
-                    Signed in with Google. Calendar and Drive stay linked for Copilot.
+                    Google sign-in is your Waypoint identity. Connect Calendar or Drive later under Settings → Tools — each one is its own permission.
                   </p>
                   <div class="account-block">
-                    <p class="account-label">Google account</p>
+                    <p class="account-label">Waypoint account</p>
                     <p id="account-waypoint-user" class="account-value">—</p>
                     <p id="account-waypoint-email" class="settings-copy tight"></p>
                     <div id="account-waypoint-actions" class="cta-row"></div>
-                  </div>
-                  <div class="account-block">
-                    <p class="account-label">Calendar &amp; Drive</p>
-                    <p id="account-google-status" class="account-value">—</p>
-                    <p class="settings-copy tight">
-                      Required for deadlines and Drive notes. Re-link anytime if Copilot
-                      says it can’t see your files, or after you revoke Google access.
-                    </p>
-                    <div id="account-google-actions" class="cta-row"></div>
                   </div>
                 </article>
                 <article class="mc-settings-card">
                   <h2 class="settings-heading">Your data</h2>
                   <p class="settings-copy tight">
-                    Permanently erase study memory, session logs, ship progress, chat history, and your Google-linked account from this Mac and the cloud.
+                    Permanently erase study memory, session logs, ship progress, chat history, and your Waypoint account from this Mac and the cloud.
                   </p>
                   <div class="cta-row">
                     <button id="delete-data-start" class="ghost danger pill" type="button">
@@ -1106,7 +1119,7 @@
           <h2 id="delete-data-modal-title" class="delete-data-modal__title">Delete everything?</h2>
           <p class="delete-data-modal__body">
             This permanently erases study memory, session logs, ship progress, chat history, and your
-            Google-linked Waypoint account on this Mac and in the cloud. You will be signed out.
+            Waypoint account on this Mac and in the cloud. You will be signed out.
             This cannot be undone.
           </p>
           <div class="delete-data-modal__actions">

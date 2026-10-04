@@ -21,7 +21,8 @@ The user message names the kind. Follow it.
 If the sources are mixed, the named kind is the dominant activity from goals, narration, and screen summaries. Follow that kind.
 
 Coach prompt lines are context only. Never treat them as the user's words.
-Output the Markdown note only. No JSON, and no code fence around the note. If a section has no evidence, write \"Not captured.\"";
+GOALS is the mission they named, not proof they did that work. Only USER'S OWN WORDS and SCREEN SUMMARIES are evidence. If a section has no evidence, write \"Not captured.\" Do not invent topics, exercises, pronunciation, flashcards, or next steps. Never output a study-suggestion marker or JSON.
+Output the Markdown note only. No JSON, and no code fence around the note.";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoteKind {
@@ -338,6 +339,17 @@ fn clip_chars(s: &str, max_chars: usize) -> String {
     }
 }
 
+/// Body for `POST /v1/gemini/chat`. `purpose` must be `session_note` so the API
+/// uses the note template (Gemini or `qwen2.5:7b`), not the Copilot coach role.
+fn note_chat_body(message: &str) -> serde_json::Value {
+    serde_json::json!({
+        "purpose": "session_note",
+        "message": message,
+        "system": NOTE_SYSTEM_PROMPT,
+        "history": [],
+    })
+}
+
 fn user_message(sources: &NoteSources, kind: NoteKind) -> String {
     format!(
         "kind: {kind}\n\nGOALS:\n{goals}\n\nMODALITY:\n{modality}\n\nUSER'S OWN WORDS (companion turns):\n{user}\n\nSCREEN SUMMARIES (local app/title/URL, OCR, judge — text only):\n{screen}\n\nCOACH PROMPTS (context only, not the user's words):\n{coach}",
@@ -434,14 +446,85 @@ async fn write_with_models(
     struct ChatReply {
         content: String,
     }
-    let body = serde_json::json!({
-        "message": message,
-        "system": NOTE_SYSTEM_PROMPT,
-        "history": [],
-    });
+    // `purpose` selects the note template. Without it the API uses the Copilot
+    // role, which can append a study-suggestion block to the note.
+    let body = note_chat_body(&message);
     let out: ChatReply =
         api::authed_json(cfg, reqwest::Method::POST, "/v1/gemini/chat", Some(&body)).await?;
-    accept_model_markdown(&out.content, kind).ok_or_else(|| "chat note was not usable".into())
+    let stripped = strip_study_suggest(&out.content);
+    let markdown =
+        accept_model_markdown(&stripped, kind).ok_or_else(|| "chat note was not usable".to_string())?;
+    if !note_is_grounded(&markdown, sources) {
+        return Err("chat note invented details that were not in the session".into());
+    }
+    Ok(markdown)
+}
+
+/// Drop a Copilot study-suggestion block so it never lands in the note.
+fn strip_study_suggest(raw: &str) -> String {
+    const START: &str = "<<<STUDY_SUGGEST>>>";
+    const END: &str = "<<<END_STUDY_SUGGEST>>>";
+    let Some(start_idx) = raw.find(START) else {
+        return raw.to_string();
+    };
+    let after = start_idx + START.len();
+    let end_idx = raw[after..]
+        .find(END)
+        .map(|rel| after + rel + END.len())
+        .unwrap_or(raw.len());
+    let mut content = raw[..start_idx].trim_end().to_string();
+    let trailing = raw.get(end_idx..).unwrap_or("").trim();
+    if !trailing.is_empty() {
+        if !content.is_empty() {
+            content.push('\n');
+        }
+        content.push_str(trailing);
+    }
+    content
+}
+
+/// True when the note's distinctive words appear in the goal, the user's words, or screen text.
+/// A goal title alone must not license a invented review.
+fn note_is_grounded(markdown: &str, sources: &NoteSources) -> bool {
+    let evidence = format!(
+        "{}\n{}\n{}",
+        sources.goals,
+        sources.user_utterances.join("\n"),
+        sources.screen_lines.join("\n")
+    )
+    .to_lowercase();
+    let words = distinctive_words(markdown);
+    if words.len() < 4 {
+        return true;
+    }
+    let missing = words.iter().filter(|word| !evidence.contains(word.as_str())).count();
+    missing * 2 <= words.len()
+}
+
+fn distinctive_words(markdown: &str) -> Vec<String> {
+    const SKIP: &[&str] = &[
+        "about", "after", "again", "also", "because", "before", "being", "could", "during",
+        "every", "found", "going", "having", "learning", "noticed", "other", "should", "spent",
+        "still", "their", "there", "these", "those", "which", "while", "would", "captured",
+        "section", "session", "review", "reviewing",
+    ];
+    let mut words = Vec::new();
+    for line in markdown.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('#') {
+            continue;
+        }
+        for token in trimmed.split(|c: char| !c.is_ascii_alphanumeric()) {
+            let word = token.to_lowercase();
+            if word.len() < 5 || SKIP.contains(&word.as_str()) {
+                continue;
+            }
+            if !words.contains(&word) {
+                words.push(word);
+            }
+        }
+    }
+    words
 }
 
 async fn upload_note(cfg: &AppConfig, job: &NoteJob, kind: NoteKind, markdown: &str) {
@@ -506,6 +589,65 @@ mod tests {
             screen_lines: screen.iter().map(|s| (*s).to_string()).collect(),
             coach_prompts: coach.iter().map(|s| (*s).to_string()).collect(),
         }
+    }
+
+    #[test]
+    fn signed_in_note_requests_the_session_note_template() {
+        let body = note_chat_body("kind: study");
+        assert_eq!(body["purpose"], "session_note");
+        assert_eq!(body["history"], serde_json::json!([]));
+        assert!(body["system"]
+            .as_str()
+            .unwrap()
+            .contains("Output the Markdown note only"));
+        assert!(!body["system"].as_str().unwrap().contains("STUDY_SUGGEST"));
+    }
+
+    #[test]
+    fn invented_review_with_suggestion_block_is_rejected() {
+        let quiet = sources("Reviewing Chinese", "computer", &[], &[], &[]);
+        let raw = "\
+# Reviewing Chinese
+
+## What I was learning
+I was reviewing some Chinese characters and phrases.
+
+## In my own words
+I spent some time going over common Chinese characters and phrases to reinforce my memory. I focused on characters related to everyday situations, such as greetings and basic expressions.
+
+## Gaps / shaky parts
+I noticed that I still struggle with the pronunciation of some characters and phrases.
+
+## Next
+I will practice more pronunciation exercises and try to create flashcards.
+<<<STUDY_SUGGEST>>>{\"goals\":\"Practice pronunciation and flashcards\", \"duration_mins\":25, \"reason\":\"To reinforce memory\"}<<<END_STUDY_SUGGEST>>>";
+        let stripped = strip_study_suggest(raw);
+        assert!(!stripped.contains("STUDY_SUGGEST"));
+        assert!(!stripped.contains("flashcards\""));
+        assert!(!note_is_grounded(&stripped, &quiet));
+
+        let spoken = sources(
+            "Reviewing Chinese",
+            "computer",
+            &["I reviewed greetings and the pronunciation still feels shaky"],
+            &[],
+            &[],
+        );
+        let honest = "\
+# Reviewing Chinese
+
+## What I was learning
+Reviewing Chinese
+
+## In my own words
+I reviewed greetings and the pronunciation still feels shaky
+
+## Gaps / shaky parts
+pronunciation still feels shaky
+
+## Next
+Not captured.";
+        assert!(note_is_grounded(honest, &spoken));
     }
 
     #[test]

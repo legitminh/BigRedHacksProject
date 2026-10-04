@@ -22,8 +22,8 @@ async fn checked(res: Response) -> Result<Response, String> {
         .as_str()
         .unwrap_or("Request failed");
     let help = match status.as_u16() {
-        401 => " Sign out and sign in to Google again.",
-        403 => " If permission is missing, sign out and sign in again and allow Drive access. If the API is disabled, enable Google Drive API in the app's Google Cloud project.",
+        401 => " Sign in to Waypoint again.",
+        403 => " Connect Google Drive in Settings → Tools.",
         _ => "",
     };
     Err(format!("Drive ({status}): {message}.{help}"))

@@ -368,72 +368,215 @@ async fn disconnect_google(state: State<'_, AppState>) -> Result<(), String> {
     Ok(())
 }
 
+const CALENDAR_CONNECT_HINT: &str =
+    "Google Calendar is not connected. Connect it in Settings → Tools.";
+const DRIVE_CONNECT_HINT: &str = "Google Drive is not connected. Connect it in Settings → Tools.";
+
+fn tool_id_ok(tool_id: &str) -> Result<&str, String> {
+    let id = tool_id.trim();
+    let ok = !id.is_empty()
+        && id.len() <= 64
+        && id
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+    if ok {
+        Ok(id)
+    } else {
+        Err("Unknown tool.".into())
+    }
+}
+
+/// Map a Calendar or Drive fetch into a summary plus whether that tool is connected.
+/// `calendar_not_connected` / `drive_not_connected` become a Settings → Tools hint.
+fn map_tool_summary(
+    result: Result<String, String>,
+    missing_code: &str,
+    hint: &str,
+    unavailable_label: &str,
+) -> (String, bool) {
+    match result {
+        Ok(summary) => (summary, true),
+        Err(err) if err.contains(missing_code) => (hint.to_string(), false),
+        Err(err) => (format!("{unavailable_label}: {err}"), false),
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ListedTool {
+    id: String,
+    #[serde(default)]
+    provider: String,
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    summary: String,
+    #[serde(default)]
+    scopes: Vec<String>,
+    #[serde(default)]
+    scope_labels: Vec<String>,
+    #[serde(default)]
+    status: String,
+    #[serde(default)]
+    connected_at: Option<String>,
+}
+
+#[tauri::command]
+async fn list_tools(state: State<'_, AppState>) -> Result<Vec<ListedTool>, String> {
+    let cfg = state.config.lock().clone();
+    if auth::load_tokens(&cfg).is_none() {
+        return Err("Sign in to Waypoint first.".into());
+    }
+    #[derive(Deserialize)]
+    struct ToolsBody {
+        tools: Vec<ListedTool>,
+    }
+    let body: ToolsBody = api::authed_json(&cfg, reqwest::Method::GET, "/v1/tools", None).await?;
+    Ok(body.tools)
+}
+
+#[tauri::command]
+async fn connect_tool(state: State<'_, AppState>, tool_id: String) -> Result<(), String> {
+    let cfg = state.config.lock().clone();
+    if auth::load_tokens(&cfg).is_none() {
+        return Err("Sign in to Waypoint first.".into());
+    }
+    let tool_id = tool_id_ok(&tool_id)?;
+    #[derive(serde::Deserialize)]
+    struct StartBody {
+        authorization_url: String,
+        poll_token: String,
+    }
+    let start: StartBody = api::authed_json(
+        &cfg,
+        reqwest::Method::POST,
+        &format!("/v1/tools/{tool_id}/connect"),
+        Some(&serde_json::json!({})),
+    )
+    .await?;
+    open::that(&start.authorization_url).map_err(|e| format!("Couldn’t open browser: {e}"))?;
+    for _ in 0..1200 {
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        #[derive(serde::Deserialize)]
+        struct PollBody {
+            status: String,
+            error: Option<serde_json::Value>,
+        }
+        let poll: PollBody = api::authed_json(
+            &cfg,
+            reqwest::Method::GET,
+            &format!(
+                "/v1/tools/{tool_id}/poll?poll_token={}",
+                urlencoding::encode(&start.poll_token)
+            ),
+            None,
+        )
+        .await?;
+        match poll.status.as_str() {
+            "pending" => continue,
+            "complete" => return Ok(()),
+            "error" => {
+                return Err(poll
+                    .error
+                    .and_then(|e| e.get("message").and_then(|m| m.as_str().map(|s| s.to_string())))
+                    .filter(|m| !m.is_empty())
+                    .unwrap_or_else(|| "Couldn’t connect this tool.".into()));
+            }
+            other => return Err(format!("Unexpected status: {other}")),
+        }
+    }
+    Err("Connecting this tool timed out.".into())
+}
+
+#[tauri::command]
+async fn disconnect_tool(state: State<'_, AppState>, tool_id: String) -> Result<(), String> {
+    let cfg = state.config.lock().clone();
+    if auth::load_tokens(&cfg).is_none() {
+        return Err("Sign in to Waypoint first.".into());
+    }
+    let tool_id = tool_id_ok(&tool_id)?;
+    api::authed_empty(
+        &cfg,
+        reqwest::Method::POST,
+        &format!("/v1/tools/{tool_id}/disconnect"),
+        None,
+    )
+    .await?;
+    Ok(())
+}
+
 #[tauri::command]
 async fn get_google_context(state: State<'_, AppState>) -> Result<GoogleContext, String> {
     let cfg = state.config.lock().clone();
     if auth::load_tokens(&cfg).is_none() {
-        // Legacy local tokens fallback
+        // Legacy local tokens fallback — still one tool at a time when the API is in use.
         if !google::oauth::is_connected(&cfg) {
             return Ok(GoogleContext {
                 connected: false,
-                calendar_summary: "Google not connected.".into(),
-                drive_summary: String::new(),
+                calendar_summary: CALENDAR_CONNECT_HINT.into(),
+                drive_summary: DRIVE_CONNECT_HINT.into(),
+                calendar_connected: false,
+                drive_connected: false,
             });
         }
-        let calendar_summary = google::calendar::upcoming_events_summary(&cfg, 8)
-            .await
-            .unwrap_or_else(|e| format!("Calendar unavailable: {e}"));
-        let drive_summary = google::drive::recent_files_summary(&cfg, 6)
-            .await
-            .unwrap_or_else(|e| format!("Drive unavailable: {e}"));
+        let (calendar_summary, calendar_connected) = map_tool_summary(
+            google::calendar::upcoming_events_summary(&cfg, 8).await,
+            "calendar_not_connected",
+            CALENDAR_CONNECT_HINT,
+            "Calendar unavailable",
+        );
+        let (drive_summary, drive_connected) = map_tool_summary(
+            google::drive::recent_files_summary(&cfg, 6).await,
+            "drive_not_connected",
+            DRIVE_CONNECT_HINT,
+            "Drive unavailable",
+        );
         return Ok(GoogleContext {
-            connected: true,
+            connected: calendar_connected || drive_connected,
             calendar_summary,
             drive_summary,
+            calendar_connected,
+            drive_connected,
         });
     }
 
     #[derive(serde::Deserialize)]
-    struct Status {
-        google_connected: bool,
-    }
-    let status: Status =
-        api::authed_json(&cfg, reqwest::Method::GET, "/v1/google/status", None).await?;
-    if !status.google_connected {
-        return Ok(GoogleContext {
-            connected: false,
-            calendar_summary: "Google not connected.".into(),
-            drive_summary: String::new(),
-        });
-    }
-    #[derive(serde::Deserialize)]
     struct Summary {
         summary: String,
     }
-    let calendar = api::authed_json::<Summary>(
+    let calendar_result = api::authed_json::<Summary>(
         &cfg,
         reqwest::Method::GET,
         "/v1/calendar/summary?days=14",
         None,
     )
     .await
-    .unwrap_or_else(|e| Summary {
-        summary: format!("Calendar unavailable: {e}"),
-    });
-    let drive = api::authed_json::<Summary>(
+    .map(|body| body.summary);
+    let drive_result = api::authed_json::<Summary>(
         &cfg,
         reqwest::Method::GET,
         "/v1/drive/recent?limit=12",
         None,
     )
     .await
-    .unwrap_or_else(|e| Summary {
-        summary: format!("Drive unavailable: {e}"),
-    });
+    .map(|body| body.summary);
+    let (calendar_summary, calendar_connected) = map_tool_summary(
+        calendar_result,
+        "calendar_not_connected",
+        CALENDAR_CONNECT_HINT,
+        "Calendar unavailable",
+    );
+    let (drive_summary, drive_connected) = map_tool_summary(
+        drive_result,
+        "drive_not_connected",
+        DRIVE_CONNECT_HINT,
+        "Drive unavailable",
+    );
     Ok(GoogleContext {
-        connected: true,
-        calendar_summary: calendar.summary,
-        drive_summary: drive.summary,
+        connected: calendar_connected || drive_connected,
+        calendar_summary,
+        drive_summary,
+        calendar_connected,
+        drive_connected,
     })
 }
 
@@ -460,9 +603,13 @@ async fn chat_send(state: State<'_, AppState>, message: String) -> Result<ChatMe
         ));
     }
     let ctx = get_google_context(state.clone()).await?;
-    if ctx.connected {
+    if !ctx.calendar_summary.is_empty() {
         context_bits.push(ctx.calendar_summary);
+    }
+    if !ctx.drive_summary.is_empty() {
         context_bits.push(ctx.drive_summary);
+    }
+    if ctx.drive_connected {
         #[derive(serde::Deserialize)]
         struct DriveSearch {
             summary: String,
@@ -1132,6 +1279,9 @@ pub fn run() {
             study_memory_stats,
             connect_google,
             disconnect_google,
+            list_tools,
+            connect_tool,
+            disconnect_tool,
             get_google_context,
             chat_send,
             clear_chat,

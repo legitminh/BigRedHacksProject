@@ -124,7 +124,7 @@ pub fn play_audio_bytes(bytes: &[u8], extension: &str) -> Result<()> {
     #[cfg(target_os = "macos")]
     {
         stop_speaking_sync();
-        let _ = PLAYBACK_GENERATION.fetch_add(1, Ordering::SeqCst);
+        let generation = PLAYBACK_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
         let ext = if extension.trim().is_empty() {
             "mp3"
         } else {
@@ -133,16 +133,25 @@ pub fn play_audio_bytes(bytes: &[u8], extension: &str) -> Result<()> {
         let path = temp_audio_path(ext)?;
         std::fs::write(&path, bytes)
             .map_err(|e| VoiceError::Message(format!("write TTS audio: {e}")))?;
-        let path_owned = path.clone();
-        std::thread::spawn(move || {
-            let _ = Command::new("afplay")
-                .arg(&path_owned)
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-            let _ = std::fs::remove_file(&path_owned);
-        });
+        // Block so a bad payload (JSON envelope, wrong codec) fails this call
+        // and the coach can fall back to `say`. A newer utterance bumps the
+        // generation and must not be treated as a playback error.
+        let status = Command::new("afplay")
+            .arg(&path)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map_err(|e| VoiceError::Message(format!("afplay failed to start: {e}")))?;
+        let _ = std::fs::remove_file(&path);
+        if PLAYBACK_GENERATION.load(Ordering::SeqCst) != generation {
+            return Ok(());
+        }
+        if !status.success() {
+            return Err(VoiceError::Message(format!(
+                "afplay could not play {ext} audio ({status})"
+            )));
+        }
         return Ok(());
     }
 

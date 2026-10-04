@@ -55,6 +55,38 @@ const PREROLL_IDLE_FLUSH_MS = 90;
 /** Keep uplink muted after the worklet drains. */
 const POST_PLAYBACK_MUTE_MS = 300;
 
+/**
+ * AudioContext created in the mic-click turn. WKWebView leaves a context
+ * constructed after `await` suspended, so downlink PCM is queued and never plays.
+ */
+let primedOutput: AudioContext | null = null;
+
+export function primeCompanionOutput(): void {
+  if (primedOutput && primedOutput.state !== "closed") {
+    void primedOutput.resume();
+    return;
+  }
+  const ctx = new AudioContext();
+  primedOutput = ctx;
+  void ctx.resume();
+}
+
+function takePrimedOutput(): AudioContext | null {
+  const ctx = primedOutput;
+  primedOutput = null;
+  if (!ctx || ctx.state === "closed") return null;
+  return ctx;
+}
+
+function audioBufferFrom(data: unknown): ArrayBuffer | null {
+  if (data instanceof ArrayBuffer) return data;
+  if (ArrayBuffer.isView(data)) {
+    const view = data as ArrayBufferView;
+    return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+  }
+  return null;
+}
+
 function audioDebugEnabled(): boolean {
   try {
     return window.localStorage.getItem("wp.audioDebug") === "1";
@@ -237,7 +269,9 @@ export class CompanionLiveSession {
 
   private pushToWorklet(samples: Float32Array) {
     if (!this.playbackWorklet || samples.length === 0) return;
-    this.playbackWorklet.port.postMessage({ type: "pcm", samples }, [samples.buffer]);
+    // Do not transfer the buffer. WKWebView's AudioWorklet receives that
+    // transfer empty, the processor drops it, and the reply never starts.
+    this.playbackWorklet.port.postMessage({ type: "pcm", samples });
   }
 
   private flushPending() {
@@ -257,6 +291,7 @@ export class CompanionLiveSession {
 
   private appendPcm(bytes: Uint8Array) {
     if (bytes.length === 0 || !this.audioCtx) return;
+    if (this.audioCtx.state === "suspended") void this.audioCtx.resume();
 
     let input = bytes;
     if (this.oddByte != null) {
@@ -469,7 +504,8 @@ export class CompanionLiveSession {
     this.debug = audioDebugEnabled();
     const info = await invoke<LiveInfo>("companion_live_info");
 
-    // Mic before AudioContext so Bluetooth HFP rate is settled first.
+    // Output context is resumed in the click (see primeCompanionOutput). Opening
+    // the mic first still lets Bluetooth HFP settle before we attach the worklet.
     let micError: unknown = null;
     try {
       await this.acquireMic();
@@ -477,8 +513,14 @@ export class CompanionLiveSession {
       micError = err;
     }
 
-    this.audioCtx = new AudioContext();
-    if (this.audioCtx.state === "suspended") await this.audioCtx.resume();
+    this.audioCtx = takePrimedOutput() ?? new AudioContext();
+    if (this.audioCtx.state === "suspended") {
+      try {
+        await this.audioCtx.resume();
+      } catch {
+        /* playback appendPcm retries resume when PCM arrives */
+      }
+    }
     await this.ensurePlayback();
     this.updatePreroll();
     if (this.debug) {
@@ -496,16 +538,25 @@ export class CompanionLiveSession {
     this.socket.binaryType = "arraybuffer";
     await new Promise<void>((resolve, reject) => {
       if (!this.socket) return reject(new Error("No socket"));
-      this.socket.onopen = () => resolve();
+      this.socket.onopen = () => {
+        if (this.socket) this.socket.binaryType = "arraybuffer";
+        resolve();
+      };
       this.socket.onerror = () =>
         reject(new Error("Couldn't start live voice. Check your connection and try again."));
     });
     this.socket.onmessage = (event) => {
-      if (typeof event.data === "string") this.handleMessage(event.data);
-      else if (event.data instanceof ArrayBuffer) this.handleBinary(event.data);
-      else if (event.data instanceof Blob) {
-        void event.data.arrayBuffer().then((buf) => this.handleBinary(buf));
+      const data: unknown = event.data;
+      if (typeof data === "string") {
+        this.handleMessage(data);
+        return;
       }
+      if (data instanceof Blob) {
+        void data.arrayBuffer().then((buf) => this.handleBinary(buf));
+        return;
+      }
+      const buffer = audioBufferFrom(data);
+      if (buffer) this.handleBinary(buffer);
     };
     this.socket.onerror = () => {
       this.handlers.onError?.(

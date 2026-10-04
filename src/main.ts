@@ -10,6 +10,7 @@ import {
 } from "./thinking-indicator.ts";
 import {
   CompanionLiveSession,
+  primeCompanionOutput,
   type CompanionContext,
   type CompanionPhase,
 } from "./companion-live.ts";
@@ -179,6 +180,7 @@ interface StatusPayload {
   username?: string | null;
   email?: string | null;
   user_id?: string | null;
+  /** Still reported by the API. Does not unlock the app or connect Calendar/Drive. */
   google_connected: boolean;
   gemini_ready: boolean;
   google_oauth_ready: boolean;
@@ -188,9 +190,9 @@ interface StatusPayload {
   session: LockInSession | null;
 }
 
-/** Unlocked after Google OAuth (+ Calendar/Drive) or local Guest mode. */
+/** Unlocked after Waypoint sign-in or local Guest mode. Tools connect later, one at a time. */
 function isAppUnlocked(status: StatusPayload): boolean {
-  return Boolean((status.signed_in && status.google_connected) || status.guest_mode);
+  return Boolean(status.signed_in || status.guest_mode);
 }
 
 interface StudySessionSuggestion {
@@ -587,7 +589,7 @@ function navInitials(username?: string | null): string {
 let appUnlocked = false;
 
 function show(view: ViewId) {
-  // Gate: nothing past the welcome screen until Google sign-in + link completes.
+  // Gate: nothing past the welcome screen until Waypoint sign-in or Guest mode.
   if (!appUnlocked && view !== "view-home") {
     view = "view-home";
   }
@@ -728,11 +730,6 @@ async function submitWelcomeGoogle() {
   try {
     await invoke("sign_in_waypoint_google");
     await refreshStatus();
-    if (!appUnlocked) {
-      throw new Error(
-        "Google signed in, but Calendar/Drive were not linked. Try Sign in with Google again and accept all permissions.",
-      );
-    }
   } catch (e) {
     const raw =
       typeof e === "string"
@@ -1001,46 +998,206 @@ function renderAccountSettings(status: StatusPayload) {
       accountActions.appendChild(signOut);
     }
   }
+}
 
-  const googleStatus = $("#account-google-status");
-  if (googleStatus) {
-    googleStatus.textContent = status.google_connected
-      ? "Linked"
-      : status.signed_in
-        ? "Not linked — re-sign in with Google"
-        : isGuest
-          ? "Not available in Guest mode"
-          : "Sign in required";
+interface AgentTool {
+  id: string;
+  provider: string;
+  title: string;
+  summary: string;
+  scopes?: string[];
+  scope_labels?: string[];
+  status: string;
+  connected_at?: string | null;
+}
+
+const TOOLS_LOAD_ERROR = "The tools list could not be loaded.";
+
+/** Shown only when GET /v1/tools fails. No invented scope sentences. */
+const FALLBACK_TOOLS: AgentTool[] = [
+  {
+    id: "google_calendar",
+    provider: "google",
+    title: "Google Calendar",
+    summary: "",
+    status: "unknown",
+  },
+  {
+    id: "google_drive",
+    provider: "google",
+    title: "Google Drive",
+    summary: "",
+    status: "unknown",
+  },
+];
+
+let cachedTools: AgentTool[] | null = null;
+let toolActionBusy = false;
+let toolsRenderGen = 0;
+
+function providerPlainName(provider: string): string {
+  const key = provider.trim().toLowerCase();
+  if (key === "google") return "Google";
+  if (!key) return "Provider";
+  return key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+function toolStatusView(status: string): { label: string; state: string } {
+  if (status === "connected") return { label: "Connected", state: "ok" };
+  if (status === "disconnected") return { label: "Not connected", state: "needs" };
+  return { label: "Unknown", state: "unknown" };
+}
+
+function setToolsNote(text: string) {
+  const note = $("#tools-note");
+  if (!note) return;
+  const message = text.trim();
+  note.textContent = message;
+  note.hidden = message.length === 0;
+}
+
+function paintToolsList(tools: AgentTool[]) {
+  const list = $("#tools-list");
+  if (!list) return;
+  list.innerHTML = "";
+  if (!tools.length) {
+    const empty = document.createElement("li");
+    empty.className = "mc-perm-row";
+    const copy = document.createElement("div");
+    copy.className = "mc-perm-copy";
+    const title = document.createElement("strong");
+    title.textContent = "No tools yet";
+    const detail = document.createElement("span");
+    detail.textContent = "When a tool is available, it will show up here with its own permission.";
+    copy.append(title, detail);
+    empty.append(copy);
+    list.append(empty);
+    return;
   }
 
-  const actions = $("#account-google-actions");
-  if (!actions) return;
-  actions.innerHTML = "";
-
-  if (!status.signed_in) return;
-
-  const connect = document.createElement("button");
-  connect.className = status.google_connected ? "ghost pill" : "secondary pill";
-  connect.type = "button";
-  connect.textContent = status.google_connected
-    ? "Re-link Calendar & Drive"
-    : "Link Calendar & Drive";
-  connect.addEventListener("click", async () => {
-    const label = connect.textContent || "Re-link Calendar & Drive";
-    connect.textContent = "Waiting for Google…";
-    connect.disabled = true;
-    try {
-      await invoke("connect_google");
-      await refreshStatus();
-    } catch (e) {
-      console.error("connect_google failed:", e);
-      alert(String(e));
-    } finally {
-      connect.textContent = label;
-      connect.disabled = false;
+  for (const tool of tools) {
+    const row = document.createElement("li");
+    row.className = "mc-perm-row";
+    const copy = document.createElement("div");
+    copy.className = "mc-perm-copy";
+    const title = document.createElement("strong");
+    title.textContent = tool.title?.trim() || tool.id;
+    const provider = document.createElement("span");
+    provider.textContent = providerPlainName(tool.provider);
+    copy.append(title, provider);
+    const summary = tool.summary?.trim();
+    if (summary) {
+      const summaryEl = document.createElement("span");
+      summaryEl.textContent = summary;
+      copy.append(summaryEl);
     }
-  });
-  actions.appendChild(connect);
+    const labels = (tool.scope_labels ?? []).map((label) => label.trim()).filter(Boolean);
+    if (labels.length) {
+      const scopes = document.createElement("ul");
+      scopes.className = "tool-scope-list";
+      for (const label of labels) {
+        const item = document.createElement("li");
+        item.textContent = label;
+        scopes.append(item);
+      }
+      copy.append(scopes);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "tool-actions";
+    const badge = document.createElement("span");
+    badge.className = "mc-perm-badge";
+    const view = toolStatusView(tool.status);
+    badge.textContent = view.label;
+    badge.setAttribute("data-state", view.state);
+    actions.append(badge);
+
+    if (tool.status === "connected" || tool.status === "disconnected") {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = tool.status === "connected" ? "ghost pill" : "secondary pill";
+      button.textContent = tool.status === "connected" ? "Disconnect" : "Connect";
+      button.disabled = toolActionBusy;
+      button.addEventListener("click", () => {
+        void connectOrDisconnectTool(tool);
+      });
+      actions.append(button);
+    }
+
+    row.append(copy, actions);
+    list.append(row);
+  }
+}
+
+async function connectOrDisconnectTool(tool: AgentTool) {
+  if (toolActionBusy) return;
+  if (tool.status !== "connected" && tool.status !== "disconnected") return;
+  toolActionBusy = true;
+  if (cachedTools) paintToolsList(cachedTools);
+  setToolsNote("");
+  try {
+    if (tool.status === "connected") {
+      await invoke("disconnect_tool", { toolId: tool.id });
+    } else {
+      await invoke("connect_tool", { toolId: tool.id });
+    }
+    toolActionBusy = false;
+    await refreshStatus();
+  } catch (err) {
+    toolActionBusy = false;
+    console.error(err);
+    const raw = typeof err === "string" ? err : String(err);
+    setToolsNote(raw.replace(/^Error:\s*/i, "").trim() || "Couldn’t update this tool.");
+    if (cachedTools) paintToolsList(cachedTools);
+  }
+}
+
+async function renderToolsSettings(status: StatusPayload) {
+  const gen = ++toolsRenderGen;
+  const isGuest = Boolean(status.guest_mode && !status.signed_in);
+  if (isGuest) {
+    cachedTools = null;
+    setToolsNote(
+      "Tools need a Waypoint sign-in. Guest mode stays on this Mac, so each tool stays disconnected until you sign in.",
+    );
+    const list = $("#tools-list");
+    if (list) list.innerHTML = "";
+    return;
+  }
+
+  setToolsNote("");
+  const list = $("#tools-list");
+  if (list) {
+    list.innerHTML = `<li class="mc-conn-row mc-conn-row--loading"><span class="muted">Loading tools…</span></li>`;
+  }
+
+  try {
+    const tools = await invoke<AgentTool[]>("list_tools");
+    if (gen !== toolsRenderGen) return;
+    if (!Array.isArray(tools)) {
+      throw new Error(TOOLS_LOAD_ERROR);
+    }
+    cachedTools = tools;
+    setToolsNote("");
+    paintToolsList(tools);
+  } catch {
+    if (gen !== toolsRenderGen) return;
+    cachedTools = FALLBACK_TOOLS;
+    setToolsNote(TOOLS_LOAD_ERROR);
+    paintToolsList(FALLBACK_TOOLS);
+    const note = $("#tools-note");
+    if (note && !note.querySelector("#tools-retry")) {
+      const retry = document.createElement("button");
+      retry.id = "tools-retry";
+      retry.type = "button";
+      retry.className = "ghost pill";
+      retry.textContent = "Try again";
+      retry.addEventListener("click", () => {
+        if (lastHomeStatus) void renderToolsSettings(lastHomeStatus);
+      });
+      note.append(document.createTextNode(" "), retry);
+    }
+  }
 }
 
 function setPermissionBadge(
@@ -1219,12 +1376,10 @@ function friendlyServiceCopy(
       };
     case "google":
       return {
-        label: "Google",
+        label: "Google tools",
         detail:
           s.detail?.trim() ||
-          (state === "ok"
-            ? "Calendar and Drive linked"
-            : "Link Calendar and Drive to continue"),
+          "Calendar and Drive are optional tools under Settings → Tools.",
       };
     default:
       return {
@@ -1275,6 +1430,7 @@ async function renderMissionControlSettings(status: StatusPayload) {
   await renderConnectionStatus(status);
   await renderPermissionsStatus();
   renderAccountSettings(status);
+  await renderToolsSettings(status);
 }
 
 function renderChatEmptyState() {
@@ -1291,13 +1447,26 @@ function renderChatEmptyState() {
   log.appendChild(empty);
 }
 
+/** Assistant turns are markdown. What the user typed stays plain text. */
+function fillChatBubble(
+  bubble: HTMLElement,
+  role: "user" | "assistant" | "system",
+  content: string,
+) {
+  if (role === "assistant") {
+    renderMarkdown(bubble, content);
+    return;
+  }
+  bubble.textContent = content;
+}
+
 function appendChat(role: "user" | "assistant", content: string) {
   const log = $("#chat-log");
   if (!log) return;
   $("#chat-empty")?.remove();
   const bubble = document.createElement("div");
   bubble.className = `bubble ${role}`;
-  bubble.textContent = content;
+  fillChatBubble(bubble, role, content);
   log.appendChild(bubble);
   log.scrollTop = log.scrollHeight;
   return bubble;
@@ -1655,7 +1824,7 @@ function appendSessionChat(
         : "COPILOT · JUST NOW");
   const bubble = document.createElement("div");
   bubble.className = `bubble ${role}`;
-  bubble.textContent = content;
+  fillChatBubble(bubble, role, content);
   turn.append(kicker, bubble);
   log.appendChild(turn);
   log.scrollTop = log.scrollHeight;
@@ -1905,7 +2074,7 @@ function upsertSessionLiveBubble(role: "user" | "assistant", text: string, isFin
     const bubble = thinkingTurn.querySelector(".bubble") as HTMLElement | null;
     if (bubble) {
       clearThinkingIndicator(bubble);
-      bubble.textContent = text;
+      fillChatBubble(bubble, role, text);
     }
     thinkingTurn.dataset.sealed = isFinal ? "true" : "false";
     log.scrollTop = log.scrollHeight;
@@ -1918,7 +2087,7 @@ function upsertSessionLiveBubble(role: "user" | "assistant", text: string, isFin
     const bubble = last.querySelector(".bubble");
     if (bubble) {
       clearThinkingIndicator(bubble as HTMLElement);
-      bubble.textContent = text;
+      fillChatBubble(bubble as HTMLElement, role, text);
     }
     if (isFinal) last.dataset.sealed = "true";
   } else {
@@ -1937,7 +2106,7 @@ function upsertCopilotLiveBubble(role: "user" | "assistant", text: string, isFin
   if (role === "assistant" && last?.classList.contains("is-thinking")) {
     clearThinkingIndicator(last);
     last.className = "bubble assistant";
-    last.textContent = text;
+    fillChatBubble(last, role, text);
     last.dataset.liveSealed = isFinal ? "true" : "false";
     log.scrollTop = log.scrollHeight;
     if (isFinal) hasChatReply = true;
@@ -1949,7 +2118,7 @@ function upsertCopilotLiveBubble(role: "user" | "assistant", text: string, isFin
     last.dataset.liveSealed !== "true"
   ) {
     clearThinkingIndicator(last);
-    last.textContent = text;
+    fillChatBubble(last, role, text);
     if (isFinal) last.dataset.liveSealed = "true";
   } else {
     const bubble = appendChat(role, text);
@@ -1993,20 +2162,11 @@ async function collectCompanionContext(): Promise<CompanionContext> {
       calendar_summary: string;
       drive_summary: string;
     }>("get_google_context");
-    if (google.connected) {
-      if (google.calendar_summary?.trim()) {
-        context.calendar_summary = google.calendar_summary.trim();
-      }
-      if (google.drive_summary?.trim()) {
-        context.drive_summary = google.drive_summary.trim();
-      }
-    } else {
-      context.notes = [
-        context.notes,
-        "Google Calendar/Drive not linked. Tell the student to open Settings → Account and use Re-link Calendar & Drive.",
-      ]
-        .filter(Boolean)
-        .join(" ");
+    if (google.calendar_summary?.trim()) {
+      context.calendar_summary = google.calendar_summary.trim();
+    }
+    if (google.drive_summary?.trim()) {
+      context.drive_summary = google.drive_summary.trim();
     }
   } catch {
     /* leave Google fields empty — voice still works without them */
@@ -2056,6 +2216,8 @@ async function toggleCompanionLive(surface: LiveSurface): Promise<void> {
     return;
   }
   if (chatBusy || companionBusy) return;
+  const starting = !(companionLive?.active && liveSurface === surface);
+  if (starting) primeCompanionOutput();
   // Hold the mutex for the whole start *or* stop so rapid clicks cannot interleave.
   companionBusy = true;
   setChatControlsBusy(chatBusy);
@@ -2122,7 +2284,7 @@ async function sendSessionChat() {
     });
     if (pending) {
       clearThinkingIndicator(pending);
-      pending.textContent = reply.content;
+      fillChatBubble(pending, "assistant", reply.content);
     }
   } catch (err) {
     if (pending) {
@@ -2723,6 +2885,9 @@ function selectSettingsTab(tab: string) {
   });
   if (next === "permissions") {
     void renderPermissionsStatus();
+  }
+  if (next === "tools" && lastHomeStatus) {
+    void renderToolsSettings(lastHomeStatus);
   }
 }
 
