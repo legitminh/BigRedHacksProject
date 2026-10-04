@@ -73,7 +73,11 @@ struct SystemPermissions {
     microphone: String,
 }
 
-/// Screen Recording status WITHOUT capturing pixels (opening Settings must not screenshot).
+/// Screen Recording TCC flag WITHOUT capturing pixels (Settings badges must not screenshot).
+///
+/// Ad-hoc / rebuilt apps often get a new code identity, so this can be false even when the
+/// user already toggled “Waypoint” on — or when capture still works. Prefer
+/// [`screen_recording_usable`] for hard launch gates.
 #[cfg(target_os = "macos")]
 fn screen_recording_preflight() -> bool {
     #[link(name = "CoreGraphics", kind = "framework")]
@@ -84,8 +88,40 @@ fn screen_recording_preflight() -> bool {
     unsafe { CGPreflightScreenCaptureAccess() }
 }
 
+#[cfg(target_os = "macos")]
+fn request_screen_recording_access() -> bool {
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGRequestScreenCaptureAccess() -> bool;
+    }
+    // SAFETY: plain C call; may show the system permission prompt for this binary.
+    unsafe { CGRequestScreenCaptureAccess() }
+}
+
+/// True when we can actually capture (TCC preflight, request prompt, or a short probe).
+#[cfg(target_os = "macos")]
+fn screen_recording_usable() -> bool {
+    if screen_recording_preflight() {
+        return true;
+    }
+    // Re-prompt for *this* binary identity (e.g. after installing into /Applications).
+    if request_screen_recording_access() || screen_recording_preflight() {
+        return true;
+    }
+    // Some macOS builds leave preflight false while ScreenCaptureKit/xcap still works.
+    match capture::screen::grab_ocr_jpeg() {
+        Ok(bytes) => bytes.len() > 64,
+        Err(_) => false,
+    }
+}
+
 #[cfg(not(target_os = "macos"))]
 fn screen_recording_preflight() -> bool {
+    true
+}
+
+#[cfg(not(target_os = "macos"))]
+fn screen_recording_usable() -> bool {
     true
 }
 
@@ -1262,15 +1298,15 @@ async fn start_lock_in(
         false
     };
 
-    // Screen watching is required. Preflight TCC first so we never burn a 12s capture
-    // hang when Screen Recording is denied; then a short probe confirms capture works.
+    // Screen watching is required. Don't hard-fail on CGPreflight alone (adhoc rebuilds /
+    // /Applications installs often look "denied" there). Prompt + short capture probe.
     if screen_enabled {
-        let preflight_ok = tokio::task::spawn_blocking(screen_recording_preflight)
+        let usable = tokio::task::spawn_blocking(screen_recording_usable)
             .await
             .unwrap_or(false);
-        if !preflight_ok {
+        if !usable {
             return Err(
-                "Allow Screen Recording for Waypoint in System Settings → Privacy & Security → Screen Recording, then quit and reopen the app."
+                "Allow Screen Recording for Waypoint in System Settings → Privacy & Security → Screen Recording (enable the Waypoint.app entry), then quit and reopen the app."
                     .into(),
             );
         }
@@ -1285,7 +1321,7 @@ async fn start_lock_in(
             Ok(Err(e)) => return Err(format!("Screen capture task failed: {e}")),
             Err(_) => {
                 return Err(
-                    "Screen capture timed out. Allow Screen Recording for Waypoint in System Settings → Privacy & Security → Screen Recording, then quit and reopen the app."
+                    "Screen capture timed out. Allow Screen Recording for Waypoint in System Settings → Privacy & Security → Screen Recording (enable the Waypoint.app entry), then quit and reopen the app."
                         .into(),
                 );
             }

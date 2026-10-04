@@ -638,9 +638,10 @@ function missionLaunchLabel(loading: boolean) {
 
 function setupConsentSummary(): string {
   const camera = readBoolPref(PREF_CAMERA_SIGNALS, false);
+  // Mission preference only — not macOS Screen Recording TCC.
   return camera
-    ? "Screen sharing is on; camera accountability is on."
-    : "Screen sharing is on; camera accountability is off.";
+    ? "Screen watching enabled for this mission; camera accountability on."
+    : "Screen watching enabled for this mission; camera accountability off.";
 }
 function setupFootText(): string {
   return setupConsentSummary();
@@ -4194,15 +4195,9 @@ async function bootApp() {
       }
     }
     try {
+      // TCC preflight alone is unreliable for ad-hoc /Applications rebuilds — don't
+      // hard-block here. Rust start_lock_in prompts + probes real capture.
       const perms = await invoke<SystemPermissions>("get_system_permissions");
-      if (!perms.screen_recording) {
-        if (errEl) {
-          errEl.hidden = false;
-          errEl.textContent =
-            "Allow Screen Recording for Waypoint in System Settings → Privacy & Security → Screen Recording, then quit and reopen the app.";
-        }
-        return;
-      }
       if (!perms.accessibility && errEl) {
         errEl.hidden = false;
         errEl.textContent =
