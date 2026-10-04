@@ -2429,8 +2429,8 @@ button:active {
 }
 
 .copilot-sidebar-planet {
-  width: min(100%, 13.75rem);
-  margin: auto auto 0;
+  width: min(100%, 13.75rem); /* 220px — live Destination 5:227 */
+  margin: 0; /* normal column flow; gap 20px under status (not flex push) */
   display: block;
 }
 
@@ -2496,11 +2496,21 @@ button:active {
 }
 
 .copilot-panel:has(#chat-empty) {
+  /* Live empty Copilot response 5:235: compact ~830×117 hug — not flex-tall */
+  flex: 0 0 auto;
+  min-height: 0;
   max-height: none;
   /* Live 03 empty Copilot response card (5:235): surface + border, not cream */
   background: #fffbff;
   border-color: #c8bfd7;
   border-radius: 28px;
+}
+
+.copilot-panel:has(#chat-empty) .copilot-log.chat-log {
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 25px; /* live 5:235 heading y=25 */
+  overflow: visible;
 }
 
 .copilot-log.chat-log {

@@ -3651,3 +3651,81 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     When mounting lost Latest, size card ~386×113 (pad ~19); keep Retry
     tonal + composer. Preserve Pause/End.
 - escalate: scrutinous
+
+## done: fp-copilot-empty-card-compact
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  Conversation `5:232` · card `5:235` ·
+  crop `_verify/tick32-copilot-live.png`
+- commit: PENDING
+- change: |
+    `.copilot-panel:has(#chat-empty)` → `flex: 0 0 auto` + `min-height: 0`
+    so empty Copilot response hugs ~830×117 (live `5:235`); filled-chat
+    panel still grows. Mic/Send + chips + conversation gap 22 kept.
+- escalate: scrutinous
+
+## done: fp-copilot-empty-card-pad-25
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · card `5:235` ·
+  heading `5:238` · crop `_verify/tick32-copilot-live.png`
+- commit: PENDING
+- change: |
+    Empty-state `.copilot-log` padding → `25px` (live `5:235` heading
+    y=25); surface `#fffbff` / `#c8bfd7` / 28px radius + 14px heading→
+    body gap unchanged. Composer/chips left alone.
+- escalate: scrutinous
+
+## done: fp-copilot-sidebar-planet-flow
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  sidebar `5:217` · status `5:226` · planet `5:227` ·
+  crop `_verify/tick32-copilot-live.png`
+- commit: PENDING
+- change: |
+    `.copilot-sidebar-planet` margin → `0` (drop flex `margin: auto`);
+    planet sits 20px under “No mission running” via sidebar gap 1.25rem
+    (live `5:227`). Start a mission wiring + `#e9ddfd` card kept.
+- escalate: scrutinous
+
+## open: fp-welcome-signin-lead-type
+- screen: welcome
+- ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` · lead `5:62` ·
+  crop `_verify/tick32-welcome-live.png`
+- expected: |
+    Live Sign in lead (`5:62`): Regular **16px** / leading 1.4 / muted
+    `#645d73` — “Sign in to return to your space.”
+- actual: |
+    Opens lock form structure/fields (`fp-welcome-signin-form`) + card
+    stack 24 / CTA 52. `.welcome-signin-lead` is `font-size: 0.92rem`
+    (~14.7) and `color: #6b6288` — not 16 / `#645d73`. Google-only copy
+    path still open separately.
+- deviation: |
+    Tick32 — welcome lead type/color vs live `5:62`. Distinct from form /
+    field-height / title Medium 32 / CTA height 52; under-covered sign-in.
+- fix_hint: |
+    Set `.welcome-signin-lead` to 16px / weight 400 / lh 1.4 / `#645d73`;
+    keep Google auth wiring until form open lands Email/Password.
+- escalate: scrutinous
+
+## open: fp-connection-lost-panel-surface
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  panel `6:1707` · crop `_verify/tick32-lost-live.png`
+- expected: |
+    Live lost Copilot panel (`6:1707`, 434×678): surface `#fffbff`,
+    border `#c8bfd7`, radius 28, outer pad **24px**, column gap 20
+    (design_context). Same MC chrome language as relaunch/break cards —
+    full chat height, not cream/untitled.
+- actual: |
+    Opens lock panel height 678 / history+Latest stack gaps / chrome-keep
+    / Retry tonal — not panel surface+pad tokens. App has no lost panel;
+    risk: inherit denser session-copilot padding or cream fill.
+- deviation: |
+    Tick32 — lost panel surface/pad vs live `6:1707`. Distinct from
+    panel-height / panel-stack-gap / history-stack-gap / latest-height /
+    keeps-chat-chrome; under-covered `2:48`. Spot-check: ✦ Your copilot
+    string still matches `9681808` (no reopen).
+- fix_hint: |
+    When mounting lost panel, use `#fffbff` / `#c8bfd7` / 28px / pad 24 +
+    gap 20; keep Pause/End + composer. Pair with open height/stack items.
+- escalate: scrutinous
