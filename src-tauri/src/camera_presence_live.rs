@@ -72,8 +72,10 @@ impl Default for LivePresenceConfig {
             look_down_ignore_s: 8.0,
             away_confirm_s: 3.0,
             return_confirm_s: 2.0,
-            // Demo-friendly (~10–25s band); closer to demo's 10s.
-            first_callback_s: 12.0,
+            // Speak left_desk as soon as leave is confirmed (watching note already
+            // says "away from desk"). Extra delay here made the UI look live while
+            // the overlay/TTS stayed silent.
+            first_callback_s: 0.0,
             second_callback_s: 30.0,
             pause_after_s: 90.0,
             welcome_back_min_absence_s: 8.0,
@@ -440,7 +442,7 @@ mod tests {
             obstructed_speak_s: 8.0,
             away_confirm_s: 3.0,
             return_confirm_s: 2.0,
-            first_callback_s: 12.0,
+            first_callback_s: 0.0,
             second_callback_s: 30.0,
             pause_after_s: 90.0,
             welcome_back_min_absence_s: 8.0,
@@ -482,18 +484,27 @@ mod tests {
     }
 
     #[test]
-    fn leave_emits_left_desk_on_ladder() {
+    fn leave_emits_left_desk_on_confirm() {
         let mut p = LivePresenceInference::new(cfg_fast());
-        // Confirm away (3s).
-        let _ = p.observe(&test_sample(0.0, false, "absent", 80.0), "active");
+        // Before confirm — checking, no scold.
+        let early = p.observe(&test_sample(0.0, false, "absent", 80.0), "active");
+        assert!(early.nudge.is_none());
+
+        // Confirm away (3s) — watching note away + left_desk speak same tick.
         let confirming = p.observe(&test_sample(3.0, false, "absent", 80.0), "active");
         assert_eq!(confirming.presence, LivePresenceState::LeftFrame);
-        assert!(confirming.nudge.is_none(), "first ladder at 12s held");
-
-        let first = p.observe(&test_sample(12.0, false, "absent", 80.0), "active");
-        let nudge = first.nudge.expect("left_desk");
+        assert!(
+            confirming.watching_note.to_lowercase().contains("away"),
+            "note={}",
+            confirming.watching_note
+        );
+        let nudge = confirming.nudge.expect("left_desk on confirm");
         assert_eq!(nudge.kind, "left_desk");
         assert!(nudge.text.contains("stepped away"));
+
+        // Speak once for first rung.
+        let again = p.observe(&test_sample(10.0, false, "absent", 80.0), "active");
+        assert!(again.nudge.is_none());
     }
 
     #[test]
