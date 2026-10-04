@@ -1489,16 +1489,6 @@ body:has(.view-home.view-home--guest.active) .grain {
   gap: 22px;
 }
 
-/* Live 15 timer-replace dialog (6:1562): 580×301 surface tokens */
-.mc-perm-modal__card--timer-replace {
-  width: min(100%, 580px);
-  padding: 32px;
-  border-radius: 28px;
-  background: #fffbff;
-  border: 1px solid #c8bfd7;
-  gap: 22px;
-}
-
 .mc-perm-modal__badge {
   margin: 0;
   justify-self: start;
@@ -3810,10 +3800,21 @@ body:has(.view-mission-setup.active) .grain {
 
 .session-break-resume {
   width: 100%;
-  min-height: 3.25rem;
+  min-height: 3.5rem;
   border-radius: var(--radius-pill);
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 700;
+}
+
+.session-break-resume:focus-visible {
+  outline: 2px solid var(--mc-accent-cyan);
+  outline-offset: 3px;
+}
+
+#view-session.is-pomodoro-break .session-break-resume {
+  min-height: 3.75rem;
+  font-size: 1.1rem;
+  box-shadow: var(--mc-shadow-glow-purple);
 }
 
 .session-break-footer {
@@ -3959,6 +3960,7 @@ body:has(.view-mission-setup.active) .grain {
 }
 
 /* Break wins if both classes briefly overlap (Take a break from check-in). */
+#view-session.is-session-break .session-break-suggest,
 #view-session.is-session-break .session-checkin-card {
   display: none !important;
 }
@@ -4433,66 +4435,122 @@ body:has(.view-session.active) .grain {
   text-align: center;
 }
 
-.session-next-step {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.65rem 0.85rem;
-  margin: 1rem 0 0;
-}
-
-#view-session.is-session-listening #session-next-step,
-#view-session.is-session-break #session-next-step,
-#view-session.is-session-checkin #session-next-step,
-#view-session.is-session-ending #session-next-step {
-  display: none;
-}
-
 #view-session.is-session-break #session-copilot-suggest,
-#view-session.is-session-checkin #session-copilot-suggest {
+#view-session.is-session-checkin #session-copilot-suggest,
+#view-session.is-break-suggested #session-copilot-suggest {
   display: none;
 }
 
-.session-next-step-pill {
+/* Coach-suggested 5-minute break — Accept / Not now (never auto-starts). */
+.session-break-suggest {
+  display: none;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  margin: 0 0 0.85rem;
+  padding: 1.15rem 1.2rem 1.2rem;
+  border-radius: var(--radius-xl);
+  background: var(--mc-bg-card);
+  border: 1px solid rgba(107, 76, 255, 0.16);
+  box-shadow: var(--mc-shadow-soft);
+}
+
+#view-session.is-break-suggested .session-break-suggest {
+  display: flex;
+}
+
+#view-session.is-session-checkin .session-break-suggest,
+#view-session.is-session-ending .session-break-suggest {
+  display: none !important;
+}
+
+.session-break-suggest__badge {
+  margin: 0 0 0.75rem;
+  align-self: flex-start;
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.55rem 0.95rem;
+  padding: 0.35rem 0.75rem;
   border-radius: var(--radius-pill);
-  background: var(--mc-surface-lavender);
-  border: 1px solid rgba(107, 76, 255, 0.16);
-}
-
-.session-next-step-clock {
-  width: 0.95rem;
-  height: 0.95rem;
-  flex-shrink: 0;
-  color: var(--mc-accent-purple);
-}
-
-.session-next-step-kicker {
   font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--mc-accent-purple);
+  background: var(--mc-surface-lavender);
+  border: 1px solid rgba(107, 76, 255, 0.14);
 }
 
-.session-next-step-time {
+.session-break-suggest__title {
+  margin: 0 0 0.5rem;
   font-family: var(--font-display);
-  font-size: 1.15rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
   color: var(--mc-text-primary);
-  min-width: 3.4rem;
-  text-align: right;
 }
 
-.session-next-step-hint {
-  margin: 0;
-  font-size: 0.82rem;
-  color: var(--mc-text-muted);
+.session-break-suggest__body {
+  margin: 0 0 1rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--mc-text-secondary);
+}
+
+.session-break-suggest__divider {
+  margin: 0 0 1rem;
+  border: none;
+  border-top: 1px solid var(--mc-border-subtle);
+}
+
+.session-break-suggest__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.session-break-suggest__btn {
+  flex: 1 1 8rem;
+  min-height: 2.85rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.session-break-suggest__btn--ghost {
+  border: 1px solid var(--mc-border-default);
+  background: transparent;
+  color: var(--mc-text-primary);
+}
+
+.session-break-suggest__btn--ghost:hover {
+  background: var(--mc-surface-lavender);
+  border-color: rgba(107, 76, 255, 0.22);
+}
+
+.session-break-suggest__btn--accept {
+  border: none;
+}
+
+.session-break-suggest__btn:focus-visible,
+.session-break-suggest__btn--accept:focus-visible {
+  outline: 2px solid var(--mc-accent-cyan);
+  outline-offset: 3px;
+}
+
+.session-break-suggest__btn:disabled,
+.session-copilot-suggest:disabled,
+.session-checkin-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+#view-session.is-break-suggested .session-copilot-chat {
+  opacity: 0.72;
+}
+
+#view-session.is-break-suggested .session-break-suggest {
+  order: -1;
 }
 
 .session-copilot-suggest {

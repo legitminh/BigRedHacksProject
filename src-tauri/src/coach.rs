@@ -778,8 +778,9 @@ async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop
     tokio::time::sleep(Duration::from_secs(PRESAGE_START_DELAY_SECS)).await;
 
     while !stop.load(Ordering::SeqCst) {
-        let (active, paused) = {
+        let (active, paused, on_pomodoro_break) = {
             let state = app.state::<AppState>();
+            let on_pomodoro_break = state.break_active.load(Ordering::SeqCst);
             let guard = state.session.lock();
             match guard.as_ref() {
                 Some(s)
@@ -787,16 +788,24 @@ async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop
                         && s.id == session_id
                         && (s.paused || s.remaining_secs() > 25) =>
                 {
-                    (true, s.paused)
+                    (true, s.paused, on_pomodoro_break)
                 }
-                _ => (false, false),
+                _ => (false, false, false),
             }
         };
         if !active {
             break;
         }
 
-        let phase = if paused { "paused" } else { "active" };
+        // Backend silences stress on both "paused" and "break"; prefer "break" while
+        // the fullscreen pomodoro window owns the pause.
+        let phase = if on_pomodoro_break {
+            "break"
+        } else if paused {
+            "paused"
+        } else {
+            "active"
+        };
 
         // Still sample during pause so the server knows phase, but skip recording if paused
         // to avoid needless camera use — just wait.
@@ -864,7 +873,36 @@ async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop
                         } else {
                             nudge.kind.as_str()
                         };
-                        push_prompt(&app, &nudge.text, kind);
+                        if kind == "suggest_break" {
+                            // Map server stress invite → local Accept/Not now card.
+                            // Never auto-start; skip overlay push_prompt (overlay-prompt
+                            // opens check-in UI which hides #session-break-suggest).
+                            let already_breaking = app
+                                .state::<AppState>()
+                                .break_active
+                                .load(Ordering::SeqCst);
+                            if !paused && !already_breaking {
+                                let _ = crate::break_timer::suggest_break_timer(
+                                    app.clone(),
+                                    Some(300),
+                                    Some("stress".into()),
+                                )
+                                .await;
+                                let silent = app
+                                    .state::<AppState>()
+                                    .silent_mode
+                                    .load(Ordering::SeqCst);
+                                if !silent {
+                                    let text = nudge.text.clone();
+                                    let handle = app.clone();
+                                    tauri::async_runtime::spawn(async move {
+                                        speak_heads_up(&handle, &text).await;
+                                    });
+                                }
+                            }
+                        } else {
+                            push_prompt(&app, &nudge.text, kind);
+                        }
                     }
                 }
                 Err(e) if e == "stopped" => break,

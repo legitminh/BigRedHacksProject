@@ -1356,24 +1356,8 @@ function appendStudySuggestionCard(
       error.hidden = true;
       error.textContent = "";
       try {
-        const session = await invoke<LockInSession>("start_lock_in", {
-          goals: goalsText,
-          durationMins: mins,
-          ...lockInConsentArgs(),
-        });
-        try {
-          sessionStorage.setItem("lockin-last-duration", String(mins));
-        } catch {
-          // ignore
-        }
+        await startLockInFromSuggestion(suggestion);
         card.remove();
-        renderVitals(null);
-        playLaunchCelebration(() => {
-          clearNextStepTimer();
-          renderSession(session);
-          syncMissionTimer(session);
-          show("view-session");
-        });
       } catch (err) {
         const message = String(err);
         console.error("start_lock_in from study suggestion failed:", err);
@@ -1916,12 +1900,6 @@ async function collectCompanionContext(): Promise<CompanionContext> {
   const [mm, ss] = timer.split(":").map((p) => Number(p));
   const remainingMins =
     Number.isFinite(mm) && Number.isFinite(ss) ? mm + ss / 60 : undefined;
-  let nextStepSecs: number | undefined;
-  if (nextStepEndsAtMs != null && !nextStepPaused) {
-    nextStepSecs = Math.max(0, Math.ceil((nextStepEndsAtMs - Date.now()) / 1000));
-  } else if (nextStepPaused) {
-    nextStepSecs = Math.max(0, Math.ceil(nextStepRemainingMs / 1000));
-  }
   const paused =
     ($("#session-pause") as HTMLButtonElement | null)?.getAttribute("aria-pressed") ===
     "true";
@@ -2098,142 +2076,172 @@ function formatRemaining(endsAt: string): string {
   return `${m}:${s}`;
 }
 
-function formatCountdownSecs(totalSecs: number): string {
-  const total = Math.max(0, Math.floor(totalSecs));
-  const m = Math.floor(total / 60).toString().padStart(2, "0");
-  const s = (total % 60).toString().padStart(2, "0");
-  return `${m}:${s}`;
+/** True while Rust reports an active pomodoro break window (not a plain Pause). */
+let breakTimerActive = false;
+let breakStarting = false;
+
+type BreakTimerStatus = {
+  active: boolean;
+  duration_secs?: number;
+  durationSecs?: number;
+  reason?: string;
+};
+
+type BreakSuggestedPayload = {
+  duration_secs?: number;
+  durationSecs?: number;
+  reason?: string;
+};
+
+function setBreakTimerActive(active: boolean) {
+  breakTimerActive = active;
+  $("#view-session")?.classList.toggle("is-pomodoro-break", active);
+  syncBreakCardCopy();
 }
 
-const NEXT_STEP_DEFAULT_SECS = 5 * 60;
-let nextStepEndsAtMs: number | null = null;
-let nextStepRemainingMs = NEXT_STEP_DEFAULT_SECS * 1000;
-let nextStepPaused = false;
-let nextStepHandle: number | undefined;
-
-function renderNextStepTimerDisplay() {
-  const el = $("#session-next-step-timer");
-  if (!el) return;
-  if (nextStepEndsAtMs != null && !nextStepPaused) {
-    const rem = Math.max(0, Math.ceil((nextStepEndsAtMs - Date.now()) / 1000));
-    el.textContent = formatCountdownSecs(rem);
-    return;
-  }
-  el.textContent = formatCountdownSecs(Math.ceil(nextStepRemainingMs / 1000));
-}
-
-function stopNextStepTicker() {
-  if (nextStepHandle) {
-    window.clearInterval(nextStepHandle);
-    nextStepHandle = undefined;
-  }
-}
-
-function clearNextStepTimer() {
-  stopNextStepTicker();
-  nextStepEndsAtMs = null;
-  nextStepRemainingMs = NEXT_STEP_DEFAULT_SECS * 1000;
-  nextStepPaused = false;
-  renderNextStepTimerDisplay();
-}
-
-function tickNextStepTimer() {
-  if (nextStepPaused || nextStepEndsAtMs == null) return;
-  const remMs = Math.max(0, nextStepEndsAtMs - Date.now());
-  nextStepRemainingMs = remMs;
-  renderNextStepTimerDisplay();
-  if (remMs <= 0) {
-    stopNextStepTicker();
-    nextStepEndsAtMs = null;
-    nextStepRemainingMs = 0;
-  }
-}
-
-function startNextStepTicker() {
-  stopNextStepTicker();
-  tickNextStepTimer();
-  nextStepHandle = window.setInterval(tickNextStepTimer, 250);
-}
-
-function startNextStepTimer(durationSecs = NEXT_STEP_DEFAULT_SECS) {
-  nextStepPaused = false;
-  nextStepRemainingMs = durationSecs * 1000;
-  nextStepEndsAtMs = Date.now() + nextStepRemainingMs;
-  startNextStepTicker();
-}
-
-function nextStepRemainingSecsLive(): number {
-  if (nextStepEndsAtMs != null && !nextStepPaused) {
-    return Math.max(0, Math.ceil((nextStepEndsAtMs - Date.now()) / 1000));
-  }
-  return Math.max(0, Math.ceil(nextStepRemainingMs / 1000));
-}
-
-/** True while a five-minute next-step countdown is in flight (or paused mid-timer). */
-function isNextStepTimerActive(): boolean {
-  if (nextStepEndsAtMs != null && !nextStepPaused) {
-    return nextStepEndsAtMs > Date.now();
-  }
-  return nextStepPaused && nextStepRemainingMs > 0;
-}
-
-/** Body label: m:ss without zero-padded minutes (live 15 sample “4:32”). */
-function formatNextStepRemainLabel(totalSecs: number): string {
-  const total = Math.max(0, Math.floor(totalSecs));
-  const m = Math.floor(total / 60);
-  const s = (total % 60).toString().padStart(2, "0");
-  return `${m}:${s}`;
-}
-
-function openTimerReplaceModal() {
-  const modal = $("#timer-replace-modal");
-  const body = $("#timer-replace-modal-body");
-  if (body) {
-    const remain = formatNextStepRemainLabel(nextStepRemainingSecsLive());
-    body.textContent =
-      `Your current timer has ${remain} left. Replace it with a new five-minute timer? ` +
-      `Your mission timer keeps running.`;
-  }
-  // Do not toggle is-session-ending — next-step + suggest must stay visible under scrim.
-  if (modal) modal.hidden = false;
-}
-
-function closeTimerReplaceModal() {
-  const modal = $("#timer-replace-modal");
-  if (modal) modal.hidden = true;
-}
-
-function requestOrStartNextStepTimer() {
-  if (isNextStepTimerActive()) {
-    openTimerReplaceModal();
-    return;
-  }
-  startNextStepTimer(NEXT_STEP_DEFAULT_SECS);
-  const hint = $("#session-chat-hint");
-  if (hint) {
-    hint.textContent = "Five-minute next-step timer started. One small step at a time.";
-  }
-}
-
-function pauseNextStepTimer() {
-  if (nextStepPaused) return;
-  if (nextStepEndsAtMs != null) {
-    nextStepRemainingMs = Math.max(0, nextStepEndsAtMs - Date.now());
-    nextStepEndsAtMs = null;
-  }
-  nextStepPaused = true;
-  stopNextStepTicker();
-  renderNextStepTimerDisplay();
-}
-
-function resumeNextStepTimer() {
-  if (!nextStepPaused) return;
-  nextStepPaused = false;
-  if (nextStepRemainingMs > 0) {
-    nextStepEndsAtMs = Date.now() + nextStepRemainingMs;
-    startNextStepTicker();
+function syncBreakCardCopy() {
+  const title = $(".session-break-title");
+  const body = $(".session-break-body");
+  const footer = $(".session-break-footer");
+  if (breakTimerActive) {
+    if (title) title.textContent = "Five-minute break.";
+    if (body) {
+      body.textContent =
+        "Your mission is paused for a short reset. Resume here anytime — even if the break screen isn’t visible.";
+    }
+    if (footer) footer.textContent = "Resume closes the break screen and continues your flight.";
   } else {
-    renderNextStepTimerDisplay();
+    if (title) title.textContent = "A little breathing room.";
+    if (body) {
+      body.textContent =
+        "Your timer is paused. Automatic check-ins are paused too.";
+    }
+    if (footer) footer.textContent = "Your spaceship will continue from right here.";
+  }
+}
+
+function setBreakSuggestionUi(active: boolean, reason?: string) {
+  const view = $("#view-session");
+  view?.classList.toggle("is-break-suggested", active);
+  const card = $("#session-break-suggest");
+  const body = $(".session-break-suggest__body");
+  if (body && active) {
+    const stress = reason?.toLowerCase() === "stress";
+    body.textContent = stress
+      ? "Looks like a good moment to reset. Your mission pauses for five minutes until you resume."
+      : "Step away for a short reset. Your mission pauses until you resume.";
+  }
+  if (card) {
+    card.hidden = !active;
+    card.setAttribute("aria-hidden", active ? "false" : "true");
+  }
+  if (active) {
+    // Prefer Accept so the suggestion is keyboard-actionable immediately.
+    window.requestAnimationFrame(() => {
+      ($("#session-break-suggest-accept") as HTMLButtonElement | null)?.focus();
+    });
+  }
+}
+
+function dismissBreakSuggestion() {
+  setBreakSuggestionUi(false);
+}
+
+function setBreakEntryBusy(busy: boolean) {
+  const ids = [
+    "#session-copilot-suggest",
+    "#session-checkin-break",
+    "#session-break-suggest-accept",
+  ] as const;
+  for (const id of ids) {
+    const el = $(id) as HTMLButtonElement | null;
+    if (el) el.disabled = busy;
+  }
+}
+
+async function refreshBreakTimerActive(): Promise<boolean> {
+  try {
+    const status = await invoke<BreakTimerStatus>("get_break_timer_status");
+    setBreakTimerActive(Boolean(status?.active));
+  } catch {
+    /* older builds / outside Tauri */
+  }
+  return breakTimerActive;
+}
+
+/** Ask Rust to open the fullscreen break window and pause the mission. */
+async function startBreakTimer(): Promise<boolean> {
+  if (breakStarting || breakTimerActive) return false;
+  breakStarting = true;
+  setBreakEntryBusy(true);
+  dismissBreakSuggestion();
+  setSessionCheckinUi(false);
+  try {
+    const status = await invoke<BreakTimerStatus>("start_break_timer");
+    setBreakTimerActive(Boolean(status?.active ?? true));
+    const hint = $("#session-chat-hint");
+    if (hint) {
+      hint.textContent =
+        "Five-minute break started. Your mission is paused until you resume.";
+    }
+    return true;
+  } catch (err) {
+    const msg = String(err);
+    console.error("start_break_timer failed:", err);
+    const missing = /command.*not found|unknown command|not allowed/i.test(msg);
+    alert(
+      missing
+        ? "Break timer isn’t available in this build yet. Try again after updating."
+        : `Couldn’t start the break: ${msg}`,
+    );
+    void refreshBreakTimerActive();
+    return false;
+  } finally {
+    breakStarting = false;
+    setBreakEntryBusy(false);
+  }
+}
+
+/**
+ * Resume from main UI. If a pomodoro break is active, always use `end_break_timer`
+ * so a dead/missing break window cannot leave the mission stuck paused.
+ */
+async function resumeMissionFromMain(): Promise<void> {
+  const pauseBtn = $("#session-pause") as HTMLButtonElement | null;
+  const breakResume = $("#session-break-resume") as HTMLButtonElement | null;
+  if (pauseBtn) pauseBtn.disabled = true;
+  if (breakResume) breakResume.disabled = true;
+  try {
+    let active = breakTimerActive;
+    if (!active) {
+      active = await refreshBreakTimerActive();
+    }
+    if (active) {
+      const session = await invoke<LockInSession | null>("end_break_timer");
+      setBreakTimerActive(false);
+      if (session) {
+        renderSession(session);
+        syncMissionTimer(session);
+      } else {
+        syncPauseControls(false);
+      }
+      return;
+    }
+    const session = await invoke<LockInSession>("set_lock_in_paused", { paused: false });
+    renderSession(session);
+    syncMissionTimer(session);
+  } catch (err) {
+    const msg = String(err);
+    console.error("resume mission failed:", err);
+    alert(/no active mission/i.test(msg) ? msg : "Couldn’t resume right now. Try again.");
+    await refreshBreakTimerActive();
+    const stillPaused =
+      ($("#session-pause") as HTMLButtonElement | null)?.getAttribute("aria-pressed") ===
+      "true";
+    syncPauseControls(stillPaused);
+  } finally {
+    if (pauseBtn) pauseBtn.disabled = false;
+    if (breakResume) breakResume.disabled = false;
   }
 }
 
@@ -2487,12 +2495,22 @@ function syncPauseControls(paused: boolean) {
   const endBtn = $("#end-session") as HTMLButtonElement | null;
   const caption = $("#session-timer-caption");
   const breakCard = $("#session-break-card");
+  const breakResume = $("#session-break-resume") as HTMLButtonElement | null;
   $("#view-session")?.classList.toggle("is-session-break", paused);
+  $("#view-session")?.classList.toggle("is-pomodoro-break", paused && breakTimerActive);
   if (btn) {
     btn.disabled = false;
     btn.setAttribute("aria-pressed", paused ? "true" : "false");
     btn.textContent = paused ? "Resume mission" : "Pause";
     btn.classList.toggle("is-paused", paused);
+    btn.setAttribute(
+      "aria-label",
+      paused
+        ? breakTimerActive
+          ? "Resume mission and end break"
+          : "Resume mission"
+        : "Pause mission",
+    );
   }
   if (endBtn) endBtn.disabled = false;
   // Live 10: break copy lives in the right card only — never show left pause note.
@@ -2501,9 +2519,23 @@ function syncPauseControls(paused: boolean) {
     breakCard.hidden = !paused;
     breakCard.setAttribute("aria-hidden", paused ? "false" : "true");
   }
+  if (breakResume) {
+    breakResume.disabled = false;
+    breakResume.setAttribute(
+      "aria-label",
+      breakTimerActive
+        ? "Resume mission and close the break timer"
+        : "Resume mission",
+    );
+  }
+  syncBreakCardCopy();
   syncCopilotPanelAriaLabel();
   if (caption) {
-    caption.textContent = paused ? "REMAINING · TIMER PAUSED" : "REMAINING IN YOUR FLIGHT";
+    caption.textContent = paused
+      ? breakTimerActive
+        ? "REMAINING · ON A BREAK"
+        : "REMAINING · TIMER PAUSED"
+      : "REMAINING IN YOUR FLIGHT";
   }
 }
 
@@ -2539,9 +2571,12 @@ function renderSession(session: LockInSession) {
     const rawNote = session.watching_note || "Watching your screen";
     note.textContent = rawNote.replace(/wellness later in background/gi, "camera accountability in background");
   }
+  if (!session.paused && breakTimerActive) {
+    // Mission resumed elsewhere (break window / Rust) — clear local pomodoro flag.
+    setBreakTimerActive(false);
+  }
   syncPauseControls(Boolean(session.paused));
-  if (session.paused) pauseNextStepTimer();
-  else if (nextStepPaused) resumeNextStepTimer();
+  if (session.paused) dismissBreakSuggestion();
   syncSessionSignalPills(session);
   renderVitals(session.vitals);
   renderSessionCoachLog(session.prompts);
@@ -2917,7 +2952,8 @@ function stopTimer() {
   currentSessionDurationSecs = 0;
   missionTimerFrozenDisplay = null;
   pausedElapsedSecs = null;
-  clearNextStepTimer();
+  setBreakTimerActive(false);
+  dismissBreakSuggestion();
   updateMissionBanner();
 }
 
@@ -3336,7 +3372,7 @@ async function bootApp() {
       }
       renderVitals(null);
       playLaunchCelebration(() => {
-        clearNextStepTimer();
+        dismissBreakSuggestion();
         renderSession(session);
         syncMissionTimer(session);
         show("view-session");
@@ -3372,29 +3408,26 @@ async function bootApp() {
     const btn = $("#session-pause") as HTMLButtonElement | null;
     if (!btn || btn.disabled) return;
     const currentlyPaused = btn.getAttribute("aria-pressed") === "true";
-    const next = !currentlyPaused;
+    if (currentlyPaused) {
+      await resumeMissionFromMain();
+      return;
+    }
     btn.disabled = true;
     try {
-      const session = await invoke<LockInSession>("set_lock_in_paused", { paused: next });
+      const session = await invoke<LockInSession>("set_lock_in_paused", { paused: true });
       renderSession(session);
       syncMissionTimer(session);
-      // Belt-and-suspenders: renderSession also syncs next-step; keep explicit for Pause/Resume.
-      if (session.paused) pauseNextStepTimer();
-      else resumeNextStepTimer();
     } catch (err) {
       const msg = String(err);
       alert(/no active mission/i.test(msg) ? msg : "Couldn’t pause right now. Try again.");
-      syncPauseControls(currentlyPaused);
+      syncPauseControls(false);
     } finally {
       if (btn) btn.disabled = false;
     }
   });
 
   $("#session-break-resume")?.addEventListener("click", () => {
-    const pauseBtn = $("#session-pause") as HTMLButtonElement | null;
-    if (!pauseBtn || pauseBtn.disabled) return;
-    if (pauseBtn.getAttribute("aria-pressed") !== "true") return;
-    pauseBtn.click();
+    void resumeMissionFromMain();
   });
 
   $("#session-checkin-on-task")?.addEventListener("click", () => {
@@ -3409,11 +3442,14 @@ async function bootApp() {
   });
 
   $("#session-checkin-break")?.addEventListener("click", () => {
-    setSessionCheckinUi(false);
-    const pauseBtn = $("#session-pause") as HTMLButtonElement | null;
-    if (!pauseBtn || pauseBtn.disabled) return;
-    if (pauseBtn.getAttribute("aria-pressed") === "true") return;
-    pauseBtn.click();
+    void startBreakTimer();
+  });
+
+  $("#session-break-suggest-accept")?.addEventListener("click", () => {
+    void startBreakTimer();
+  });
+  $("#session-break-suggest-dismiss")?.addEventListener("click", () => {
+    dismissBreakSuggestion();
   });
 
   const confirmEndSession = async () => {
@@ -3488,25 +3524,13 @@ async function bootApp() {
     void sendSessionChat();
   });
   $("#session-copilot-suggest")?.addEventListener("click", () => {
-    requestOrStartNextStepTimer();
-  });
-
-  $("#timer-replace-modal")
-    ?.querySelectorAll("[data-timer-replace-dismiss]")
-    .forEach((el) => {
-      el.addEventListener("click", () => closeTimerReplaceModal());
-    });
-
-  $("#timer-replace-confirm")?.addEventListener("click", () => {
-    closeTimerReplaceModal();
-    startNextStepTimer(NEXT_STEP_DEFAULT_SECS);
-    const hint = $("#session-chat-hint");
-    if (hint) {
-      hint.textContent = "Five-minute next-step timer started. One small step at a time.";
-    }
+    void startBreakTimer();
   });
   $("#session-chat-mic")?.addEventListener("click", () => {
     void toggleCompanionLive("session");
+  });
+  $("#session-chat-stop-speech")?.addEventListener("click", () => {
+    interruptCompanionSpeech();
   });
   $("#setting-copilot-audio")?.addEventListener("change", () => {
     void persistCopilotAudioFromToggle();
@@ -3648,6 +3672,30 @@ async function bootApp() {
   await listen<VitalsSnapshot>("vitals-update", (event) => renderVitals(event.payload));
   await listen("overlay-prompt", () => setSessionCheckinUi(true));
   await listen("overlay-clear", () => setSessionCheckinUi(false));
+  // Coach / interplay may suggest a break — never auto-start; Accept / Not now only.
+  await listen<BreakSuggestedPayload>("break-timer-suggested", (event) => {
+    if (!$("#view-session")?.classList.contains("active")) return;
+    if ($("#session-pause")?.getAttribute("aria-pressed") === "true") return;
+    if (breakTimerActive) return;
+    // Check-in chrome CSS-hides Accept/Not now — clear it so the offer is actionable.
+    setSessionCheckinUi(false);
+    setBreakSuggestionUi(true, event.payload?.reason);
+  });
+  await listen("break-timer-started", () => {
+    setBreakTimerActive(true);
+    dismissBreakSuggestion();
+  });
+  await listen("break-timer-ended", () => {
+    setBreakTimerActive(false);
+    dismissBreakSuggestion();
+  });
+  await listen("break-timer-finished", () => {
+    const body = $(".session-break-body");
+    if (breakTimerActive && body) {
+      body.textContent =
+        "Break’s up. Tap Resume mission whenever you’re ready to continue.";
+    }
+  });
   await listen<string>("coach-error", (event) => {
     const note = $("#session-watch-note");
     if (note) note.textContent = `Camera check: ${event.payload}`;
@@ -3662,6 +3710,7 @@ async function bootApp() {
 
   initShipUI();
   await refreshStatus();
+  void refreshBreakTimerActive();
 }
 
 // Module scripts often run after DOMContentLoaded — only boot once either way.

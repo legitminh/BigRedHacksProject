@@ -1,5 +1,6 @@
 mod api;
 mod auth;
+mod break_timer;
 mod camera_observe;
 mod capture;
 mod coach;
@@ -15,12 +16,12 @@ mod session;
 mod settings;
 mod study_memory;
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
 use config::AppConfig;
 use gemini::{ChatMessage, StudySessionSuggestion};
@@ -39,6 +40,11 @@ pub struct AppState {
     pub silent_mode: AtomicBool,
     /// When the current pause began (UTC), if any.
     pub pause_started: Mutex<Option<chrono::DateTime<chrono::Utc>>>,
+    /// Pomodoro break window is showing (mission should be paused).
+    pub break_active: AtomicBool,
+    /// Allow the break window CloseRequested path (only true during sanctioned end).
+    pub break_allow_close: AtomicBool,
+    pub break_duration_secs: AtomicU64,
 }
 
 #[derive(Serialize)]
@@ -795,6 +801,7 @@ async fn start_lock_in(
         }
     };
     coach::stop_coach(&app);
+    break_timer::force_close_break_window(&app, &state);
     *state.pause_started.lock() = None;
     // Overlay is best-effort — never block starting the session.
     if let Err(e) = overlay::ensure_overlay(&app) {
@@ -898,6 +905,7 @@ async fn stop_lock_in(
     coach::stop_coach(&app);
     companion::clear_history(&state);
     waypoint_voice::stop_speaking();
+    break_timer::force_close_break_window(&app, &state);
     let open_pause = state.pause_started.lock().take();
     let summary = {
         let mut guard = state.session.lock();
@@ -928,6 +936,7 @@ async fn delete_all_user_data(
     state: State<'_, AppState>,
 ) -> Result<DeleteDataResult, String> {
     coach::stop_coach(&app);
+    break_timer::force_close_break_window(&app, &state);
     *state.pause_started.lock() = None;
     *state.session.lock() = None;
     state.chat_history.lock().clear();
@@ -972,29 +981,9 @@ async fn set_lock_in_paused(
     state: State<'_, AppState>,
     paused: bool,
 ) -> Result<LockInSession, String> {
-    let snap = {
-        let mut guard = state.session.lock();
-        let session = guard
-            .as_mut()
-            .filter(|s| s.active)
-            .ok_or_else(|| "No active mission to pause.".to_string())?;
-        if session.paused == paused {
-            return Ok(session.clone());
-        }
-        if paused {
-            session.paused = true;
-            *state.pause_started.lock() = Some(chrono::Utc::now());
-            session.watching_note = "On a break — tap Resume when you’re ready.".into();
-        } else {
-            let started = state.pause_started.lock().take();
-            session.finalize_open_pause(started);
-            session.paused = false;
-            session.watching_note = "Back on course — watching with you.".into();
-        }
-        session.clone()
-    };
-    let _ = app.emit("session-update", &snap);
-    Ok(snap)
+    // Pomodoro break owns this pause — Resume via main Pause/break-card must
+    // tear down the fullscreen window, not leave it stranded over an unpaused mission.
+    break_timer::set_lock_in_paused_with_break(&app, &state, paused)
 }
 
 #[tauri::command]
@@ -1061,6 +1050,9 @@ pub fn run() {
             coach_stop: Mutex::new(None),
             silent_mode: AtomicBool::new(initial_settings.silent_mode),
             pause_started: Mutex::new(None),
+            break_active: AtomicBool::new(false),
+            break_allow_close: AtomicBool::new(false),
+            break_duration_secs: AtomicU64::new(300),
         })
         .setup(|app| {
             // Create overlay in the background so a window glitch can't delay first paint.
@@ -1107,6 +1099,10 @@ pub fn run() {
             start_lock_in,
             stop_lock_in,
             set_lock_in_paused,
+            break_timer::start_break_timer,
+            break_timer::end_break_timer,
+            break_timer::suggest_break_timer,
+            break_timer::get_break_timer_status,
             get_session,
             get_settings,
             save_settings,

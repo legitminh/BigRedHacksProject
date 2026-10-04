@@ -23,7 +23,6 @@ export type CompanionContext = {
   modality?: string;
   duration_mins?: number;
   remaining_mins?: number;
-  next_step_secs?: number;
   paused?: boolean;
   /** Partial Google Calendar agenda from the desktop (same source as typed Copilot). */
   calendar_summary?: string;
