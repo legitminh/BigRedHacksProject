@@ -4797,3 +4797,85 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     `.session-controls` → `gap: 12px` between Take a break / End pills
     (was 0.55rem); Pause/End / Take a break wiring unchanged.
 - escalate: scrutinous
+
+## done: fp-copilot-composer-radius
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  input `5:249` · composer `5:248` ·
+  crop `_verify/tick46-copilot-composer-crop.png`
+- commit: d02b66c
+- change: |
+    `.view-copilot .copilot-input-wrap` → `border-radius: 16px` (was
+    pill 9999px); keep 78px height / `#f7f2ff` / `#c8bfd7` / Mic+↑ 52 /
+    `#6750a4` Send. Session/lost wrap stay `1rem`.
+- escalate: scrutinous
+
+## done: fp-copilot-sidebar-body-15
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  body `5:221` · sidebar `5:217` ·
+  crop `_verify/tick46-copilot-sidebar-crop.png`
+- commit: d02b66c
+- change: |
+    `.copilot-sidebar-body` → Regular **15px** / lh 1.4 / `#645d73`
+    (correct overshoot from `97e3086` 16px). Start a mission + planet
+    unchanged.
+- escalate: scrutinous
+
+## done: fp-session-mission-title-type
+- screen: active
+- ref: `.cursor/figma-refs/09-reset-relaunch.png` · live `2:41` ·
+  objective `6:566` · title `6:568` · kicker `6:567` ·
+  crop `_verify/tick46-relaunch-live.png`
+- commit: d02b66c
+- change: |
+    `.session-mission-title` → Medium **28px** / lh 1.4 ink `#282237`
+    (was Bold clamp / `--mc-text-primary`). CURRENT MISSION kicker +
+    Pause/End / signal pills unchanged.
+- escalate: scrutinous
+
+## open: fp-connection-lost-seed-15
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  AT LAUNCH body `6:1715` · panel `6:1707` ·
+  crop `_verify/tick46-lost-panel-crop.png`
+- expected: |
+    Live AT LAUNCH seed body (`6:1715`, 386×42): Regular **15px** /
+    lh 1.4 muted **`#645d73`** (two-line wrap) — same 15px muted token
+    as Copilot sidebar body live.
+- actual: |
+    Open `fp-connection-lost-seed-type` expected **16px** — overstated
+    vs live `get_design_context` **15px**. App still missing lost history
+    mount (`fp-connection-lost-panel`).
+- deviation: |
+    Tick46 — lost seed scale correction vs live `6:1715` (15 not 16).
+    Distinct from seed-type color/presence framing / meta-muted /
+    user-type / divider; under-covered `2:48`. Prefer 15 when mounting.
+- fix_hint: |
+    When mounting AT LAUNCH seed, style body **15px** / 400 / lh 1.4 /
+    `#645d73` (supersede 16 in seed-type); keep meta + composer.
+    Preserve Pause/End.
+- escalate: scrutinous
+
+## open: fp-permissions-choice-kicker-bold
+- screen: overlay
+- ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
+  kicker `7:394` · intro `7:393` ·
+  crop `_verify/tick46-choice-intro-crop.png`
+- expected: |
+    Live YOUR CHOICE kicker (`7:394`): **Bold 12px** / weight **700** /
+    lh 1.4 purple **`#6750a4`** uppercase — not Regular/400 (welcome
+    mint kickers stay Regular 12 mint).
+- actual: |
+    Open `fp-permissions-choice-kicker-type` expected Regular 400 — now
+    wrong vs live `get_design_context` Bold 700. Title-size still says
+    “purple bold 12” bundled with Medium 44. App has no YOUR CHOICE page.
+- deviation: |
+    Tick46 — choice kicker weight vs live `7:394` (Bold 700). Distinct
+    from kicker-type (Regular claim) / title-ink / title-size / sub-type /
+    intro-gap; under-covered YOUR CHOICE. Do not re-add kicker-type.
+- fix_hint: |
+    When adding YOUR CHOICE view, set kicker **12px / 700** / lh 1.4 /
+    `#6750a4`; keep Medium 44 title `#282237` + muted 16 sub + Lock-in
+    nav. Preserve Settings five-tab; do not block Launch.
+- escalate: scrutinous
