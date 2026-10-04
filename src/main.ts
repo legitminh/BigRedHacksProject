@@ -278,6 +278,12 @@ const $ = <T extends HTMLElement>(sel: string) =>
 let lastSummaryGoals = "";
 let lastSessionSummary: SessionSummary | null = null;
 let bufferedSessionNote: SessionNoteReady | null = null;
+let conceptMapMarkdown = "";
+
+type ConceptMapImage = {
+  content_type: string;
+  image_base64: string;
+};
 let lastSummaryPersonalBest: { previous: number; isNew: boolean; delta: number } | null = null;
 let lastSummaryRelaunches = 0;
 
@@ -3468,9 +3474,80 @@ function renderSummary(summary: SessionSummary) {
   applySessionNote(summary);
 }
 
+function resetConceptMap() {
+  conceptMapMarkdown = "";
+  const wrap = $("#summary-concept-map");
+  const status = $("#summary-concept-map-status");
+  const image = $("#summary-concept-map-image") as HTMLImageElement | null;
+  const button = $("#summary-concept-map-btn") as HTMLButtonElement | null;
+  if (wrap) wrap.hidden = true;
+  if (status) {
+    status.hidden = true;
+    status.textContent = "";
+  }
+  if (image) {
+    image.hidden = true;
+    image.removeAttribute("src");
+  }
+  if (button) button.disabled = false;
+}
+
+function showConceptMapOffer(markdown: string) {
+  const wrap = $("#summary-concept-map");
+  if (!wrap) return;
+  if (conceptMapMarkdown !== markdown) {
+    conceptMapMarkdown = markdown;
+    const status = $("#summary-concept-map-status");
+    const image = $("#summary-concept-map-image") as HTMLImageElement | null;
+    const button = $("#summary-concept-map-btn") as HTMLButtonElement | null;
+    if (status) {
+      status.hidden = true;
+      status.textContent = "";
+    }
+    if (image) {
+      image.hidden = true;
+      image.removeAttribute("src");
+    }
+    if (button) button.disabled = false;
+  }
+  wrap.hidden = false;
+}
+
+function conceptMapError(error: unknown): string {
+  if (typeof error === "string" && error.trim()) return error;
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return "Couldn't draw the concept map.";
+}
+
+async function requestConceptMap() {
+  const markdown = conceptMapMarkdown.trim();
+  const status = $("#summary-concept-map-status");
+  const image = $("#summary-concept-map-image") as HTMLImageElement | null;
+  const button = $("#summary-concept-map-btn") as HTMLButtonElement | null;
+  if (!markdown || !status || !image || !button) return;
+  button.disabled = true;
+  status.hidden = false;
+  status.textContent = "Drawing your concept map…";
+  image.hidden = true;
+  try {
+    const result = await invoke<ConceptMapImage>("concept_map", { markdown });
+    const type = /^image\/(jpeg|png|webp)$/.test(result.content_type)
+      ? result.content_type
+      : "image/jpeg";
+    image.src = `data:${type};base64,${result.image_base64}`;
+    image.hidden = false;
+    status.hidden = true;
+  } catch (error) {
+    status.textContent = conceptMapError(error);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 function hideSessionNote() {
   const card = $("#summary-session-note");
   if (card) card.hidden = true;
+  resetConceptMap();
 }
 
 function showSessionNotePending() {
@@ -3483,6 +3560,7 @@ function showSessionNotePending() {
   status.textContent = "Writing your note…";
   body.hidden = true;
   body.replaceChildren();
+  resetConceptMap();
 }
 
 function showSessionNoteMarkdown(markdown: string) {
@@ -3494,6 +3572,7 @@ function showSessionNoteMarkdown(markdown: string) {
   status.hidden = true;
   body.hidden = false;
   renderMarkdown(body, markdown);
+  showConceptMapOffer(markdown);
 }
 
 function applySessionNote(summary: SessionSummary) {
@@ -4383,6 +4462,10 @@ async function bootApp() {
       return;
     }
     bufferedSessionNote = note;
+  });
+
+  $("#summary-concept-map-btn")?.addEventListener("click", () => {
+    void requestConceptMap();
   });
 
   initShipUI();

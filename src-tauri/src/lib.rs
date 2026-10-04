@@ -3,6 +3,7 @@ mod auth;
 mod break_timer;
 mod camera_observe;
 mod capture;
+mod concept_map;
 mod coach;
 mod companion;
 mod config;
@@ -1619,6 +1620,7 @@ pub fn run() {
             save_settings,
             voice_speak,
             voice_listen_test,
+            concept_map::concept_map,
             delete_all_user_data
         ])
         .run(tauri::generate_context!())

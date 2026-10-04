@@ -109,3 +109,4 @@ Edit `src-tauri/secrets.toml` → new `waypoint_api_base` / `local_llm_base` →
 
 - Production API: HTTPS + reverse proxy; keep Node on `127.0.0.1` — see [DEPLOY.md](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/DEPLOY.md).  
 - Workspace: `open Waypoint.code-workspace` to edit desktop + API together.
+- After a lock-in, the final review can draw a concept map of the session note. Sign in first. Grok Imagine runs on the API, and the image stays on that screen.

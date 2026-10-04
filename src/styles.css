@@ -5172,6 +5172,30 @@ body:has(.view-quest-complete.active) .grain {
   font-size: 0.9em;
 }
 
+.quest-concept-map {
+  margin-top: 14px;
+}
+
+.quest-concept-map-btn {
+  margin-top: 4px;
+}
+
+.quest-concept-map-status {
+  margin: 8px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: #4a4560;
+}
+
+.quest-concept-map-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 12px;
+  border-radius: 16px;
+  background: #fff;
+}
+
 .quest-flight-details {
   margin-bottom: 0.25rem;
   font-size: 0.88rem;

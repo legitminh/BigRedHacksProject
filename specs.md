@@ -103,11 +103,14 @@ Tell them how the session went:
 
 The summary and the pace sample are saved through the backend.
 
+When session notes are on, that same final review shows the lock-in note. The student can press **Concept map**. The desktop sends the note markdown to `POST /v1/concept-map`. The API asks Grok Imagine for one diagram of what the note says they learned, and the image appears on the review. The map is not stored with the note. Sign-in is required, because the xAI key stays on the API.
+
 ## Tech stack
 
 - Desktop: Rust / Tauri
 - Model: Gemini, with tools
 - Voice out: Grok Voice
+- Final-review concept map: Grok Imagine (`grok-imagine-image-2.0`) via the API
 - Memory, auth, calendar: Waypoint API
 
 ## Example
