@@ -69,94 +69,6 @@ pub async fn recent_files_summary(cfg: &AppConfig, limit: usize) -> Result<Strin
     ))
 }
 
-fn search_terms(message: &str) -> Vec<String> {
-    let stop = [
-        "a",
-        "an",
-        "the",
-        "my",
-        "me",
-        "i",
-        "you",
-        "your",
-        "can",
-        "could",
-        "would",
-        "please",
-        "find",
-        "show",
-        "read",
-        "check",
-        "open",
-        "summarize",
-        "summary",
-        "about",
-        "what",
-        "whats",
-        "is",
-        "are",
-        "in",
-        "on",
-        "of",
-        "for",
-        "to",
-        "and",
-        "with",
-        "do",
-        "does",
-        "have",
-        "access",
-        "google",
-        "drive",
-        "file",
-        "files",
-        "document",
-        "documents",
-    ];
-    let mut terms = Vec::new();
-    for word in message.split(|c: char| !c.is_alphanumeric()) {
-        let word = word.to_lowercase();
-        if word.len() >= 2 && !stop.contains(&word.as_str()) && !terms.contains(&word) {
-            terms.push(word);
-        }
-    }
-    terms.truncate(12);
-    terms
-}
-
-pub async fn search_files(cfg: &AppConfig, message: &str, limit: usize) -> Result<String, String> {
-    let terms = search_terms(message);
-    if terms.is_empty() {
-        return Ok(
-            "No specific file title or topic requested; use the recent file listing.".into(),
-        );
-    }
-    let token = oauth::ensure_access_token(cfg).await?;
-    let clauses: Vec<_> = terms
-        .iter()
-        .map(|term| format!("fullText contains '{term}'"))
-        .collect();
-    let query = format!(
-        "trashed=false and mimeType != 'application/vnd.google-apps.folder' and ({})",
-        clauses.join(" and ")
-    );
-    let mut files = list_files(&token, &query, limit).await?;
-    if files.is_empty() && terms.len() > 1 {
-        let query = format!(
-            "trashed=false and mimeType != 'application/vnd.google-apps.folder' and ({})",
-            clauses.join(" or ")
-        );
-        files = list_files(&token, &query, limit).await?;
-    }
-    if files.is_empty() {
-        return Ok(format!("Drive search succeeded but no files matched these keywords: {}. Ask for an exact file title.", terms.join(", ")));
-    }
-    Ok(format!(
-        "Drive keyword search results (partial):\n{}",
-        summarize_files(&token, &files).await
-    ))
-}
-
 async fn summarize_files(token: &str, files: &[Value]) -> String {
     let mut sections = Vec::new();
     for file in files {
@@ -213,24 +125,4 @@ async fn read_text(token: &str, id: &str, mime: &str) -> Result<Option<String>, 
         text.insert_str(0, "[First sheet only]\n");
     }
     Ok(Some(text))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn natural_language_search_extracts_topic_instead_of_entire_sentence() {
-        assert_eq!(
-            search_terms("Can you read my Google Drive files about CHEM 2070?"),
-            vec!["chem", "2070"]
-        );
-        assert!(search_terms("Can you access my Google Drive files?").is_empty());
-    }
-
-    #[test]
-    fn search_input_cannot_inject_drive_query() {
-        let terms = search_terms("biology' \\ or trashed = true");
-        assert!(terms.iter().all(|t| t.chars().all(char::is_alphanumeric)));
-    }
 }

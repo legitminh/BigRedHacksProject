@@ -10,6 +10,10 @@ interface CoachPrompt {
 
 const toast = () => document.getElementById("toast");
 const textEl = () => document.getElementById("toast-text");
+const kickerEl = () => document.querySelector<HTMLElement>(".toast-kicker-pill");
+
+const KICKER_GENTLE = "✦  A gentle check-in";
+const KICKER_NUDGE = "✦  Quick check-in";
 
 let hideTimer: number | undefined;
 
@@ -39,6 +43,17 @@ function showPrompt(prompt: CoachPrompt) {
   // Replace in place — never stack multiple toasts.
   if (hideTimer) window.clearTimeout(hideTimer);
   line.textContent = prompt.text;
+  const kind = prompt.kind?.toLowerCase() ?? "";
+  if (kind) {
+    root.dataset.kind = kind;
+  } else {
+    delete root.dataset.kind;
+  }
+  const kicker = kickerEl();
+  if (kicker) {
+    kicker.textContent =
+      kind === "distracted" || kind === "offtask" ? KICKER_NUDGE : KICKER_GENTLE;
+  }
   root.hidden = false;
   root.classList.remove("leaving");
   root.style.animation = "none";

@@ -1,0 +1,18 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="155" height="95" viewBox="0 0 155 95" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Waypoint ship">
+<path id="Vector" d="M57 36L62 10C72.6667 8.66667 82.6667 17.6667 92 37M57 70L64 90C76.6667 90.6667 87 82.6667 95 66" fill="#D99769"/>
+<path id="Vector_2" d="M40 43C75.3333 25 110.333 29.3333 145 56C111.667 79.3333 76.6667 84 40 70V43Z" fill="#EBEDE1"/>
+<path id="Vector_3" d="M41 62C75 70.6667 109.333 68.6667 144 56C110.667 78.6667 76 83.3333 40 70L41 62Z" fill="#A1C7BF"/>
+<path id="Vector_4" d="M121 40C131.667 44 139.667 49.3333 145 56L125 68L121 40Z" fill="#E6A96F"/>
+<path id="Vector_5" d="M91 69C100.389 69 108 61.8366 108 53C108 44.1634 100.389 37 91 37C81.6112 37 74 44.1634 74 53C74 61.8366 81.6112 69 91 69Z" fill="#446A75"/>
+<path id="Vector_6" d="M91 64C97.6274 64 103 59.0751 103 53C103 46.9249 97.6274 42 91 42C84.3726 42 79 46.9249 79 53C79 59.0751 84.3726 64 91 64Z" fill="#8DDFD2"/>
+<g id="Vector_7">
+<path d="M84 49L93 45Z" fill="black"/>
+<path d="M84 49L93 45" stroke="#F0F6D9" stroke-width="4" stroke-linecap="round"/>
+</g>
+<g id="Vector_8">
+<path d="M42 45L40 69Z" fill="black"/>
+<path d="M42 45L40 69" stroke="#496B73" stroke-width="8" stroke-linecap="round"/>
+</g>
+</g>
+</svg>

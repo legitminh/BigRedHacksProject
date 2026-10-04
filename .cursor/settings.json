@@ -1,0 +1,10 @@
+{
+  "plugins": {
+    "grok-voice": {
+      "enabled": true
+    },
+    "figma": {
+      "enabled": true
+    }
+  }
+}

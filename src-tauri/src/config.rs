@@ -3,14 +3,18 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, Default)]
 struct EmbeddedSecrets {
+    /// Ignored if present — Gemini keys must never ship in the .app.
     gemini_api_key: String,
     gemini_model: String,
     presage_api_key: String,
+    /// Ignored if present — Google OAuth lives on the API server.
     google_client_id: String,
     google_client_secret: String,
     local_llm_base: String,
     local_llm_model: String,
     local_vision_model: String,
+    coach_api_token: String,
+    waypoint_api_base: String,
 }
 
 fn parse_toml_secrets(raw: &str) -> EmbeddedSecrets {
@@ -38,6 +42,14 @@ fn parse_toml_secrets(raw: &str) -> EmbeddedSecrets {
             "local_llm_base" => out.local_llm_base = value,
             "local_llm_model" => out.local_llm_model = value,
             "local_vision_model" => out.local_vision_model = value,
+            "coach_api_token" => out.coach_api_token = value,
+            "waypoint_api_base" => {
+                out.waypoint_api_base = value.clone();
+                // Convenience: if only API root is set, coach lives at /v1/coach
+                if out.local_llm_base.is_empty() {
+                    out.local_llm_base = format!("{}/v1/coach", value.trim_end_matches('/'));
+                }
+            }
             _ => {}
         }
     }
@@ -64,11 +76,15 @@ pub struct AppConfig {
     pub presage_api_key: Option<String>,
     pub google_client_id: Option<String>,
     pub google_client_secret: Option<String>,
-    /// Ollama (or compatible) base URL for on-device on-task judgment.
+    /// Coach LLM base URL (Waypoint API `/v1/coach` proxy, or local Ollama for dev).
     pub local_llm_base: String,
     pub local_llm_model: String,
     /// Tiny multimodal model for rare screenshot checks (e.g. moondream).
     pub local_vision_model: String,
+    /// Bearer token for `/v1/coach/*` (matches backend `COACH_API_TOKEN`).
+    pub coach_api_token: Option<String>,
+    /// Waypoint API root, e.g. http://127.0.0.1:8787
+    pub waypoint_api_base: String,
     pub local_llm_enabled: bool,
     pub data_dir: PathBuf,
 }
@@ -107,6 +123,9 @@ impl AppConfig {
         let local_llm_base = env::var("LOCAL_LLM_BASE")
             .ok()
             .filter(|s| !s.is_empty())
+            .or_else(|| env::var("WAYPOINT_API_BASE").ok().filter(|s| !s.is_empty()).map(|b| {
+                format!("{}/v1/coach", b.trim_end_matches('/'))
+            }))
             .or_else(|| {
                 if baked.local_llm_base.is_empty() {
                     None
@@ -114,7 +133,13 @@ impl AppConfig {
                     Some(baked.local_llm_base.clone())
                 }
             })
-            .unwrap_or_else(|| "http://127.0.0.1:11434".into());
+            // Default: Waypoint API coach proxy (Ollama runs on the API host).
+            .unwrap_or_else(|| "http://127.0.0.1:8787/v1/coach".into());
+
+        let coach_api_token = first_nonempty(&[
+            env::var("COACH_API_TOKEN").ok(),
+            Some(baked.coach_api_token),
+        ]);
 
         let local_llm_model = env::var("LOCAL_LLM_MODEL")
             .ok()
@@ -145,37 +170,66 @@ impl AppConfig {
             .map(|v| !matches!(v.to_lowercase().as_str(), "0" | "false" | "off" | "no"))
             .unwrap_or(true);
 
+        let waypoint_api_base = env::var("WAYPOINT_API_BASE")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                if baked.waypoint_api_base.is_empty() {
+                    None
+                } else {
+                    Some(baked.waypoint_api_base.clone())
+                }
+            })
+            .unwrap_or_else(|| "http://127.0.0.1:8787".into());
+
+        // Never bake Gemini or Google OAuth into the binary — extractable from Waypoint.app.
+        // Gemini + Google live on the Waypoint API. Optional env overrides are for local
+        // legacy tooling only and are still not written into secrets.toml.
         Self {
-            gemini_api_key: first_nonempty(&[
-                env::var("GEMINI_API_KEY").ok(),
-                Some(baked.gemini_api_key),
-            ]),
+            gemini_api_key: None,
             gemini_model,
             presage_api_key: first_nonempty(&[
                 env::var("PRESAGE_API_KEY").ok(),
                 Some(baked.presage_api_key),
             ]),
-            google_client_id: first_nonempty(&[
-                env::var("GOOGLE_CLIENT_ID").ok(),
-                Some(baked.google_client_id),
-            ]),
-            google_client_secret: first_nonempty(&[
-                env::var("GOOGLE_CLIENT_SECRET").ok(),
-                Some(baked.google_client_secret),
-            ]),
+            google_client_id: env::var("GOOGLE_CLIENT_ID").ok().filter(|s| !s.is_empty()),
+            google_client_secret: env::var("GOOGLE_CLIENT_SECRET")
+                .ok()
+                .filter(|s| !s.is_empty()),
             local_llm_base,
             local_llm_model,
             local_vision_model,
+            coach_api_token,
+            waypoint_api_base,
             local_llm_enabled,
             data_dir,
         }
+    }
+
+    pub fn api_base(&self) -> &str {
+        self.waypoint_api_base.trim_end_matches('/')
+    }
+
+    /// Attach Bearer auth when talking to the Waypoint coach proxy.
+    /// Prefers the signed-in user JWT when present; otherwise the baked coach token.
+    pub fn coach_auth_header(&self) -> Option<(&str, String)> {
+        if let Some(tokens) = crate::auth::load_tokens(self) {
+            if !tokens.access_token.is_empty() {
+                return Some(("Authorization", format!("Bearer {}", tokens.access_token)));
+            }
+        }
+        self.coach_api_token
+            .as_ref()
+            .filter(|t| !t.is_empty())
+            .map(|t| ("Authorization", format!("Bearer {t}")))
     }
 
     pub fn google_token_path(&self) -> PathBuf {
         self.data_dir.join("google_tokens.json")
     }
 
+    /// Google Calendar/Drive connect is available when signed into Waypoint (server-side OAuth).
     pub fn google_oauth_ready(&self) -> bool {
-        self.google_client_id.is_some() && self.google_client_secret.is_some()
+        crate::auth::load_tokens(self).is_some()
     }
 }

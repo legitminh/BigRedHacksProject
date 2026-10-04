@@ -1,0 +1,7 @@
+{
+  "folders": [
+    { "name": "Waypoint desktop", "path": "." },
+    { "name": "Waypoint API", "path": "../BigRedHacksProjectBackend" }
+  ],
+  "settings": {}
+}

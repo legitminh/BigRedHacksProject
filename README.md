@@ -2,47 +2,34 @@
 
 End-user study navigation app for Big Red Hacks.
 
-Users open the app and **Sign in with Google**. API keys are baked in at build time — they never edit config files.
+Users download the Mac app, **Sign in with Google**, and use Copilot + Lock-in.  
+**Gemini, Google OAuth, Postgres, and Ollama live only on your Waypoint API server.** The Mac build only needs the public API URL.
+
+| Repo | Role |
+|---|---|
+| **This repo** | Tauri Mac app |
+| [BigRedHacksProjectBackend](https://github.com/legitminh/BigRedHacksProjectBackend) | API + secrets + Ollama |
+
+- **Deploy API on any powerful server:** [Backend DEPLOY.md](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/DEPLOY.md)  
+- **Wire / compile this app against that server:** [docs/BACKEND.md](docs/BACKEND.md)
 
 ---
 
-## Exact steps: download + build on your Mac
+## Build the Mac app against your API
 
-### 0) One-time installs (skip if you already have them)
-
-Open **Terminal** and run:
+### 0) Builder machine installs (once)
 
 ```bash
 xcode-select --install
-```
-
-Install Rust:
-
-```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-Then close Terminal, open a **new** Terminal window, and confirm:
-
-```bash
+# new terminal
 rustc --version
+brew install node   # if needed
 ```
 
-Install Node (if needed):
+End users who only install a shipped `.app` do **not** need Rust, Node, or Ollama.
 
-```bash
-brew install node
-```
-
-Optional (Presage video clips):
-
-```bash
-brew install ffmpeg
-```
-
----
-
-### 1) Download the project
+### 1) Clone
 
 ```bash
 cd ~
@@ -52,116 +39,74 @@ git checkout cursor/waypoint-rust-study-nav-bd7b
 npm install
 ```
 
----
+Run / deploy the API first ([DEPLOY.md](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/DEPLOY.md)). Note its public origin, e.g. `https://api.example.com` or `http://127.0.0.1:8787`.
 
-### 2) Create Google OAuth credentials (needed so users can Sign in)
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create/select a project
-3. **APIs & Services → Library** → enable:
-   - Google Calendar API
-   - Google Drive API
-4. **APIs & Services → OAuth consent screen**
-   - User type: **External**
-   - App name: `Waypoint`
-   - Add your email as developer/test user
-   - Scopes: add
-     - `https://www.googleapis.com/auth/calendar.readonly`
-     - `https://www.googleapis.com/auth/drive.readonly`
-5. **APIs & Services → Credentials → Create credentials → OAuth client ID**
-   - Application type: **Desktop app**
-   - Name: `Waypoint`
-   - Create → copy **Client ID** and **Client secret**
-
----
-
-### 3) Bake secrets into the app (you do this once as the builder)
+### 2) Point the app at that API
 
 ```bash
-cd ~/BigRedHacksProject
 cp src-tauri/secrets.example.toml src-tauri/secrets.toml
-open -e src-tauri/secrets.toml
 ```
 
-Fill it like this (keep quotes):
+**Any remote / production API:**
 
 ```toml
-gemini_api_key = "YOUR_GEMINI_KEY"
-gemini_model = "gemini-flash-latest"
-presage_api_key = "YOUR_PRESAGE_KEY_OR_LEAVE_EMPTY"
-google_client_id = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com"
-google_client_secret = "YOUR_GOOGLE_CLIENT_SECRET"
+waypoint_api_base = "https://api.example.com"
+local_llm_base = "https://api.example.com/v1/coach"
+local_llm_model = "qwen2.5:0.5b"
+local_vision_model = "moondream"
+coach_api_token = ""
+presage_api_key = ""
 ```
 
-`gemini_api_key` is **required** — the Rust crate will not compile if it is empty (unless you export a non-empty `GEMINI_API_KEY`).  
-`presage_api_key` unlocks webcam stress / HR–RR checks during lock-in.
+**Local API on this Mac:**
 
-Save the file.  
-`src-tauri/secrets.toml` is **gitignored** — it will not go to GitHub. It gets compiled into `Waypoint.app`.
+```toml
+waypoint_api_base = "http://127.0.0.1:8787"
+local_llm_base = "http://127.0.0.1:8787/v1/coach"
+local_llm_model = "qwen2.5:0.5b"
+local_vision_model = "moondream"
+coach_api_token = ""
+presage_api_key = ""
+```
 
----
+- `waypoint_api_base` must match the API’s `PUBLIC_BASE_URL` (scheme + host, no trailing slash).  
+- **Never** put Gemini or Google client secrets in `secrets.toml` (unsafe and the build rejects non-empty values).  
+- Changing the API URL requires a **rebuild**.
 
-### 4) Build the final Mac app
+Google OAuth is configured **only** on the API (Web client + redirect URIs under that same public origin). Details in the backend DEPLOY / README.
+
+### 3) Dev or ship
 
 ```bash
-cd ~/BigRedHacksProject
-npm run app:build
+npm run app:dev      # hot reload against secrets.toml
+npm run app:build    # release Waypoint.app
 ```
-
-Wait until it finishes (several minutes the first time).
-
----
-
-### 5) Run it
 
 ```bash
-open ~/BigRedHacksProject/src-tauri/target/release/bundle/macos/Waypoint.app
+open src-tauri/target/release/bundle/macos/Waypoint.app
 ```
 
-Or Finder → go to that folder → double-click **Waypoint.app**.
+If macOS blocks it: **System Settings → Privacy & Security → Open Anyway**.  
+Lock-in needs **Screen Recording**; camera is optional (Presage).
 
-If macOS blocks it: **System Settings → Privacy & Security → Open Anyway**.
-
-For lock-in, allow **Screen Recording** (required — Waypoint watches your screen) and **Camera** (for Presage wellness). Install `ffmpeg` if you want Presage clips to encode.
-
-A `.dmg` (if produced) will be under:
-
-```text
-~/BigRedHacksProject/src-tauri/target/release/bundle/dmg/
-```
-
----
-
-### 6) End-user flow (what people see)
+### 4) End-user flow
 
 1. Open Waypoint  
-2. Tap **Sign in with Google**  
-3. Approve Calendar + Drive access  
-4. Use **Ask** or **Lock in**
+2. **Sign in with Google** (browser)  
+3. Approve Calendar + Drive  
+4. Use **Ask** / **Lock in**
 
-No API key screens. No `.env` for end users.
+No API keys on the device. Copilot uses Gemini on your server, with silent local Ollama fallback when Gemini is limited.
 
 ---
 
-## Dev mode (optional, not the shipped app)
+## Switching backends
 
-```bash
-cd ~/BigRedHacksProject
-npm run app:dev
-```
+Edit `src-tauri/secrets.toml` → new `waypoint_api_base` / `local_llm_base` → `npm run app:build` again. Distribute the new `.app`.
 
 ---
 
 ## Notes
 
-- Chat renders Markdown, including tables and code blocks. Use **Explain simply**, **Quiz me**, or **Make a plan** to draft a study request; edit it before sending. Enter sends, Shift+Enter adds a line, and **New chat** resets the conversation.
-- Chat supports inline LaTeX (`$...$` or `\(...\)`) and display equations (`$$...$$` or `\[...\]`), with bundled KaTeX fonts. Temporary Gemini overloads and rate limits retry the unchanged message up to five times, showing a delay message; persistent failures show a friendly retry notice.
-- Run `npm test` (Node 26+) for Markdown safety and chat interaction checks.
-- If Calendar works but Drive does not, enable **Google Drive API** in the same Google Cloud project as the desktop OAuth client. Adding consent-screen scopes alone does not enable the API. Wait a few minutes after enabling it; reconnect Google if the error instead says permissions are missing.
-- Drive chat reads excerpts from Google Docs, Slides, Sheets (first sheet only), and text files. Other formats currently provide filenames and metadata only. Ask with a specific title or topic for files outside the recent listing.
-- Lock-in is screen-first: Gemini coaches from periodic screenshots against your goals. Presage runs separate ~20s webcam clips for stress / HR / RR when Camera + `presage_api_key` + `ffmpeg` are available. Lock-in still starts if the camera is denied; wellness just stays offline.
-- Coach lines pop up in an always-on-top overlay and are spoken with a local macOS `say` stand-in (`waypoint-voice` crate). Swap that crate’s TTS/STT for Grok Voice later. `voice_listen_test` records a short mic clip through the stub STT pipeline.
-- Keep `src-tauri/Info.plist` in the build: it declares why Waypoint needs camera access. Without `NSCameraUsageDescription`, macOS terminates the app when lock-in touches the camera. Reopen the rebuilt `.app` after updating; allow Camera and Screen Recording in System Settings.
-- Rebuild after any change to `src-tauri/secrets.toml` (`npm run app:build` again).
-- Embedded keys can be extracted from a desktop binary — fine for a hackathon demo; rotate keys after the event if the repo/app is shared widely.
-- This Linux cloud environment cannot produce a macOS `.app`. Always build on your Mac.
+- Production API: HTTPS + reverse proxy; keep Node on `127.0.0.1` — see [DEPLOY.md](https://github.com/legitminh/BigRedHacksProjectBackend/blob/main/DEPLOY.md).  
+- Workspace: `open Waypoint.code-workspace` to edit desktop + API together.

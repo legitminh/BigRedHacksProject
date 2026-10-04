@@ -1,0 +1,25 @@
+---
+description: Prefer local OS signals and cheap text Gemini over full-desktop vision
+alwaysApply: true
+---
+
+# Lock-in coaching: minimize full Gemini vision
+
+Full-desktop screenshot → Gemini vision is expensive (tokens + free-tier RPD). Prefer cheaper signals first.
+
+## Preference order (use in this order)
+
+1. **Local OS events** (free): frontmost app switch, window title, browser URL/tabs — instant hard nags for Discord, Instagram, shopping, email, texting.
+2. **Local OCR** (Apple Vision `.fast` on a small focused-window JPEG): read the webpage pixels when URL automation fails; label YouTube/Instagram/etc from text.
+3. **Local quantized text model** (Ollama `qwen2.5:0.5b`): title/URL/OCR excerpt → on-task JSON.
+4. **Local tiny VLM** (Ollama `moondream`, rare ~45s): only when OCR/OS still look unclear.
+5. **Gemini text** only if local models are down or low-confidence.
+6. **Full-desktop Gemini vision** (last resort): sparse. Skip while already distracted locally.
+
+## Do / don't
+
+- **Do** interrupt on app/tab open/switch without waiting for vision.
+- **Do** treat YouTube as contextual (study vs entertainment) via text, not “any YouTube = bad”.
+- **Don't** add new frequent `grab_desktop_jpeg` / `analyze_session` loops.
+- **Don't** retry failed vision calls aggressively — that burns daily quota.
+- **Don't** send screenshots when URL/title/page text is enough to decide.

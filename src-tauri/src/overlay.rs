@@ -19,6 +19,8 @@ pub fn ensure_overlay(app: &AppHandle) -> Result<(), String> {
     .resizable(false)
     .decorations(false)
     .transparent(true)
+    // macOS draws a rectangular window shadow that reads as a jagged black border.
+    .shadow(false)
     .always_on_top(true)
     .skip_taskbar(true)
     .visible(false)
@@ -46,6 +48,8 @@ pub fn show_prompt(app: &AppHandle, prompt: &CoachPrompt) {
         tracing::warn!("{e}");
         return;
     }
+    // Main window listens to hide session next-step / suggest while check-in is up.
+    let _ = app.emit("overlay-prompt", prompt);
     let Some(window) = app.get_webview_window(OVERLAY_LABEL) else {
         return;
     };
@@ -65,6 +69,7 @@ pub fn show_prompt(app: &AppHandle, prompt: &CoachPrompt) {
 }
 
 pub fn hide(app: &AppHandle) {
+    let _ = app.emit("overlay-clear", ());
     if let Some(window) = app.get_webview_window(OVERLAY_LABEL) {
         let _ = app.emit_to(OVERLAY_LABEL, "overlay-clear", ());
         let _ = window.eval("window.__waypointClear && window.__waypointClear()");

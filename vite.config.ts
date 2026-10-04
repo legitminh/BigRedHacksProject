@@ -19,14 +19,20 @@ export default defineConfig(() => ({
   server: {
     port: 1420,
     strictPort: true,
-    host: host || false,
+    // Prefer IPv4 so Tauri WebView (localhost / 127.0.0.1) never hits an
+    // IPv6-only Vite bind and renders a blank window.
+    host: host || "127.0.0.1",
     hmr: host
       ? {
           protocol: "ws",
           host,
           port: 1421,
         }
-      : undefined,
+      : {
+          protocol: "ws",
+          host: "127.0.0.1",
+          port: 1420,
+        },
     watch: {
       ignored: ["**/src-tauri/**"],
     },

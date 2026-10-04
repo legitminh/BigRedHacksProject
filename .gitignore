@@ -13,7 +13,6 @@ dist-ssr
 *.local
 .env
 .env.*
-!.env.example
 
 # Build-time secrets (baked into the app; never commit real values)
 src-tauri/secrets.toml
@@ -30,3 +29,14 @@ src-tauri/bin/
 *.njsproj
 *.sln
 *.sw?
+preview/
+
+# Bulky full-screen Figma SVG exports (use Space artwork only)
+src/assets/figma/from-export/
+
+# Local agent audit reports (never commit)
+*.local.md
+AUDIT-*.local.md
+
+.tmp-VIDEOINPUT/
+.tmp-gemini_live_demo/

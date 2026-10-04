@@ -236,31 +236,6 @@ fn classify_site(
     }))
 }
 
-/// Compact hint list for Gemini vision.
-pub fn open_context_hints(front: &FrontmostInfo) -> String {
-    let mut hints = Vec::new();
-    hints.push(format!("frontmost={}", front.summary()));
-    if !front.window_title.is_empty() {
-        hints.push(format!("window_title={}", truncate(&front.window_title, 80)));
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let mut off_task = Vec::new();
-        for tab in all_browser_tabs().into_iter().take(40) {
-            let lower = tab.url.to_lowercase();
-            if let Some(label) = classify_url_host(&lower) {
-                let host = url_host(&tab.url).unwrap_or(tab.url);
-                let title = truncate(&tab.title, 40);
-                off_task.push(format!("{label}:{host} ({title})"));
-            }
-        }
-        if !off_task.is_empty() {
-            hints.push(format!("open_flagged_tabs={}", off_task.join(" | ")));
-        }
-    }
-    hints.join("\n")
-}
-
 pub fn distraction_coach_line(hit: &DistractionHit) -> String {
     let where_ = if hit.focused {
         String::new()
@@ -296,7 +271,7 @@ pub fn distraction_coach_line(hit: &DistractionHit) -> String {
     }
 }
 
-/// Cheap local guess for YouTube / video titles when Gemini text judge is slow.
+/// Cheap local guess for YouTube / video titles before the Ollama text judge runs.
 /// `Some(true)` = looks study-related, `Some(false)` = entertainment, `None` = unclear.
 pub fn local_context_guess(kind: &str, page_text: &str, goals: &str) -> Option<bool> {
     // Only scan the page/title — never let goal words (e.g. "course") mark every video as study.
@@ -503,7 +478,7 @@ struct BrowserTab {
     title: String,
 }
 
-/// Title + URL + short body text for cheap Gemini context (no screenshot tokens).
+/// Title + URL + short body text for cheap local-judge context (no screenshot tokens).
 fn page_context_blob(info: &FrontmostInfo) -> String {
     let mut parts = Vec::new();
     if !info.window_title.is_empty() {

@@ -2,7 +2,7 @@
 name = "waypoint-voice"
 version = "0.1.0"
 edition = "2021"
-description = "Rudimentary local voice helpers for Waypoint (stand-in before Grok Voice)"
+description = "Local voice helpers for Waypoint (macOS say/afplay; Grok TTS playback)"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

@@ -12,6 +12,14 @@ use crate::capture::{ocr, screen};
 use crate::config::AppConfig;
 use crate::gemini::CoachVisionResult;
 
+fn with_coach_auth(req: reqwest::RequestBuilder, cfg: &AppConfig) -> reqwest::RequestBuilder {
+    if let Some((name, value)) = cfg.coach_auth_header() {
+        req.header(name, value)
+    } else {
+        req
+    }
+}
+
 const OCR_MAX_CHARS: usize = 2200;
 const VLM_PROBE_TTL_SECS: u64 = 60;
 const MIN_VLM_CONFIDENCE: f32 = 0.55;
@@ -60,16 +68,16 @@ pub async fn vlm_available(cfg: &AppConfig) -> bool {
 
 pub async fn vlm_status_line(cfg: &AppConfig) -> String {
     if cfg.local_vision_model.is_empty() {
-        return "Local VLM off".into();
+        return "Screen coach off".into();
     }
     let (ok, detail) = probe_vlm(cfg).await;
     if let Ok(mut guard) = VLM_PROBE.lock() {
         *guard = Some((Instant::now(), ok, detail.clone()));
     }
     if ok {
-        format!("Local VLM ready · {}", cfg.local_vision_model)
+        format!("Screen coach ready · {}", cfg.local_vision_model)
     } else {
-        format!("Local VLM unavailable · {detail}")
+        format!("Screen coach unavailable · {detail}")
     }
 }
 
@@ -79,12 +87,23 @@ async fn probe_vlm(cfg: &AppConfig) -> (bool, String) {
         Err(e) => return (false, e.to_string()),
     };
     let url = format!("{}/api/tags", cfg.local_llm_base.trim_end_matches('/'));
-    let res = match client.get(url).send().await {
+    let res = match with_coach_auth(client.get(url), cfg).send().await {
         Ok(r) => r,
-        Err(_) => return (false, format!("pull with: ollama pull {}", cfg.local_vision_model)),
+        Err(_) => {
+            return (
+                false,
+                "start Waypoint API on this Mac".into(),
+            )
+        }
     };
     if !res.status().is_success() {
-        return (false, format!("HTTP {}", res.status()));
+        let code = res.status().as_u16();
+        let msg = if code == 401 || code == 403 {
+            "check coach API token".into()
+        } else {
+            format!("API returned {code}")
+        };
+        return (false, msg);
     }
     let body: Value = match res.json().await {
         Ok(v) => v,
@@ -106,7 +125,7 @@ async fn probe_vlm(cfg: &AppConfig) -> (bool, String) {
     } else {
         (
             false,
-            format!("run `ollama pull {}`", cfg.local_vision_model),
+            format!("need model {}", cfg.local_vision_model),
         )
     }
 }
@@ -147,12 +166,11 @@ ocr_hint: {hint}"#
             "num_predict": 100
         }
     });
-    let res = client
-        .post(url)
+    let res = with_coach_auth(client.post(url), cfg)
         .json(&body)
         .send()
         .await
-        .map_err(|e| format!("local VLM request: {e}"))?;
+        .map_err(|e| format!("coach VLM request: {e}"))?;
     let status = res.status();
     let text = res.text().await.unwrap_or_default();
     if !status.is_success() {
