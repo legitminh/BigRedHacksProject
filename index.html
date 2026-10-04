@@ -356,14 +356,6 @@
                 <input id="lockin-camera" type="checkbox" class="mission-toggle-input" />
                 <span class="mission-toggle-switch" aria-hidden="true"></span>
               </label>
-              <label class="mission-toggle-row">
-                <span class="mission-toggle-copy">
-                  <strong>Screen sharing</strong>
-                  <small>Reads your active app, window title, browser tab, and on-device screen text to catch drift.</small>
-                </span>
-                <input id="lockin-screen" type="checkbox" class="mission-toggle-input" />
-                <span class="mission-toggle-switch" aria-hidden="true"></span>
-              </label>
             </div>
 
             <p id="lockin-error" class="lockin-error" role="alert" hidden></p>
@@ -867,17 +859,6 @@
                     </li>
                     <li class="settings-toggle-row">
                       <div class="settings-toggle-copy">
-                        <strong>Screen sharing</strong>
-                        <span>Optional. Reads your active app, window title, browser tab, and on-device screen text (OCR) to check against your objective.</span>
-                      </div>
-                      <label class="mc-switch">
-                        <input id="setting-screen-sharing" type="checkbox" />
-                        <span class="mc-switch-track" aria-hidden="true"></span>
-                        <span class="visually-hidden">Screen sharing</span>
-                      </label>
-                    </li>
-                    <li class="settings-toggle-row">
-                      <div class="settings-toggle-copy">
                         <strong>Reduce motion</strong>
                         <span>Keep the ship still and show progress through the route and timer.</span>
                       </div>
@@ -889,7 +870,7 @@
                     </li>
                   </ul>
                   <p class="settings-mission-foot">
-                    Camera and screen sharing stay off until you turn them on here or when you plan a mission.
+                    Screen sharing stays on for every mission. Camera signals stay off until you turn them on here or when you plan a mission.
                   </p>
                   <p id="settings-save-status" class="settings-save-hint" aria-live="polite"></p>
                   <input id="setting-silent-mode" type="checkbox" hidden aria-hidden="true" tabindex="-1" />
@@ -899,9 +880,9 @@
                   <h2 id="settings-privacy-title" class="settings-privacy-title">Your session, not a recording.</h2>
                   <p class="settings-privacy-copy">
                     Mission summaries and study notes are saved to your account. Screen text and window checks stay on
-                    your Mac, and only run when Screen sharing is on. When Copilot Live asks to see your screen, Waypoint
-                    sends a screenshot to Google Gemini through the Waypoint API. If Camera signals is on, short webcam
-                    clips are uploaded to Presage for wellness estimates.
+                    your Mac during missions. When Copilot Live asks to see your screen, Waypoint sends a screenshot to
+                    Google Gemini through the Waypoint API. If Camera signals is on, short webcam clips are uploaded to
+                    Presage for wellness estimates.
                   </p>
                 </section>
               </div>
@@ -926,7 +907,7 @@
                     <li class="mc-perm-row">
                       <div class="mc-perm-copy">
                         <strong>Screen Recording</strong>
-                        <span>Needed for screen sharing during a mission and for Copilot Live screen context. Not needed if both stay off.</span>
+                        <span>Required for missions and for Copilot Live screen context.</span>
                       </div>
                       <span id="perm-screen" class="mc-perm-badge" data-state="unknown">Checking…</span>
                     </li>

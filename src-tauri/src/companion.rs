@@ -208,9 +208,9 @@ pub fn voice_stop() {
 /// Capture a desktop JPEG for the Live companion. Base64 stays on the device until
 /// the thin client posts it to Waypoint API `/v1/companion/live` (API → Gemini).
 ///
-/// Consent gate: refuses (no capture at all) unless the UI reports screen sharing is on
-/// (`screen_consent`, from the `wp-setting-screen-sharing` pref) AND — when a lock-in
-/// session is running — that session was launched with `screen_enabled`.
+/// Consent gate: refuses (no capture at all) unless the UI reports screen consent
+/// (`screen_consent`; always true in current UI) AND — when a lock-in session is
+/// running — that session was launched with `screen_enabled` (always true for new launches).
 #[tauri::command]
 pub async fn companion_grab_screencap(
     state: State<'_, AppState>,

@@ -41,8 +41,14 @@ interface UserSettings {
 }
 
 const PREF_CAMERA_SIGNALS = "wp-setting-camera-signals";
+/** Legacy key — screen sharing is always on for study; kept only to clear old prefs. */
 const PREF_SCREEN_SHARING = "wp-setting-screen-sharing";
 const PREF_REDUCE_MOTION = "wp-setting-reduce-motion";
+
+/** Screen watching is part of lock-in; not user-toggleable. */
+function screenSharingEnabled(): boolean {
+  return true;
+}
 
 function readBoolPref(key: string, defaultValue: boolean): boolean {
   try {
@@ -78,23 +84,20 @@ function applyReduceMotionPref() {
 
 /** Same prefs drive mission setup and Settings (and what start_lock_in receives). */
 function syncSessionPreferenceToggles() {
+  // Persist mandatory screen so any leftover readers see on.
+  writeBoolPref(PREF_SCREEN_SHARING, true);
   const camOn = readBoolPref(PREF_CAMERA_SIGNALS, false);
-  const screenOn = readBoolPref(PREF_SCREEN_SHARING, false);
   for (const id of ["setting-camera-signals", "lockin-camera"]) {
     const el = $(`#${id}`) as HTMLInputElement | null;
     if (el) el.checked = camOn;
   }
-  for (const id of ["setting-screen-sharing", "lockin-screen"]) {
-    const el = $(`#${id}`) as HTMLInputElement | null;
-    if (el) el.checked = screenOn;
-  }
   applyReduceMotionPref();
 }
 
-/** Consent flags for start_lock_in — persisted prefs are the source of truth. */
+/** Consent flags for start_lock_in — screen is always required; camera is a pref. */
 function lockInConsentArgs() {
   return {
-    screenEnabled: readBoolPref(PREF_SCREEN_SHARING, false),
+    screenEnabled: screenSharingEnabled(),
     cameraEnabled: readBoolPref(PREF_CAMERA_SIGNALS, false),
   };
 }
@@ -620,13 +623,10 @@ function missionLaunchLabel(loading: boolean) {
 }
 
 function setupConsentSummary(): string {
-  const screen = readBoolPref(PREF_SCREEN_SHARING, false);
   const camera = readBoolPref(PREF_CAMERA_SIGNALS, false);
-  if (!screen && !camera) return "Screen sharing and camera are both off.";
-  if (screen && camera) return "Screen sharing and camera are on for this mission.";
-  return screen
-    ? "Screen sharing is on; camera is off."
-    : "Camera is on; screen sharing is off.";
+  return camera
+    ? "Screen sharing is on; camera is on for this mission."
+    : "Screen sharing is on; camera is off.";
 }
 function setupFootEmpty(): string {
   return `Type an objective to enable launch.<br />${setupConsentSummary()}`;
@@ -1931,14 +1931,14 @@ function currentComposerHint(target: "chat" | "session"): string {
 
 /** Same pref PKG-1 uses; if a lock-in session is running it must also have launched with screen on. */
 async function liveScreenConsent(): Promise<boolean> {
-  if (!readBoolPref(PREF_SCREEN_SHARING, false)) return false;
   try {
     const session = await invoke<LockInSession | null>("get_session");
+    // Mid-mission: honor the session flag (always true for new launches).
     if (session && !session.screen_enabled) return false;
   } catch {
     return false;
   }
-  return true;
+  return screenSharingEnabled();
 }
 
 async function ensureCompanionLive(surface: LiveSurface): Promise<CompanionLiveSession> {
@@ -2413,7 +2413,7 @@ function renderSessionCoachLog(prompts: CoachPrompt[]) {
  */
 function syncSessionSignalPills(session?: Pick<LockInSession, "screen_enabled" | "camera_enabled"> | null) {
   const cameraOn = session?.camera_enabled ?? readBoolPref(PREF_CAMERA_SIGNALS, false);
-  const screenOn = session?.screen_enabled ?? readBoolPref(PREF_SCREEN_SHARING, false);
+  const screenOn = session?.screen_enabled ?? screenSharingEnabled();
   const camera = $("#session-pill-camera");
   const screen = $("#session-pill-screen");
   if (camera) {
@@ -3446,18 +3446,6 @@ async function bootApp() {
   });
   wireCameraPermissionHandoff("lockin-camera", "setup");
   wireCameraPermissionHandoff("setting-camera-signals", "settings");
-  for (const id of ["setting-screen-sharing", "lockin-screen"]) {
-    $(`#${id}`)?.addEventListener("change", (event) => {
-      const input = event.target as HTMLInputElement;
-      writeBoolPref(PREF_SCREEN_SHARING, input.checked);
-      // Keep setup + Settings in lockstep (same pref).
-      for (const other of ["setting-screen-sharing", "lockin-screen"]) {
-        const el = $(`#${other}`) as HTMLInputElement | null;
-        if (el) el.checked = input.checked;
-      }
-      syncMissionSetupLaunchUi();
-    });
-  }
   syncSessionPreferenceToggles();
   syncMissionSetupLaunchUi();
   $("#setting-reduce-motion")?.addEventListener("change", (event) => {

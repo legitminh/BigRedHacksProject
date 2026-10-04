@@ -603,18 +603,19 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 
 ## open: fp-gentle-checkin-progress-pill
 - screen: active
-- ref: `.cursor/figma-refs/08-gentle-check-in.png` · live `2:40` · pill `6:421`
+- ref: `.cursor/figma-refs/08-gentle-check-in.png` · live `2:40` ·
+  pill `6:403` / label `6:404` (was stale `6:421` star ellipse)
 - expected: |
-    Live 08 left progress pill reads “✦ A gentle check-in” (not “Mission in
-    progress”); caption stays “REMAINING IN YOUR FLIGHT”; Pause/End remain.
+    Live 08 Flight status pill (`6:403`, 132×31) reads “✦  A gentle
+    check-in”; caption stays “REMAINING IN YOUR FLIGHT”; Pause/End remain.
 - actual: |
-    Session check-in card/CTA/compact chrome now verified (10bb695), but
+    Session check-in card/CTA/compact chrome verified (10bb695), but
     `updateSessionProgressPill` never sets a check-in label — still
     “Mission in progress” while `is-session-checkin`. Overlay toast may also
     show; left pill does not flip.
 - deviation: |
-    Progress pill copy vs live 08 during check-in. Distinct from verified
-    panel/CTA/compact opens — only the left pill remains.
+    Progress pill copy vs live `6:404` during check-in. Distinct from
+    verified panel/CTA/compact opens — only the left pill remains.
 - fix_hint: |
     In `setSessionCheckinUi(true)`, set `#session-progress-label` to
     “A gentle check-in” (✦ via pill styles); restore “Mission in progress”
@@ -3428,16 +3429,21 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     that still reported camera mission-controls was stale).
 - verified: 2026-10-03T19:33:15-04:00
 
-## done: fp-copilot-conversation-stack-gap
+## verified: fp-copilot-conversation-stack-gap
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
-  Conversation `5:232` · intro `5:234` · card `5:235` · chips `5:240`
+  Conversation `5:232` · intro `5:234` · card `5:235` · chips `5:240` ·
+  crop `_verify/tick-catchup-copilot-live.png`
 - commit: 5aee537
 - change: |
     `.copilot-main` gap → `1.375rem` (22px) for intro→panel→chips per
     live `5:232`; composer `margin-top` → `6.4375rem` so gap+margin
     stays ~125px chips→composer (`d63cd52` clear). Mic/Send wiring +
     title/intro/hint copy untouched.
+- verified: 2026-10-03T19:57:00-04:00
+- note: |
+    Catch-up compliance: live metadata `5:232` title→intro→card→chips
+    gaps all 22px; HEAD `.copilot-main`/`.copilot-intro` gap 1.375rem.
 
 ## open: fp-connection-lost-history-stack-gap
 - screen: active
@@ -3550,43 +3556,52 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     five-tab; do not block Launch.
 - escalate: scrutinous
 
-## done: fp-copilot-sidebar-stack-gap
+## verified: fp-copilot-sidebar-stack-gap
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   sidebar `5:217` · title `5:220` · body `5:221` · divider `5:222` ·
   CTA `5:223` · status `5:226` · planet `5:227` ·
-  crop `_verify/tick28-copilot-live.png`
+  crop `_verify/tick-catchup-copilot-live.png`
 - commit: 5aee537
 - change: |
     `.copilot-sidebar` gap → `1.25rem` (20px) end-to-end per live
     Session context `5:217`; pad 24 + Start a mission wiring kept.
+- verified: 2026-10-03T19:57:00-04:00
+- note: |
+    Catch-up compliance: live `5:217` title→body→divider→CTA→status→
+    planet gaps all 20px; HEAD `.copilot-sidebar` gap 1.25rem.
 
-## done: fp-copilot-sidebar-cta-height
+## verified: fp-copilot-sidebar-cta-height
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
-  CTA `5:223` · crop `_verify/tick28-copilot-live.png`
+  CTA `5:223` · crop `_verify/tick-catchup-copilot-live.png`
 - commit: 5aee537
 - change: |
     `.copilot-sidebar-cta` / `.primary` → `min-height: 52px` +
     `box-shadow: none` (flat fill, no `--mc-shadow-glow-purple`);
     full-width stretch + Start a mission → Lock-in wiring kept.
+- verified: 2026-10-03T19:57:00-04:00
+- note: |
+    Catch-up compliance: live `5:223` = 262×52 flat; HEAD min-height 52
+    + box-shadow none + stretch.
 
 ## open: fp-permission-handoff-pad-33
 - screen: overlay
 - ref: `.cursor/figma-refs/17-permission-request.png` · live `2:49` ·
-  modal `7:415` · crop `_verify/tick28-handoff-modal-crop.png`
+  modal `7:415` · crop `_verify/tick-catchup-handoff-crop.png`
 - expected: |
     Live handoff card (`7:415`, 580×340): outer pad **33px** (badge at
     y=33; foot ends y=307 → bottom pad 33) with column gap 22 already
-    verified (`a947816`). Camera title/body/foot still match tick28 OCR
-    (no live copy regression vs `9681808`).
+    verified (`a947816`). Catch-up get_screenshot still OCR camera title
+    “Allow camera signals?” / recorded foot (layer names Share-an-optional
+    / Design-reference remain stale).
 - actual: |
     `.mc-perm-modal__card` padding is `32px` (stack-gap commit preferred
     32). Surface 580 / gap 22 / camera copy OK; 1px pad short vs live 33.
 - deviation: |
-    Tick28 — handoff card pad 33 vs app 32. Distinct from verified
+    Handoff card pad 33 vs app 32. Distinct from verified
     stack-gap/surface + open choice-scrim / choice-surface; spot-check
-    camera copy still matches live.
+    camera visual still matches live screenshot.
 - fix_hint: |
     Set `.mc-perm-modal__card` padding to 33px; keep gap 22 + Not now ·
     Continue + camera strings. Preserve Settings five-tab; do not block

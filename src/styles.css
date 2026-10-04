@@ -2468,8 +2468,8 @@ button:active {
 
 .copilot-panel {
   flex: 1 1 auto;
-  min-height: 14rem;
-  max-height: min(58vh, 34rem);
+  min-height: 18rem;
+  max-height: min(72vh, 44rem);
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -2483,12 +2483,16 @@ button:active {
 /* Active conversation: reclaim empty-state composer air for a taller reply log */
 .copilot-main:has(.copilot-log .bubble) .copilot-panel {
   flex: 1 1 auto;
-  min-height: 18rem;
+  min-height: min(52vh, 28rem);
   max-height: none;
 }
 
 .copilot-main:has(.copilot-log .bubble) .copilot-composer {
-  margin-top: 1.25rem;
+  margin-top: 0.85rem;
+}
+
+.copilot-main:has(.copilot-log .bubble) .copilot-prompts-row {
+  margin-top: 0;
 }
 
 .copilot-panel:has(#chat-empty) {

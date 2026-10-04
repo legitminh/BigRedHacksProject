@@ -777,8 +777,9 @@ async fn start_lock_in(
     screen_enabled: Option<bool>,
     camera_enabled: Option<bool>,
 ) -> Result<LockInSession, String> {
-    // Consent is explicit per mission — omitted means off.
-    let screen_enabled = screen_enabled.unwrap_or(false);
+    // Screen watching is required for lock-in study (argument kept for API compat).
+    let _screen_opt_in = screen_enabled;
+    let screen_enabled = true;
     let camera_enabled = camera_enabled.unwrap_or(false);
     let goals = {
         let trimmed = goals.trim().to_string();
@@ -799,7 +800,7 @@ async fn start_lock_in(
     // Lock-in coaching is local/API only — Gemini is not required to start.
     let presage_ready = PresageClient::configured(&cfg);
 
-    // Screen watching is opt-in. Only probe Screen Recording when the student turned it on;
+    // Screen watching is required. Probe Screen Recording on launch;
     // timeout so a stuck permission prompt can't freeze the UI.
     if screen_enabled {
         match tokio::time::timeout(
@@ -813,7 +814,7 @@ async fn start_lock_in(
             Ok(Err(e)) => return Err(format!("Screen capture task failed: {e}")),
             Err(_) => {
                 return Err(
-                    "Screen capture timed out. Allow Screen Recording for Waypoint in System Settings → Privacy & Security → Screen Recording, then quit and reopen the app. Or turn Screen sharing off to start without it."
+                    "Screen capture timed out. Allow Screen Recording for Waypoint in System Settings → Privacy & Security → Screen Recording, then quit and reopen the app."
                         .into(),
                 );
             }
