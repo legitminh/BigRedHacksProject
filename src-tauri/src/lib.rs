@@ -136,8 +136,14 @@ async fn get_system_permissions() -> Result<SystemPermissions, String> {
         .await
         .unwrap_or(false);
     let camera = capture::camera::permission_granted();
-    let accessibility = match tokio::task::spawn_blocking(capture::frontmost::frontmost_info).await {
-        Ok(Ok(_)) => true,
+    // Accessibility alone is not enough — Automation (System Events) is required for
+    // frontmost/title/tabs. Treat the pair as the coaching focus permission.
+    let accessibility = match tokio::task::spawn_blocking(|| {
+        capture::frontmost::accessibility_trusted() && capture::frontmost::frontmost_info().is_ok()
+    })
+    .await
+    {
+        Ok(ok) => ok,
         _ => false,
     };
     let microphone = tokio::task::spawn_blocking(waypoint_voice::microphone_permission_status)
@@ -1291,6 +1297,17 @@ async fn start_lock_in(
 
     let cfg = state.config.lock().clone();
 
+    // Accessibility + Automation (System Events) — prompt before coach starts so we never
+    // enter a session that only surfaces “Can’t read screen focus” mid-loop.
+    {
+        let focus_ok = tokio::task::spawn_blocking(capture::frontmost::ensure_focus_permissions)
+            .await
+            .map_err(|e| format!("Focus permission check failed: {e}"))?;
+        if let Err(e) = focus_ok {
+            return Err(e);
+        }
+    }
+
     // Screen watching is required. Don't hard-fail on CGPreflight alone (adhoc rebuilds /
     // /Applications installs often look "denied" there). Prompt + short capture probe.
     if screen_enabled {
@@ -1376,8 +1393,11 @@ async fn start_lock_in(
     *state.session.lock() = Some(session.clone());
     companion::clear_history(&state);
 
-    // Gate webcam/observe on opt-in + readiness (never spawn when preference is off).
-    let use_camera = camera_enabled && camera_ready;
+    // Spawn the live camera loop whenever the user opted in. Do NOT gate on the
+    // short start-lock-in permission probe — ad-hoc re-sign / TCC reset makes
+    // `camera_ready` false for 2s even when Camera is allowed, which previously
+    // killed accountability entirely. The loop re-requests permission (8s) itself.
+    let use_camera = camera_enabled;
     coach::spawn_coach_loop(app, id, screen_enabled, use_camera, presage_ready);
     Ok(session)
 }

@@ -8,5 +8,7 @@
     <string>Waypoint records a short microphone clip so you can dictate to Copilot and run Voice tests in Mission Control.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>Waypoint turns your spoken words into text for Copilot and Voice tests using on-device speech recognition when available.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Waypoint reads the frontmost app, window title, and browser tabs via System Events so lock-in coaching can tell on-task work from distractions.</string>
 </dict>
 </plist>
