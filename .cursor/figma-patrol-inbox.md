@@ -4042,7 +4042,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   placeholder `5:250` · crop `_verify/tick36-copilot-composer-crop.png`
-- commit: PENDING
+- commit: 4279978
 - change: |
     `.view-copilot .chat-form textarea` → Regular 14px; `::placeholder`
     → `#645d73` (typed text stays primary). 78px pill + Mic/Send kept.
@@ -4154,7 +4154,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   hint `5:256` · composer `5:248` ·
   crop `_verify/tick38-copilot-hint-crop.png`
-- commit: PENDING
+- commit: 4279978
 - change: |
     `.view-copilot .copilot-hint` → Regular 11px / lh 1.4 / `#645d73`
     (not lilac muted); 10px gap under 78px wrap. Enter/mic string +
@@ -4165,7 +4165,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   foot `5:257` · crop `_verify/tick38-copilot-foot-crop.png`
-- commit: PENDING
+- commit: 4279978
 - change: |
     `.view-copilot .copilot-responses-foot` → Regular 12px / lh 1.4 /
     `#645d73`; `margin-top: auto` pin + Responses/Audio string kept.
