@@ -4931,7 +4931,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   card `5:235` · heading `5:238` ·
   crop `_verify/tick48-copilot-empty-crop.png`
-- commit: PENDING
+- commit: 41f0d56
 - change: |
     Empty-state `.copilot-panel:has(#chat-empty) .copilot-log` padding →
     **24px** (live `5:235` space-24; heading y=25 = border + pad). Gap 14 /
@@ -4943,7 +4943,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   card `5:235` · Conversation `5:232` ·
   crop `_verify/tick48-copilot-empty-crop.png`
-- commit: PENDING
+- commit: 41f0d56
 - change: |
     `.copilot-panel:has(#chat-empty)` → `width`/`max-width: 830px` +
     `align-self: flex-start` (live `5:235` 830×117 hug); chips + composer
@@ -4955,7 +4955,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/01-welcome.png` · live `2:33` ·
   card `5:58` · kicker `5:59` ·
   crop `_verify/tick48-welcome-card-crop.png`
-- commit: PENDING
+- commit: 41f0d56
 - change: |
     `.welcome-signin-card.signin-box` padding → **36px** (live `5:58`
     p-[36px]; kicker x/y=37 = border + pad). 510 max-width + 24 stack +
