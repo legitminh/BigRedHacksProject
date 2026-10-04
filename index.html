@@ -861,26 +861,13 @@
             <article id="summary-session-note" class="quest-session-note" hidden>
               <h2 class="quest-session-note-kicker">Session note</h2>
               <p id="summary-session-note-status" class="quest-session-note-status" hidden>Writing your note…</p>
-              <div id="summary-session-note-body" class="quest-session-note-body"></div>
+              <h3 id="summary-session-note-title" class="quest-session-note-title" hidden></h3>
+              <div id="summary-session-note-body" class="quest-session-note-body" hidden></div>
               <div id="summary-concept-map" class="quest-concept-map" hidden>
                 <button type="button" class="quest-session-summary-btn" id="summary-concept-map-btn">
                   Share brag sheet
                 </button>
                 <p id="summary-concept-map-status" class="quest-concept-map-status" hidden></p>
-                <div id="summary-concept-map-result" class="quest-concept-map-result" hidden>
-                  <img
-                    id="summary-concept-map-image"
-                    class="quest-concept-map-image"
-                    alt="Mission brag sheet"
-                  />
-                  <button
-                    type="button"
-                    class="quest-session-summary-download"
-                    id="summary-concept-map-download"
-                  >
-                    Download
-                  </button>
-                </div>
               </div>
             </article>
             <details class="quest-flight-details visually-hidden" hidden>
@@ -1293,6 +1280,43 @@
           <p class="mc-perm-modal__foot">
             Clips leave this Mac for API analysis. You can turn camera accountability off anytime from mission controls.
           </p>
+        </div>
+      </div>
+
+      <div
+        id="brag-sheet-modal"
+        class="brag-sheet-modal"
+        hidden
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="brag-sheet-modal-title"
+      >
+        <div class="brag-sheet-modal__backdrop" data-brag-sheet-dismiss></div>
+        <div class="brag-sheet-modal__card">
+          <div class="brag-sheet-modal__header">
+            <h2 id="brag-sheet-modal-title" class="brag-sheet-modal__title">Mission brag sheet</h2>
+            <button
+              type="button"
+              class="brag-sheet-modal__close"
+              data-brag-sheet-dismiss
+              aria-label="Close brag sheet"
+            >
+              Close
+            </button>
+          </div>
+          <img
+            id="summary-concept-map-image"
+            class="quest-concept-map-image brag-sheet-modal__image"
+            alt="Mission brag sheet"
+            hidden
+          />
+          <button
+            type="button"
+            class="quest-session-summary-download"
+            id="summary-concept-map-download"
+          >
+            Download
+          </button>
         </div>
       </div>
 

@@ -3660,13 +3660,17 @@ body:has(.view-mission-setup.active) .grain {
   width: 100%;
   max-width: 72rem;
   margin: 0 auto;
-  padding: 0 clamp(0.75rem, 3vw, 1.25rem) 1.5rem;
+  /* Match other Mission Control views — zero top pad let focus-scroll bury the nav. */
+  padding: 1rem clamp(0.75rem, 3vw, 1.25rem) 1.5rem;
   overflow: hidden;
+  box-sizing: border-box;
+  min-height: 0;
 }
 
 .session-top-bar {
   width: 100%;
   max-width: none;
+  flex-shrink: 0;
 }
 
 .session-page {
@@ -3676,6 +3680,9 @@ body:has(.view-mission-setup.active) .grain {
   display: flex;
   flex-direction: column;
   gap: clamp(1rem, 2.5vw, 1.5rem);
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .session-mission-header {
@@ -3684,6 +3691,7 @@ body:has(.view-mission-setup.active) .grain {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem 1.25rem;
+  flex-shrink: 0;
 }
 
 .session-mission-header-main {
@@ -3763,6 +3771,8 @@ body:has(.view-mission-setup.active) .grain {
   grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
   gap: clamp(0.85rem, 2vw, 1.25rem);
   align-items: stretch;
+  flex: 1;
+  min-height: 0;
 }
 
 @media (max-width: 860px) {
@@ -4087,8 +4097,8 @@ body:has(.view-mission-setup.active) .grain {
 
 .session-copilot-log {
   flex: 1;
-  min-height: 12rem;
-  max-height: min(48vh, 28rem);
+  min-height: 0;
+  max-height: none;
   overflow: auto;
   padding: 0.25rem 0.15rem;
   margin-bottom: 0.65rem;
@@ -5173,6 +5183,18 @@ body:has(.view-quest-complete.active) .grain {
   color: #326c78;
 }
 
+.quest-session-note-title {
+  margin: 0 0 12px;
+  font-size: 1.15rem;
+  font-weight: 650;
+  line-height: 1.35;
+  color: #2a2440;
+}
+
+.quest-session-note-title[hidden] {
+  display: none !important;
+}
+
 .quest-session-note-status {
   margin: 0;
   font-size: 0.95rem;
@@ -5184,6 +5206,74 @@ body:has(.view-quest-complete.active) .grain {
   font-size: 15px;
   line-height: 1.45;
   color: #282237;
+}
+
+.quest-session-note-body[hidden] {
+  display: none !important;
+}
+
+.brag-sheet-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+.brag-sheet-modal[hidden] {
+  display: none !important;
+}
+
+.brag-sheet-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 16, 36, 0.55);
+}
+
+.brag-sheet-modal__card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 560px);
+  max-height: min(92vh, 860px);
+  overflow: auto;
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: 20px;
+  background: #fffbff;
+  border: 1px solid #c8bfd7;
+  box-shadow: 0 18px 48px rgba(20, 16, 36, 0.28);
+}
+
+.brag-sheet-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.brag-sheet-modal__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+  color: #2a2440;
+}
+
+.brag-sheet-modal__close {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(42, 36, 64, 0.14);
+  background: rgba(255, 255, 255, 0.85);
+  color: #4a4560;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.brag-sheet-modal__image {
+  width: 100%;
+  border-radius: 14px;
 }
 
 .quest-session-note-body > :first-child {
@@ -5255,14 +5345,6 @@ body:has(.view-quest-complete.active) .grain {
   font-size: 0.95rem;
   line-height: 1.45;
   color: #4a4560;
-}
-
-.quest-concept-map-result {
-  margin-top: 12px;
-}
-
-.quest-concept-map-result[hidden] {
-  display: none !important;
 }
 
 .quest-concept-map-image {

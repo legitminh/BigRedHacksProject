@@ -667,8 +667,15 @@ function show(view: ViewId) {
     });
   }
   if (view === "view-session") {
+    const sessionView = $("#view-session");
+    if (sessionView) sessionView.scrollTop = 0;
+    const sessionPage = sessionView?.querySelector(".session-page") as HTMLElement | null;
+    if (sessionPage) sessionPage.scrollTop = 0;
     requestAnimationFrame(() => {
-      ($("#session-chat-input") as HTMLTextAreaElement | null)?.focus();
+      if (sessionView) sessionView.scrollTop = 0;
+      if (sessionPage) sessionPage.scrollTop = 0;
+      // preventScroll: autofocus used to scroll the clipped session view and bury the top nav.
+      ($("#session-chat-input") as HTMLTextAreaElement | null)?.focus({ preventScroll: true });
     });
   }
 }
@@ -2146,8 +2153,9 @@ async function dispatchChatMessage(
     if (log) log.scrollTop = log.scrollHeight;
     const sessionLog = $("#session-chat-log");
     if (sessionLog) sessionLog.scrollTop = sessionLog.scrollHeight;
-    if (focusInput && $("#view-session")?.classList.contains("active")) focusInput.focus();
-    else if ($("#view-chat")?.classList.contains("active")) {
+    if (focusInput && $("#view-session")?.classList.contains("active")) {
+      focusInput.focus({ preventScroll: true });
+    } else if ($("#view-chat")?.classList.contains("active")) {
       ($("#chat-input") as HTMLTextAreaElement | null)?.focus();
     }
   }
@@ -2720,7 +2728,7 @@ async function sendSessionChat() {
     setChatControlsBusy(false);
     const sessionLog = $("#session-chat-log");
     if (sessionLog) sessionLog.scrollTop = sessionLog.scrollHeight;
-    input.focus();
+    input.focus({ preventScroll: true });
   }
 }
 
@@ -3806,11 +3814,20 @@ function renderSummary(summary: SessionSummary) {
   applySessionNote(summary);
 }
 
+function hideBragSheetModal() {
+  const modal = $("#brag-sheet-modal");
+  if (modal) modal.hidden = true;
+}
+
+function showBragSheetModal() {
+  const modal = $("#brag-sheet-modal");
+  if (modal) modal.hidden = false;
+}
+
 function hideSessionSummaryResult() {
   lastSessionSummaryImage = null;
-  const result = $("#summary-concept-map-result");
+  hideBragSheetModal();
   const image = $("#summary-concept-map-image") as HTMLImageElement | null;
-  if (result) result.hidden = true;
   if (image) {
     image.hidden = true;
     image.removeAttribute("src");
@@ -3978,7 +3995,6 @@ function conceptMapError(error: unknown): string {
 async function requestConceptMap() {
   const markdown = conceptMapMarkdown.trim();
   const status = $("#summary-concept-map-status");
-  const result = $("#summary-concept-map-result");
   const image = $("#summary-concept-map-image") as HTMLImageElement | null;
   const button = $("#summary-concept-map-btn") as HTMLButtonElement | null;
   if (!markdown || !status || !image || !button) return;
@@ -3991,7 +4007,7 @@ async function requestConceptMap() {
   button.disabled = true;
   status.hidden = false;
   status.textContent = "Creating your mission brag sheet…";
-  if (result) result.hidden = true;
+  hideBragSheetModal();
   image.hidden = true;
   image.removeAttribute("src");
   lastSessionSummaryImage = null;
@@ -4009,8 +4025,8 @@ async function requestConceptMap() {
     };
     image.src = `data:${type};base64,${generated.image_base64}`;
     image.hidden = false;
-    if (result) result.hidden = false;
     status.hidden = true;
+    showBragSheetModal();
   } catch (error) {
     status.textContent = conceptMapError(error);
   } finally {
@@ -4043,19 +4059,24 @@ function hideSessionNote() {
 function showSessionNotePending() {
   const card = $("#summary-session-note");
   const status = $("#summary-session-note-status");
+  const titleEl = $("#summary-session-note-title");
   const body = $("#summary-session-note-body");
   if (!card || !status || !body) return;
   card.hidden = false;
   status.hidden = false;
   status.textContent = "Writing your note…";
+  if (titleEl) {
+    titleEl.hidden = true;
+    titleEl.textContent = "";
+  }
   body.hidden = true;
   body.replaceChildren();
   resetConceptMap();
 }
 
-/** Hide retired empty tabs (Decisions / Stuck on / Next / Gaps) from older notes. */
+/** Drop retired sections and any ## section whose body is only "Not captured." */
 function sanitizeSessionNoteMarkdown(markdown: string): string {
-  const drop = new Set([
+  const alwaysDrop = new Set([
     "decisions",
     "stuck on",
     "next",
@@ -4063,18 +4084,30 @@ function sanitizeSessionNoteMarkdown(markdown: string): string {
     "gaps",
   ]);
   const lines = markdown.split("\n");
-  const out: string[] = [];
-  let skipping = false;
+  type Section = { heading: string | null; lines: string[] };
+  const sections: Section[] = [{ heading: null, lines: [] }];
   for (const line of lines) {
     const trimmed = line.trim();
     if (trimmed.startsWith("## ")) {
-      const heading = trimmed.slice(3).trim().toLowerCase();
-      skipping = drop.has(heading);
-      if (skipping) continue;
-    } else if (skipping) {
+      sections.push({ heading: trimmed.slice(3).trim(), lines: [] });
       continue;
     }
-    out.push(line);
+    sections[sections.length - 1].lines.push(line);
+  }
+  const out: string[] = [];
+  for (const section of sections) {
+    if (section.heading) {
+      const key = section.heading.toLowerCase();
+      if (alwaysDrop.has(key)) continue;
+      const bodyText = section.lines
+        .map((l) => l.trim().replace(/^[-*]\s+/, "").replace(/\.$/, ""))
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+      if (!bodyText || /^not captured$/i.test(bodyText)) continue;
+      out.push(`## ${section.heading}`);
+    }
+    out.push(...section.lines);
   }
   return out.join("\n").trim();
 }
@@ -4082,12 +4115,35 @@ function sanitizeSessionNoteMarkdown(markdown: string): string {
 function showSessionNoteMarkdown(markdown: string) {
   const card = $("#summary-session-note");
   const status = $("#summary-session-note-status");
+  const titleEl = $("#summary-session-note-title");
   const body = $("#summary-session-note-body");
   if (!card || !status || !body) return;
   card.hidden = false;
   status.hidden = true;
-  body.hidden = false;
-  renderMarkdown(body, sanitizeSessionNoteMarkdown(markdown));
+  const cleaned = sanitizeSessionNoteMarkdown(markdown);
+  const mission = noteMissionTitle(cleaned) || noteMissionTitle(markdown);
+  if (titleEl) {
+    if (mission) {
+      titleEl.hidden = false;
+      titleEl.textContent = mission;
+    } else {
+      titleEl.hidden = true;
+      titleEl.textContent = "";
+    }
+  }
+  // Body only when there is real captured content beyond the title.
+  const bodyMd = cleaned
+    .split("\n")
+    .filter((line) => !/^#\s+/.test(line.trim()))
+    .join("\n")
+    .trim();
+  if (bodyMd) {
+    body.hidden = false;
+    renderMarkdown(body, bodyMd);
+  } else {
+    body.hidden = true;
+    body.replaceChildren();
+  }
   showConceptMapOffer(markdown);
 }
 
@@ -5017,6 +5073,12 @@ async function bootApp() {
   });
   $("#summary-concept-map-download")?.addEventListener("click", () => {
     downloadSessionSummaryImage();
+  });
+  document.querySelectorAll("[data-brag-sheet-dismiss]").forEach((el) => {
+    el.addEventListener("click", () => hideBragSheetModal());
+  });
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") hideBragSheetModal();
   });
 
   initShipUI();

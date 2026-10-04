@@ -216,11 +216,21 @@ pub fn fallback_markdown(sources: &NoteSources, kind: NoteKind) -> String {
         NoteKind::Study => {
             // Goals alone are not study evidence (same rule as the model). Prefer screen
             // activity; only fall back to the mission name when nothing else was logged.
+            // Omit empty Not-captured sections — UI shows mission title + Share brag only.
             let learning = study_learning_lines(sources);
-            let words = bullets_or(&sources.user_utterances, "Not captured.");
-            format!(
-                "# {title}\n\n## What I was learning\n{learning}\n\n## In my own words\n{words}\n"
-            )
+            let words = if sources.user_utterances.is_empty() {
+                String::new()
+            } else {
+                bullets_or(&sources.user_utterances, "")
+            };
+            let mut parts = vec![format!("# {title}")];
+            if !learning.is_empty() && !learning.eq_ignore_ascii_case("Not captured.") {
+                parts.push(format!("## What I was learning\n{learning}"));
+            }
+            if !words.is_empty() {
+                parts.push(format!("## In my own words\n{words}"));
+            }
+            format!("{}\n", parts.join("\n\n"))
         }
         NoteKind::Devlog => {
             let mut worked = Vec::new();
@@ -511,15 +521,13 @@ async fn write_with_models(
     Ok(markdown)
 }
 
-/// True when every non-heading body line is "Not captured." (title alone does not count).
+/// True when there is no captured body (title-only) or every body line is "Not captured."
 pub fn note_is_vacuous(markdown: &str) -> bool {
-    let mut saw_body = false;
     for line in markdown.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
         }
-        saw_body = true;
         let body = trimmed
             .trim_start_matches(['-', '*'])
             .trim()
@@ -529,7 +537,8 @@ pub fn note_is_vacuous(markdown: &str) -> bool {
             return false;
         }
     }
-    saw_body
+    // Title-only notes are vacuous; so are all-Not-captured bodies.
+    true
 }
 
 fn sources_have_evidence(sources: &NoteSources) -> bool {
@@ -745,6 +754,7 @@ Not captured.";
         assert!(md.contains("## In my own words"));
         assert!(!md.contains("## Gaps / shaky parts"));
         assert!(!md.contains("## Next"));
+        assert!(!md.contains("Not captured."));
         assert!(md.contains("let me explain photosynthesis in my own words"));
         assert!(md.contains("biology chapter 3"));
         assert!(md.contains("Safari · textbook"));
@@ -757,7 +767,8 @@ Not captured.";
         let quiet = sources("Reviewing Chinese", "computer", &[], &[], &[]);
         let md = fallback_markdown(&quiet, NoteKind::Study);
         assert!(md.contains("# Reviewing Chinese"));
-        assert!(md.contains("## What I was learning\nNot captured."));
+        assert!(!md.contains("## What I was learning"));
+        assert!(!md.contains("Not captured."));
         assert!(note_is_vacuous(&md));
         assert!(!sources_have_evidence(&quiet));
     }
