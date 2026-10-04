@@ -23,18 +23,30 @@ export type CompanionContext = {
   modality?: string;
   duration_mins?: number;
   remaining_mins?: number;
-  next_step_secs?: number;
   paused?: boolean;
-  /** Partial Google Calendar agenda from the desktop (same source as typed Copilot). */
+  /** Local calendar window from the desktop (same source as typed Copilot). */
   calendar_summary?: string;
-  /** Partial Google Drive listing from the desktop. */
+  /** Recently touched Drive files plus a few short excerpts. */
   drive_summary?: string;
+  /** Compact name/type/folder listing of (nearly) the whole Drive — no contents. */
+  drive_inventory?: string;
+  /** Once-daily school digest from GET /v1/school-digest (server-built). */
+  school_digest?: string;
+  school_digest_date?: string;
+};
+
+export type LiveStudySuggest = {
+  goals: string;
+  duration_mins: number;
+  reason: string;
 };
 
 export type CompanionLiveHandlers = {
   onPhase?: (phase: CompanionPhase) => void;
   onUser?: (text: string, isFinal: boolean) => void;
   onAssistant?: (text: string, isFinal: boolean) => void;
+  /** Lock-in suggestion from Live (STUDY_SUGGEST stripped server-side). */
+  onStudySuggest?: (suggestion: LiveStudySuggest) => void;
   onError?: (message: string) => void;
   onLevel?: (rms: number) => void;
 };
@@ -197,6 +209,8 @@ export class CompanionLiveSession {
   private resampleCarry: number | null = null;
   private queuedSamples = 0;
   private muteUntil = 0;
+  /** After Stop, ignore downlink until server clear_audio advances epoch. */
+  private ignoreDownlinkUntilClear = false;
   private debug = false;
 
   private handlers: CompanionLiveHandlers;
@@ -290,6 +304,7 @@ export class CompanionLiveSession {
   }
 
   private appendPcm(bytes: Uint8Array) {
+    if (this.ignoreDownlinkUntilClear) return;
     if (bytes.length === 0 || !this.audioCtx) return;
     if (this.audioCtx.state === "suspended") void this.audioCtx.resume();
 
@@ -442,7 +457,13 @@ export class CompanionLiveSession {
       return;
     }
     if (type === "status" && typeof message.phase === "string") {
-      this.setPhase(message.phase as CompanionPhase);
+      const next = message.phase as CompanionPhase;
+      if (next === "listening" || next === "speaking") {
+        // listening: Stop settled with no clear_audio (e.g. interrupted during thinking).
+        // speaking: new utterance — accept downlink again.
+        this.ignoreDownlinkUntilClear = false;
+      }
+      this.setPhase(next);
       return;
     }
     if (type === "user" && typeof message.text === "string") {
@@ -451,6 +472,18 @@ export class CompanionLiveSession {
     }
     if (type === "assistant" && typeof message.text === "string") {
       this.handlers.onAssistant?.(message.text, Boolean(message.final));
+      return;
+    }
+    if (type === "study_suggest") {
+      const goals = typeof message.goals === "string" ? message.goals.trim() : "";
+      const durationRaw = Number(message.duration_mins);
+      const duration_mins = Number.isFinite(durationRaw)
+        ? Math.min(180, Math.max(1, Math.round(durationRaw)))
+        : 25;
+      const reason = typeof message.reason === "string" ? message.reason.trim() : "";
+      if (goals) {
+        this.handlers.onStudySuggest?.({ goals, duration_mins, reason });
+      }
       return;
     }
     if (type === "audio" && typeof message.pcm === "string") {
@@ -475,6 +508,7 @@ export class CompanionLiveSession {
     if (type === "clear_audio" && typeof message.epoch === "number") {
       this.epoch = message.epoch;
       this.uplinkSeq = 0;
+      this.ignoreDownlinkUntilClear = false;
       this.stopPlayback();
       return;
     }
@@ -585,8 +619,24 @@ export class CompanionLiveSession {
     this.sendJson({ type: "text", text: trimmed });
   }
 
+  /**
+   * Stop assistant TTS only — keeps Live WS + mic open.
+   * Server clears Grok queue; we also clear local playback immediately.
+   */
+  stopSpeech() {
+    if (!this.active) return;
+    this.sendJson({ type: "stop_speech" });
+    this.ignoreDownlinkUntilClear = true;
+    this.stopPlayback();
+    void invoke("voice_stop").catch(() => {});
+    if (this.phase === "speaking" || this.phase === "thinking") {
+      this.setPhase("listening");
+    }
+  }
+
   end(notify = true) {
     if (notify) this.sendJson({ type: "stop" });
+    this.ignoreDownlinkUntilClear = false;
     this.stopMic();
     this.stopPlayback();
     if (this.playbackWorklet) {

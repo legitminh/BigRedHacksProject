@@ -251,6 +251,7 @@
                   <p class="copilot-empty-copy">
                     Tell me what feels tricky, and we’ll find one manageable place to start.
                   </p>
+                  <p id="chat-empty-digest" class="composer-hint copilot-empty-digest" hidden></p>
                 </div>
               </div>
             </div>
@@ -287,6 +288,17 @@
                     title="Start / end live voice with Copilot"
                   >
                     Mic
+                  </button>
+                  <button
+                    id="chat-stop-speech"
+                    type="button"
+                    class="copilot-stop-speech"
+                    aria-label="Stop companion speech"
+                    title="Stop companion speech"
+                    hidden
+                    disabled
+                  >
+                    Stop
                   </button>
                   <button id="chat-send" type="submit" class="primary copilot-send" aria-label="Send message">
                     <span aria-hidden="true">↑</span>
@@ -425,6 +437,13 @@
                 </p>
                 <p class="session-mission-id">MISSION 001</p>
               </div>
+              <p
+                id="session-watch-note"
+                class="session-watch-note"
+                hidden
+                aria-hidden="true"
+                aria-live="polite"
+              ></p>
               <p id="session-status" class="visually-hidden" aria-live="polite">watching</p>
               <div
                 id="session-orbit"
@@ -532,17 +551,6 @@
                 Timer paused — coaching is on hold until you resume.
               </p>
               <p id="session-flight-minutes" class="session-flight-minutes">0 of 45 flight minutes earned</p>
-              <div class="session-next-step" id="session-next-step" aria-live="polite">
-                <div class="session-next-step-pill">
-                  <svg class="session-next-step-clock" viewBox="0 0 16 16" aria-hidden="true">
-                    <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.4" />
-                    <path d="M8 4.5V8l2.25 1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
-                  </svg>
-                  <span class="session-next-step-kicker">Next step timer</span>
-                  <span id="session-next-step-timer" class="session-next-step-time">05:00</span>
-                </div>
-                <p class="session-next-step-hint">One small step at a time.</p>
-              </div>
             </article>
 
             <aside class="session-copilot-panel" aria-label="Mission copilot">
@@ -551,9 +559,11 @@
                 class="session-break-card"
                 hidden
                 aria-hidden="true"
+                role="region"
+                aria-labelledby="session-break-title"
               >
                 <p class="session-break-badge">Ⅱ&nbsp;&nbsp;ON A BREAK</p>
-                <h2 class="session-break-title">A little breathing room.</h2>
+                <h2 id="session-break-title" class="session-break-title">A little breathing room.</h2>
                 <p class="session-break-body">
                   Your timer is paused. Automatic check-ins are paused too.
                 </p>
@@ -562,10 +572,44 @@
                   type="button"
                   id="session-break-resume"
                   class="primary wide session-break-resume"
+                  aria-label="Resume mission"
                 >
                   Resume mission
                 </button>
                 <p class="session-break-footer">Your spaceship will continue from right here.</p>
+              </div>
+              <div
+                id="session-break-suggest"
+                class="session-break-suggest"
+                hidden
+                aria-hidden="true"
+                role="region"
+                aria-labelledby="session-break-suggest-title"
+              >
+                <p class="session-break-suggest__badge">Ⅱ&nbsp;&nbsp;BREAK SUGGESTED</p>
+                <h2 id="session-break-suggest-title" class="session-break-suggest__title">
+                  Take a five-minute break?
+                </h2>
+                <p class="session-break-suggest__body">
+                  Step away for a short reset. Your mission pauses until you resume.
+                </p>
+                <hr class="session-break-suggest__divider" />
+                <div class="session-break-suggest__actions">
+                  <button
+                    type="button"
+                    id="session-break-suggest-dismiss"
+                    class="session-break-suggest__btn session-break-suggest__btn--ghost"
+                  >
+                    Not now
+                  </button>
+                  <button
+                    type="button"
+                    id="session-break-suggest-accept"
+                    class="primary session-break-suggest__btn session-break-suggest__btn--accept"
+                  >
+                    Take a 5-minute break
+                  </button>
+                </div>
               </div>
               <div
                 id="session-checkin-card"
@@ -599,7 +643,7 @@
                     id="session-checkin-break"
                     class="session-checkin-btn session-checkin-btn--secondary"
                   >
-                    Take a break
+                    Take a 5-minute break
                   </button>
                 </div>
                 <p class="session-checkin-footer">
@@ -630,8 +674,9 @@
                     type="button"
                     id="session-copilot-suggest"
                     class="session-copilot-suggest"
+                    aria-label="Start a five-minute break"
                   >
-                    Set a five-minute timer
+                    Take a 5-minute break
                   </button>
                   <form id="session-chat-form" class="chat-form copilot-form">
                     <div class="copilot-input-wrap">
@@ -651,6 +696,17 @@
                         title="Start / end live voice with companion"
                       >
                         Talk
+                      </button>
+                      <button
+                        id="session-chat-stop-speech"
+                        type="button"
+                        class="copilot-stop-speech"
+                        aria-label="Stop companion speech"
+                        title="Stop companion speech"
+                        hidden
+                        disabled
+                      >
+                        Stop
                       </button>
                       <button id="session-chat-send" type="submit" class="primary copilot-send" aria-label="Send message">
                         <span aria-hidden="true">↑</span>
@@ -674,7 +730,6 @@
           aria-label="Coach messages"
           aria-live="polite"
         ></div>
-        <p id="session-watch-note" class="session-watch-note visually-hidden"></p>
         <div id="session-vitals" class="vitals-panel visually-hidden" hidden aria-hidden="true">
           <p class="vitals-label">Camera accountability</p>
           <p id="vitals-line">Running quietly in the background.</p>
@@ -986,6 +1041,11 @@
                     <p id="account-waypoint-email" class="settings-copy tight"></p>
                     <div id="account-waypoint-actions" class="cta-row"></div>
                   </div>
+                  <div class="account-block" id="account-school-digest-block" hidden>
+                    <p class="account-label">School digest</p>
+                    <p id="account-school-digest-status" class="settings-copy tight">—</p>
+                    <div id="account-school-digest-actions" class="cta-row"></div>
+                  </div>
                 </article>
                 <article class="mc-settings-card">
                   <h2 class="settings-heading">Your data</h2>
@@ -1029,44 +1089,6 @@
           <p class="mission-launch__kicker">Mission</p>
           <h2 class="mission-launch__title">Launch</h2>
           <p class="mission-launch__sub">Engines on — stay on course.</p>
-        </div>
-      </div>
-
-      <div
-        id="timer-replace-modal"
-        class="mc-perm-modal"
-        hidden
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="timer-replace-modal-title"
-      >
-        <div class="mc-perm-modal__backdrop" data-timer-replace-dismiss></div>
-        <div class="mc-perm-modal__card mc-perm-modal__card--timer-replace">
-          <p class="mc-perm-modal__badge">One timer at a time</p>
-          <h2 id="timer-replace-modal-title" class="mc-perm-modal__title">
-            Replace your step timer?
-          </h2>
-          <p id="timer-replace-modal-body" class="mc-perm-modal__body">
-            Your current timer has 5:00 left. Replace it with a new five-minute timer? Your mission
-            timer keeps running.
-          </p>
-          <div class="mc-perm-modal__actions">
-            <button
-              id="timer-replace-keep"
-              type="button"
-              class="mc-perm-modal__btn mc-perm-modal__btn--secondary"
-              data-timer-replace-dismiss
-            >
-              Keep current
-            </button>
-            <button
-              id="timer-replace-confirm"
-              type="button"
-              class="mc-perm-modal__btn mc-perm-modal__btn--primary"
-            >
-              Replace timer
-            </button>
-          </div>
         </div>
       </div>
 

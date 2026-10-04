@@ -13,6 +13,7 @@ export default defineConfig(() => ({
       input: {
         main: resolve(__dirname, "index.html"),
         overlay: resolve(__dirname, "overlay.html"),
+        "break-timer": resolve(__dirname, "break-timer.html"),
       },
     },
   },
