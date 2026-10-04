@@ -3028,11 +3028,14 @@ function renderWatchingNote(note?: string | null) {
   const el = $("#session-watch-note");
   if (!el) return;
   const raw = (note || "").trim();
-  const text = raw
-    ? raw.replace(/wellness later in background/gi, "camera accountability in background")
-    : "";
-  el.textContent = text;
-  const show = Boolean(text);
+  // Strip debug OCR crumbs — never user-facing (e.g. " · OCR: W&ypolnl").
+  const cleaned = raw
+    .replace(/\s*[·•]\s*OCR:\s*.+$/i, "")
+    .replace(/\bOCR:\s*\S+/gi, "")
+    .replace(/wellness later in background/gi, "camera accountability in background")
+    .trim();
+  el.textContent = cleaned;
+  const show = Boolean(cleaned);
   el.hidden = !show;
   el.classList.toggle("visually-hidden", !show);
   el.setAttribute("aria-hidden", show ? "false" : "true");

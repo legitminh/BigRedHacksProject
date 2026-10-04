@@ -556,18 +556,15 @@ async fn run_local_watch_loop(
                         play_back_on_task_ding(&app);
                     }
                     mark_local_on_task(&app, &info);
-                    // Always show what we think is focused so detection failures are obvious.
+                    // Focused app/title only — never surface raw OCR glyphs in the mission UI.
+                    // Keep Presage/camera presence notes when the student is away/obstructed.
                     let state = app.state::<AppState>();
                     let mut guard = state.session.lock();
                     if let Some(session) = guard.as_mut() {
-                        if matches!(session.status, SessionStatusKind::OnTask) {
-                            let ocr_bit = if last_ocr_snippet.is_empty() {
-                                String::new()
-                            } else {
-                                format!(" · OCR: {}", truncate_note(&last_ocr_snippet, 48))
-                            };
-                            session.watching_note =
-                                format!("On task · {}{ocr_bit}", info.summary());
+                        if matches!(session.status, SessionStatusKind::OnTask)
+                            && !camera_presence_owns_note(&session.vitals.raw_summary)
+                        {
+                            session.watching_note = format!("On task · {}", info.summary());
                             let snap = session.clone();
                             drop(guard);
                             let _ = app.emit("session-update", &snap);
@@ -798,10 +795,19 @@ fn mark_local_on_task(app: &AppHandle, info: &frontmost::FrontmostInfo) {
     session.total_ticks = session.total_ticks.saturating_add(1);
     session.on_task_ticks = session.on_task_ticks.saturating_add(1);
     session.status = SessionStatusKind::OnTask;
-    session.watching_note = format!("Watching full screen · {}", info.summary());
+    // Screen focus note must not erase Presage away/obstructed accountability copy.
+    if !camera_presence_owns_note(&session.vitals.raw_summary) {
+        session.watching_note = format!("Watching full screen · {}", info.summary());
+    }
     let snap = session.clone();
     drop(guard);
     let _ = app.emit("session-update", &snap);
+}
+
+/// Presage/presence summaries that should keep owning the mission status line.
+fn camera_presence_owns_note(raw_summary: &str) -> bool {
+    raw_summary.contains("presence=left_frame")
+        || raw_summary.contains("presence=camera_obstructed")
 }
 
 async fn run_camera_accountability_loop(app: AppHandle, session_id: String, stop: Arc<AtomicBool>) {
@@ -987,6 +993,7 @@ fn apply_observe_response(
     if let Some(note) = resp.watching_note.as_deref() {
         apply_watching_note(app, note);
     }
+    // Always apply Presage/presence vitals first — phone VLM only affects spoken nudge choice.
     if let Some(vitals) = resp.to_vitals() {
         store_vitals(app, &vitals, resp.watching_note.as_deref());
         let _ = app.emit("vitals-update", &vitals);
@@ -995,7 +1002,15 @@ fn apply_observe_response(
     if paused {
         return;
     }
-    // Looking at a phone often looks like left_frame to Presage — prefer the phone line.
+    // Presage stress → break invite always wins over local phone VLM.
+    if let Some(nudge) = resp.nudge.as_ref() {
+        if is_suggest_break_nudge(nudge.kind.as_str()) || nudge.kind == "stressed" {
+            deliver_camera_nudge(app, nudge.kind.as_str(), &nudge.text);
+            return;
+        }
+    }
+    // Looking at a phone often looks like left_frame to Presage — prefer the phone line
+    // over away-ladder copy, without skipping the Presage upload/vitals above.
     if phone_hit {
         deliver_phone_nudge(app);
         return;
@@ -1355,22 +1370,25 @@ async fn apply_coach_tick(
                 session.bump_distraction(d);
             }
             session.status = status;
+            // Prefer Presage/presence vitals over screen-coach soft fallbacks.
             if is_camera_source(&last_vitals.source) || !is_camera_source(&session.vitals.source) {
                 session.vitals = last_vitals.clone();
             } else {
                 *last_vitals = session.vitals.clone();
             }
-            session.watching_note = if on_task {
-                "Watching your screen".into()
+            if on_task {
+                if !camera_presence_owns_note(&session.vitals.raw_summary) {
+                    session.watching_note = "Watching your screen".into();
+                }
             } else {
                 let d = distraction.as_deref().unwrap_or("off-task");
                 let nags = distraction_episode_nags(d);
-                if nags >= MAX_NAGS_PER_EPISODE {
+                session.watching_note = if nags >= MAX_NAGS_PER_EPISODE {
                     format!("Distracted · {d} (quiet until you switch back)")
                 } else {
                     format!("Distracted · {d}")
-                }
-            };
+                };
+            }
             // Ephemeral coach nags stay off the in-app feed — overlay + voice only.
             session.clone()
         } else {
