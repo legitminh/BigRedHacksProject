@@ -4493,7 +4493,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   send `5:254` · input `5:249` ·
   crop `_verify/tick42-copilot-composer-crop.png`
-- commit: PENDING
+- commit: 97e3086
 - change: |
     `.view-copilot .copilot-send.primary` → solid `#6750a4` (scoped;
     session Send left on `--mc-accent-purple`); 52×52 circle + ↑ +
@@ -4505,7 +4505,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   CTA `5:223` · sidebar `5:217` ·
   crop `_verify/tick42-copilot-sidebar-crop.png`
-- commit: PENDING
+- commit: 97e3086
 - change: |
     `#copilot-start-mission` / `.copilot-sidebar-cta.primary` → solid
     `#6750a4` + no glow; Medium 14 white / full-width / 52px + Launch
@@ -4517,7 +4517,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   body `5:221` · sidebar `5:217` ·
   crop `_verify/tick42-sidebar-full.png`
-- commit: PENDING
+- commit: 97e3086
 - change: |
     `.copilot-sidebar-body` → Regular 16px / weight 400 / lh 1.4 /
     `#645d73`; Start a mission + planet flow unchanged.
