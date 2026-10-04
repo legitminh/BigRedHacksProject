@@ -420,7 +420,7 @@ async fn get_google_context(state: State<'_, AppState>) -> Result<GoogleContext,
     let drive = api::authed_json::<Summary>(
         &cfg,
         reqwest::Method::GET,
-        "/v1/drive/recent?limit=6",
+        "/v1/drive/recent?limit=12",
         None,
     )
     .await
@@ -468,7 +468,7 @@ async fn chat_send(state: State<'_, AppState>, message: String) -> Result<ChatMe
             &cfg,
             reqwest::Method::GET,
             &format!(
-                "/v1/drive/search?q={}&limit=5",
+                "/v1/drive/search?q={}&limit=8",
                 urlencoding::encode(&message)
             ),
             None,

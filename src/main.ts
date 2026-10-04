@@ -981,28 +981,28 @@ function renderAccountSettings(status: StatusPayload) {
 
   if (!status.signed_in) return;
 
-  if (!status.google_connected) {
-    const connect = document.createElement("button");
-    connect.className = "secondary pill";
-    connect.type = "button";
-    connect.textContent = "Link Calendar & Drive";
-    connect.addEventListener("click", async () => {
-      const label = connect.textContent || "Link Calendar & Drive";
-      connect.textContent = "Waiting for Google…";
-      connect.disabled = true;
-      try {
-        await invoke("connect_google");
-        await refreshStatus();
-      } catch (e) {
-        console.error("connect_google failed:", e);
-        alert(String(e));
-      } finally {
-        connect.textContent = label;
-        connect.disabled = false;
-      }
-    });
-    actions.appendChild(connect);
-  }
+  const connect = document.createElement("button");
+  connect.className = status.google_connected ? "ghost pill" : "secondary pill";
+  connect.type = "button";
+  connect.textContent = status.google_connected
+    ? "Re-link Calendar & Drive"
+    : "Link Calendar & Drive";
+  connect.addEventListener("click", async () => {
+    const label = connect.textContent || "Re-link Calendar & Drive";
+    connect.textContent = "Waiting for Google…";
+    connect.disabled = true;
+    try {
+      await invoke("connect_google");
+      await refreshStatus();
+    } catch (e) {
+      console.error("connect_google failed:", e);
+      alert(String(e));
+    } finally {
+      connect.textContent = label;
+      connect.disabled = false;
+    }
+  });
+  actions.appendChild(connect);
 }
 
 function setPermissionBadge(
@@ -1910,7 +1910,7 @@ function upsertCopilotLiveBubble(role: "user" | "assistant", text: string, isFin
   if (isFinal && role === "assistant") hasChatReply = true;
 }
 
-function collectCompanionContext(): CompanionContext {
+async function collectCompanionContext(): Promise<CompanionContext> {
   const goals = ($("#session-goals")?.textContent ?? "").trim();
   const timer = $("#session-timer")?.textContent ?? "00:00";
   const [mm, ss] = timer.split(":").map((p) => Number(p));
@@ -1926,7 +1926,7 @@ function collectCompanionContext(): CompanionContext {
     ($("#session-pause") as HTMLButtonElement | null)?.getAttribute("aria-pressed") ===
     "true";
   const inSession = Boolean($("#view-session")?.classList.contains("active"));
-  return {
+  const context: CompanionContext = {
     goals: goals || undefined,
     notes: inSession ? undefined : "Copilot tab live voice (no lock-in session).",
     remaining_mins: inSession ? remainingMins : undefined,
@@ -1937,6 +1937,32 @@ function collectCompanionContext(): CompanionContext {
     next_step_secs: inSession ? nextStepSecs : undefined,
     paused: inSession ? paused : false,
   };
+  // Live voice used to omit Google data — same summaries typed Copilot gets.
+  try {
+    const google = await invoke<{
+      connected: boolean;
+      calendar_summary: string;
+      drive_summary: string;
+    }>("get_google_context");
+    if (google.connected) {
+      if (google.calendar_summary?.trim()) {
+        context.calendar_summary = google.calendar_summary.trim();
+      }
+      if (google.drive_summary?.trim()) {
+        context.drive_summary = google.drive_summary.trim();
+      }
+    } else {
+      context.notes = [
+        context.notes,
+        "Google Calendar/Drive not linked. Tell the student to open Settings → Account and use Re-link Calendar & Drive.",
+      ]
+        .filter(Boolean)
+        .join(" ");
+    }
+  } catch {
+    /* leave Google fields empty — voice still works without them */
+  }
+  return context;
 }
 
 function teardownCompanionLive() {
@@ -1970,7 +1996,7 @@ async function ensureCompanionLive(surface: LiveSurface): Promise<CompanionLiveS
       setCompanionPhaseUi("idle");
     },
   });
-  await companionLive.start(collectCompanionContext());
+  await companionLive.start(await collectCompanionContext());
   return companionLive;
 }
 
@@ -2043,7 +2069,7 @@ async function sendSessionChat() {
   try {
     const reply = await invoke<{ content: string }>("companion_send", {
       message,
-      context: collectCompanionContext(),
+      context: await collectCompanionContext(),
     });
     if (pending) {
       clearThinkingIndicator(pending);

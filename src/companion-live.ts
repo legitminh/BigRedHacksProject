@@ -25,6 +25,10 @@ export type CompanionContext = {
   remaining_mins?: number;
   next_step_secs?: number;
   paused?: boolean;
+  /** Partial Google Calendar agenda from the desktop (same source as typed Copilot). */
+  calendar_summary?: string;
+  /** Partial Google Drive listing from the desktop. */
+  drive_summary?: string;
 };
 
 export type CompanionLiveHandlers = {
@@ -446,6 +450,12 @@ export class CompanionLiveSession {
         ok: false,
         error: SCREENCAP_REFUSED,
       });
+      return;
+    }
+    if (type === "speak_local" && typeof message.text === "string") {
+      // Grok TTS failed — fall back to macOS say (same path as heads-ups).
+      const text = message.text.trim();
+      if (text) void invoke("voice_speak", { text }).catch(() => {});
       return;
     }
     if (type === "error" && typeof message.message === "string") {
