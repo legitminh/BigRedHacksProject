@@ -4006,3 +4006,78 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
     on normal active.
 - escalate: scrutinous
 
+## done: fp-copilot-page-title-38
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · title `5:233` ·
+  crop `_verify/tick36-copilot-live.png`
+- commit: PENDING
+- change: |
+    `.copilot-page-title` → Medium 38px / lh 1.4 / `#282237` (was 36px).
+    Chips→composer air + Mic/Send wiring unchanged.
+- escalate: scrutinous
+
+## done: fp-copilot-sidebar-status-12
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · status `5:226` ·
+  crop `_verify/tick36-copilot-sidebar-crop.png`
+- commit: PENDING
+- change: |
+    `.copilot-sidebar-status` → Regular 12px / `#645d73` (corrects
+    c0bb46e 14px overshoot); planet stays 20px under status.
+- escalate: scrutinous
+- reopened: true
+
+## done: fp-copilot-composer-input-height
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` · input `5:249` ·
+  crop `_verify/tick36-copilot-composer-crop.png`
+- commit: PENDING
+- change: |
+    `#view-chat` composer → single-line ~78px pill (`rows="1"`, fixed
+    wrap height, Mic+↑ 52×52); session/lost taller chrome left alone.
+- escalate: scrutinous
+- reopened: true
+
+## open: fp-copilot-placeholder-type
+- screen: copilot
+- ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
+  placeholder `5:250` · crop `_verify/tick36-copilot-composer-crop.png`
+- expected: |
+    Live placeholder (`5:250`, h=20): Regular **14px** / lh 1.4 muted
+    **`#645d73`** — “Message your copilot…” — not ~15px denser/primary.
+- actual: |
+    Opens lock ellipsis string (`fp-copilot-placeholder-ellipsis`
+    verified) + composer height — not placeholder type.
+    `.view-copilot .chat-form textarea` is `font-size: 0.95rem` (~15.2)
+    / primary color; placeholder inherits size.
+- deviation: |
+    Tick36 — Copilot placeholder/input type vs live `5:250`. Distinct
+    from composer-input-height / muted-645d73 / hint-copy; Copilot
+    priority after foot/empty dones.
+- fix_hint: |
+    Set Copilot textarea + `::placeholder` to **14px** / 400 / lh 1.4 /
+    `#645d73` for empty placeholder (typed text may stay primary);
+    keep Mic/Send.
+- escalate: scrutinous
+
+## open: fp-connection-lost-user-type
+- screen: active
+- ref: `.cursor/figma-refs/16-connection-lost.png` · live `2:48` ·
+  YOU body `6:1718` · crop `_verify/tick36-lost-panel-crop.png`
+- expected: |
+    Live YOU · JUST NOW body (`6:1718`, h=22): Regular **16px** / lh 1.4
+    dark **`#282237`** — “How much time is left?” — not muted seed scale.
+- actual: |
+    Opens lock history presence (`keeps-history`) + seed type + Latest
+    type + meta-muted — not the YOU user-turn body type. App still
+    missing lost history mount (`fp-connection-lost-panel`).
+- deviation: |
+    Tick36 — lost YOU message type vs live `6:1718`. Distinct from
+    seed-type / latest-type / header-type / meta-muted / composer-height;
+    under-covered `2:48`. Spot-check: Pause/End still on flight card;
+    handoff camera + welcome placeholder/label unchanged (no regression).
+- fix_hint: |
+    When mounting YOU turn body, style 16px / 400 / lh 1.4 / `#282237`;
+    keep meta caps + composer. Preserve Pause/End.
+- escalate: scrutinous
+
