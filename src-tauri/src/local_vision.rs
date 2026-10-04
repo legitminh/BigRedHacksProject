@@ -130,80 +130,8 @@ async fn probe_vlm(cfg: &AppConfig) -> (bool, String) {
     }
 }
 
-/// Webcam still: is the student holding / looking at a phone?
-/// Sparse local VLM only — Presage does not detect phones.
-pub async fn judge_webcam_phone(
-    cfg: &AppConfig,
-    jpeg: &[u8],
-) -> Result<(bool, f32), String> {
-    if !vlm_available(cfg).await {
-        return Err("local VLM unavailable".into());
-    }
-    let prompt = r#"Look at this webcam photo of a student at a desk.
-Reply ONLY JSON: {"phone":true|false,"confidence":0.0-1.0}
-Rules:
-- phone=true only if they are clearly holding or looking at a smartphone (or phone screen glow near their face/hands).
-- A calculator, keyboard, mouse, book, or empty hands → phone=false.
-- Looking down at the desk with no phone visible → phone=false.
-- Uncertain / face only / blurry → phone=false with low confidence."#;
-
-    let client = Client::builder()
-        .timeout(Duration::from_secs(25))
-        .build()
-        .map_err(|e| e.to_string())?;
-    let url = format!("{}/api/generate", cfg.local_llm_base.trim_end_matches('/'));
-    let body = json!({
-        "model": cfg.local_vision_model,
-        "prompt": prompt,
-        "images": [B64.encode(jpeg)],
-        "stream": false,
-        "format": "json",
-        "options": {
-            "temperature": 0.1,
-            "num_predict": 40
-        }
-    });
-    let res = with_coach_auth(client.post(url), cfg)
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| format!("webcam phone VLM request: {e}"))?;
-    let status = res.status();
-    let text = res.text().await.unwrap_or_default();
-    if !status.is_success() {
-        if let Ok(mut guard) = VLM_PROBE.lock() {
-            *guard = None;
-        }
-        return Err(format!("webcam phone VLM HTTP {status}: {text}"));
-    }
-    let wrapped: Value =
-        serde_json::from_str(&text).map_err(|e| format!("webcam phone VLM envelope: {e}"))?;
-    let raw = wrapped["response"]
-        .as_str()
-        .ok_or_else(|| "webcam phone VLM empty response".to_string())?;
-    let cleaned = raw
-        .trim()
-        .trim_start_matches("```json")
-        .trim_start_matches("```")
-        .trim_end_matches("```")
-        .trim();
-    let slice = if let (Some(a), Some(b)) = (cleaned.find('{'), cleaned.rfind('}')) {
-        &cleaned[a..=b]
-    } else {
-        cleaned
-    };
-    let parsed: Value = serde_json::from_str(slice)
-        .map_err(|e| format!("webcam phone VLM JSON: {e}; raw={raw}"))?;
-    let phone = parsed["phone"].as_bool().unwrap_or(false);
-    let confidence = parsed["confidence"].as_f64().unwrap_or(0.5) as f32;
-    let conf = confidence.clamp(0.0, 1.0);
-    if conf < MIN_VLM_CONFIDENCE {
-        return Err(format!("webcam phone VLM low confidence ({conf:.2})"));
-    }
-    Ok((phone, conf))
-}
-
 /// Tiny local vision model: is this screenshot on-task for the goals?
+/// Screen only — never run on webcam frames (presence/phone is Presage / VIDEOINPUT).
 /// Keep frames small — caller should pass OCR-sized JPEG.
 pub async fn judge_frame(
     cfg: &AppConfig,

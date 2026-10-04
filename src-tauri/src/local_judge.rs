@@ -886,11 +886,11 @@ fn fallback_templates(kind: &str, distraction: &str, goals: &str, nag_n: u32) ->
             format!("Good pullback toward {g}. Ride this focus."),
             format!("You’re on {g} — keep that momentum."),
         ],
-        // Camera accountability — human meaning, never "tag isn't goal".
+        // Camera accountability from Presage face-lost (VIDEOINPUT) — never "tag isn't goal".
         "left_desk" => vec![
-            "Looks like you stepped away. Come back when you can.".into(),
-            "You’re away from the desk — return when you’re ready.".into(),
-            "Still away from the camera. Come back to the work.".into(),
+            "Camera lost you — phone down or back to the desk.".into(),
+            "Still away from the camera — return when you’re ready.".into(),
+            "Face left the camera. Come back to the work.".into(),
         ],
         "left_desk_pause" => vec![
             "Still away — I’ll pause check-ins until you’re back.".into(),
@@ -1219,11 +1219,11 @@ mod tests {
         let cases: &[(&str, &str)] = &[
             (
                 "left_desk",
-                "Looks like you stepped away. Come back when you can.",
+                "Camera lost you — phone down or back to the desk.",
             ),
             (
                 "left_desk",
-                "Still away — return to the desk when you're ready.",
+                "Still away from the camera — return when you're ready.",
             ),
             (
                 "left_desk_pause",
