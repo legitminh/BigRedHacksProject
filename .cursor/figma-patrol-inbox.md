@@ -4329,7 +4329,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   chips `5:241`/`5:243`/`5:245` · crop `_verify/tick40-copilot-chips-crop.png`
-- commit: PENDING
+- commit: 5de8f4a
 - change: |
     `.copilot-chip` → Regular 16px / weight 400 / lh 1.4 / `#282237` on
     tonal `#e9ddfd`; 52px height + fixed widths + chip→send wiring kept.
@@ -4339,7 +4339,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   Mic `5:251` · crop `_verify/tick40-copilot-composer-crop.png`
-- commit: PENDING
+- commit: 5de8f4a
 - change: |
     `.view-copilot .copilot-mic` → Regular 16px / weight 400 / lh 1.4 /
     `#282237`; “Mic” string + 52×52 tonal circle + voice wiring kept.
@@ -4349,7 +4349,7 @@ Refs: `.cursor/figma-refs/*.png` · Assets: `src/assets/figma/` · Brief: `.curs
 - screen: copilot
 - ref: `.cursor/figma-refs/03-copilot.png` · live `2:35` ·
   CTA `5:223` · crop `_verify/tick40-copilot-sidebar-crop.png`
-- commit: PENDING
+- commit: 5de8f4a
 - change: |
     `#copilot-start-mission` / `.copilot-sidebar-cta.primary` → Medium
     14px / weight 500 / white (override `.primary` 700); full-width +
